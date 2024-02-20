@@ -69,30 +69,40 @@ kuiper_belt_y = kuiper_belt_r * np.sin(kuiper_belt_theta)
 
 **Plotting**
 
-Plots the Sun, orbits of the planets, and Kuiper Belt.
-
 ```python
 fig, ax = plt.subplots(figsize=(39, 39))
+```
 
+Plots the Sun at the center of the solar system.
+```python
 # Plot the Sun at the center
 sun = plt.Circle((0, 0), 0.05, color='yellow', fill=True)
 ax.add_artist(sun)
+```
 
+Loops through the PLANET_ORBITS array to plot circular orbits for each of the major planets.
+```python
 # Plot the orbits of the major planets
 for orbit in PLANET_ORBITS:
     circle = plt.Circle((0, 0), orbit, color='black', fill=False)
     ax.add_artist(circle)
+```
 
+Plots Pluto's elliptical orbit and scatters points for the Kuiper Belt.
+```python
 # Plot the elliptical orbit of Pluto
 ax.plot(x, y, color='blue')
-
-# Scatter the adjusted points for the Kuiper Belt
-ax.scatter(kuiper_belt_x, kuiper_belt_y, color='gray', s=5)
 
 # Mark the perihelion and aphelion of Pluto's orbit
 ax.plot(PLUTO_PERIHELION, 0, 'bo')  # Perihelion
 ax.plot(-PLUTO_APHELION, 0, 'bo')  # Aphelion
 
+# Scatter the adjusted points for the Kuiper Belt
+ax.scatter(kuiper_belt_x, kuiper_belt_y, color='gray', s=5)
+```
+
+Adds annotations for key features such as Pluto's perihelion and aphelion, and labels the Kuiper Belt. It also adjusts the plot's appearance for better visualization.
+```python
 # Annotations and labels with increased font size
 font_size = 48
 ax.annotate('Kuiper Belt', xy=(KUIPER_BELT_OUTER, 0), xytext=(KUIPER_BELT_OUTER+5, 10),
@@ -101,7 +111,10 @@ ax.annotate("Pluto's aphelion (49.5 AU)", xy=(-PLUTO_APHELION, 0), xytext=(-PLUT
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
 ax.annotate("Pluto's perihelion (29.7 AU)", xy=(PLUTO_PERIHELION, 0), xytext=(PLUTO_PERIHELION+10, -10),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
+```
 
+Saves the generated plot as a high-resolution image for use in presentations, educational materials, or personal study.
+```python
 ax.set_xlim([-70, 70])
 ax.set_ylim([-70, 70])
 ax.set_aspect('equal', 'box')
