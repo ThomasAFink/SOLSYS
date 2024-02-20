@@ -1,5 +1,5 @@
 # Visualization of Pluto's Orbit and the Kuiper Belt
-
+<img src="https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit.jpg?raw=true" width="450" align="right">
 This Python script provides a detailed visualization of the orbital paths of the major planets in our solar system, with a special focus on Pluto and its relationship with the Kuiper Belt. Utilizing `numpy` for mathematical calculations and `matplotlib` for plotting, the script generates a comprehensive diagram showing the orbits of the planets, Pluto's elliptical orbit, and the scattered distribution of the Kuiper Belt.
 
 ## Getting Started
@@ -123,3 +123,7 @@ plt.title('Relationship of Pluto’s orbit to the Kuiper Belt', fontsize=62)
 plt.savefig("orbit.jpg", dpi=300)
 plt.show()
 ```
+
+## Conclusion
+This script is an educational tool that visualizes the orbits within our solar system, with a focus on Pluto and the Kuiper Belt. It demonstrates the power of numpy and matplotlib in creating complex scientific visualizations. Feel free to modify the constants and functions to explore other celestial mechanics or solar system objects.
+
