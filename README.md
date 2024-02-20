@@ -40,6 +40,19 @@ KUIPER_BELT_POINTS = 20000  # Number of points to represent the Kuiper Belt
 
 This function calculates the x and y coordinates for points on an ellipse, used to plot Pluto's orbit. It takes the eccentricity and semi-major axis of the ellipse, along with an array of angle values (theta), to compute the coordinates.
 
+Equation 1: Calculates the semi-minor axis (b) of the ellipse based on its semi-major axis (a) and eccentricity (ε). The eccentricity measures the deviation of the ellipse from a perfect circle, with 0 representing a circle. The semi-minor axis is derived using the relationship between the eccentricity and the semi-major axis.
+- ![Equation 1](https://latex.codecogs.com/png.latex?b%20%3D%20a%20%5Csqrt%7B1%20-%20%5Cepsilon%5E2%7D)
+
+Equation 2: Computes the radial distance (r) from the center of the ellipse to a point on its edge, given an angle (theta) from the major axis. This formula adjusts for the ellipse's eccentricity, which influences the radial distance across the ellipse.
+- ![Equation 2](https://latex.codecogs.com/png.latex?r%20%3D%20%5Cfrac%7Ba%281%20-%20%5Cepsilon%5E2%29%7D%7B1%20%2B%20%5Cepsilon%20%5Ccos%28%5Ctheta%29%7D)
+
+Equation 3: Determines the x-coordinate of a point on the ellipse, based on the radial distance (r) and the angle (theta), showing how this distance is projected onto the x-axis.
+- ![Equation 3](https://latex.codecogs.com/png.latex?x%20%3D%20r%20%5Ccos%28%5Ctheta%29)
+
+Equation 4: Calculates the y-coordinate of a point on the ellipse, using the radial distance (r) and the angle (theta), which illustrates the projection of this distance onto the y-axis.
+- ![Equation 4](https://latex.codecogs.com/png.latex?y%20%3D%20r%20%5Csin%28%5Ctheta%29)
+
+
 ```python
 def calculate_ellipse(eccentricity, semi_major_axis, theta):
     """
