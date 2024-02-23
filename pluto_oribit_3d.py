@@ -63,12 +63,7 @@ view_angles = [
 ]
 
 # Loop through each view angle to plot and save the figure
-for angle, image_file in zip(view_angles, [
-    "pluto_orbit_3d_top_down_view.jpg",
-    "pluto_orbit_3d_view_45_300.jpg",
-    "pluto_orbit_3d_view_30_210.jpg",
-    "pluto_orbit_3d_view_20_120.jpg"
-]):
+for angle in view_angles:
     fig = plt.figure(figsize=(20, 20))
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(0, 0, 0, color='yellow', s=100, label='Sun')  # Sun
@@ -77,6 +72,8 @@ for angle, image_file in zip(view_angles, [
         ax.plot(circle_x, circle_y, 0, color='black')
     ax.plot(x, y, z, color='blue', label="Pluto's Orbit")  # Pluto's orbit
     ax.scatter(kuiper_belt_x, kuiper_belt_y, kuiper_belt_z, color='darkgray', s=1, alpha=0.5)  # Kuiper Belt
+    ax.text(-PLUTO_SEMI_MAJOR_AXIS, 0, 0, "Pluto's aphelion", color='blue', fontsize=12)
+    ax.text(PLUTO_SEMI_MAJOR_AXIS, 0, 0, "Pluto's perihelion", color='blue', fontsize=12)
     ax.set_xlabel('X (AU)')
     ax.set_ylabel('Y (AU)')
     ax.set_zlabel('Z (AU)')
@@ -84,5 +81,5 @@ for angle, image_file in zip(view_angles, [
     ax.set_title('3D Representation of Pluto’s Orbit and the Kuiper Belt', fontsize=20)
     ax.legend()
     plt.axis('off')  # Removes the axes for a cleaner look
-    plt.savefig(image_file, bbox_inches='tight')
+    plt.savefig(f"pluto_orbit_3d_view_{angle[0]}_{angle[1]}.jpg", bbox_inches='tight')
     plt.close()  # Close the plot to free memory

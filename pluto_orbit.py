@@ -1,6 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+
+# Constants for the orbits and labels
+ORBIT_POINTS = 1000  # Number of points to plot for each orbit
+PLANET_ORBITS = [0.39, 0.72, 1.0, 1.52, 5.2, 9.5, 19.2, 30]  # Semi-major axes of the planets in AU
+PLUTO_PERIHELION = 29.7  # Pluto's closest point to the Sun in AU
+PLUTO_APHELION = 49.5  # Pluto's farthest point from the Sun in AU
+PLUTO_ECCENTRICITY = 0.25  # Pluto's orbital eccentricity
+PLUTO_SEMI_MAJOR_AXIS = (PLUTO_PERIHELION + PLUTO_APHELION) / 2  # Semi-major axis of Pluto's orbit
+KUIPER_BELT_INNER = 30  # Inner edge of the Kuiper Belt in AU
+KUIPER_BELT_OUTER = 50  # Outer edge of the Kuiper Belt in AU
+KUIPER_BELT_POINTS = 20000  # Number of points to represent the Kuiper Belt
 
 def calculate_ellipse(eccentricity, semi_major_axis, theta):
     """
@@ -12,74 +22,48 @@ def calculate_ellipse(eccentricity, semi_major_axis, theta):
     y = r * np.sin(theta)
     return x, y
 
-def calculate_3d_ellipse(eccentricity, semi_major_axis, theta, inclination):
-    """
-    Calculate the x, y, z coordinates of an inclined ellipse based on eccentricity,
-    semi-major axis, and inclination.
-    """
-    b = semi_major_axis * np.sqrt(1 - eccentricity**2)
-    r = (semi_major_axis * (1 - eccentricity**2)) / (1 + eccentricity * np.cos(theta))
-    x = r * np.cos(theta)
-    y = r * np.sin(theta) * np.cos(inclination)
-    z = r * np.sin(theta) * np.sin(inclination)
-    return x, y, z
-
-def calculate_3d_kuiper_belt(inner_radius, outer_radius, num_points, inclination):
-    """
-    Generate random 3D coordinates for the Kuiper Belt points within a torus shape.
-    """
-    radii = np.random.uniform(inner_radius, outer_radius, num_points)
-    theta = np.random.uniform(0, 2 * np.pi, num_points)
-    phi = np.random.uniform(0, 2 * np.pi, num_points)
-    
-    x = radii * np.cos(theta)
-    y = radii * np.sin(theta) * np.cos(inclination)
-    z = radii * np.sin(theta) * np.sin(inclination) * np.sin(phi)
-    
-    return x, y, z
-
-# Constants
-ORBIT_POINTS = 1000
-PLANET_ORBITS = [0.39, 0.72, 1.0, 1.52, 5.2, 9.5, 19.2, 30]
-PLUTO_ECCENTRICITY = 0.25
-PLUTO_SEMI_MAJOR_AXIS = 39.5  # Average distance in AU
-PLUTO_INCLINATION = np.radians(17)
-KUIPER_BELT_INNER = 30
-KUIPER_BELT_OUTER = 50
-KUIPER_BELT_POINTS = 20000
-
 theta = np.linspace(0, 2 * np.pi, ORBIT_POINTS)
+x, y = calculate_ellipse(PLUTO_ECCENTRICITY, PLUTO_SEMI_MAJOR_AXIS, theta)
 
-# Generate the 3D orbit of Pluto and Kuiper Belt
-x, y, z = calculate_3d_ellipse(PLUTO_ECCENTRICITY, PLUTO_SEMI_MAJOR_AXIS, theta, PLUTO_INCLINATION)
-kuiper_belt_x, kuiper_belt_y, kuiper_belt_z = calculate_3d_kuiper_belt(KUIPER_BELT_INNER, KUIPER_BELT_OUTER, KUIPER_BELT_POINTS, PLUTO_INCLINATION)
+kuiper_belt_r = np.random.uniform(KUIPER_BELT_INNER, KUIPER_BELT_OUTER, KUIPER_BELT_POINTS)
+kuiper_belt_theta = np.random.uniform(0, 2 * np.pi, KUIPER_BELT_POINTS)
+kuiper_belt_x = kuiper_belt_r * np.cos(kuiper_belt_theta)
+kuiper_belt_y = kuiper_belt_r * np.sin(kuiper_belt_theta)
 
-# Define viewing angles
-view_angles = [
-    (90, 0),  # top-down view
-    (45, 300),  # elevation and azimuth
-    (30, 210),  # elevation and azimuth
-    (20, 120)  # elevation and azimuth
-]
+fig, ax = plt.subplots(figsize=(39, 39))
 
-# Loop through each view angle to plot and save the figure
-for angle in view_angles:
-    fig = plt.figure(figsize=(20, 20))
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(0, 0, 0, color='yellow', s=100, label='Sun')  # Sun
-    for orbit in PLANET_ORBITS:
-        circle_x, circle_y = calculate_ellipse(0, orbit, theta)  # Planets' orbits
-        ax.plot(circle_x, circle_y, 0, color='black')
-    ax.plot(x, y, z, color='blue', label="Pluto's Orbit")  # Pluto's orbit
-    ax.scatter(kuiper_belt_x, kuiper_belt_y, kuiper_belt_z, color='darkgray', s=1, alpha=0.5)  # Kuiper Belt
-    ax.text(-PLUTO_SEMI_MAJOR_AXIS, 0, 0, "Pluto's aphelion", color='blue', fontsize=12)
-    ax.text(PLUTO_SEMI_MAJOR_AXIS, 0, 0, "Pluto's perihelion", color='blue', fontsize=12)
-    ax.set_xlabel('X (AU)')
-    ax.set_ylabel('Y (AU)')
-    ax.set_zlabel('Z (AU)')
-    ax.view_init(elev=angle[0], azim=angle[1])
-    ax.set_title('3D Representation of Pluto’s Orbit and the Kuiper Belt', fontsize=20)
-    ax.legend()
-    plt.axis('off')  # Removes the axes for a cleaner look
-    plt.savefig(f"pluto_orbit_3d_view_{angle[0]}_{angle[1]}.jpg", bbox_inches='tight')
-    plt.close()  # Close the plot to free memory
+# Plot the Sun at the center
+sun = plt.Circle((0, 0), 0.05, color='yellow', fill=True)
+ax.add_artist(sun)
+
+# Plot the orbits of the major planets
+for orbit in PLANET_ORBITS:
+    circle = plt.Circle((0, 0), orbit, color='black', fill=False)
+    ax.add_artist(circle)
+
+# Plot the elliptical orbit of Pluto
+ax.plot(x, y, color='blue')
+
+# Scatter the adjusted points for the Kuiper Belt
+ax.scatter(kuiper_belt_x, kuiper_belt_y, color='gray', s=5)
+
+# Mark the perihelion and aphelion of Pluto's orbit
+ax.plot(PLUTO_PERIHELION, 0, 'bo')  # Perihelion
+ax.plot(-PLUTO_APHELION, 0, 'bo')  # Aphelion
+
+# Annotations and labels with increased font size
+font_size = 48
+ax.annotate('Kuiper Belt', xy=(KUIPER_BELT_OUTER, 0), xytext=(KUIPER_BELT_OUTER+5, 10),
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
+ax.annotate("Pluto's aphelion (49.5 AU)", xy=(-PLUTO_APHELION, 0), xytext=(-PLUTO_APHELION-25, 10),
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
+ax.annotate("Pluto's perihelion (29.7 AU)", xy=(PLUTO_PERIHELION, 0), xytext=(PLUTO_PERIHELION+10, -10),
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
+
+ax.set_xlim([-70, 70])
+ax.set_ylim([-70, 70])
+ax.set_aspect('equal', 'box')
+ax.axis('off')
+plt.title('Relationship of Pluto’s orbit to the Kuiper Belt', fontsize=62)
+plt.savefig("pluto_orbit.jpg", dpi=300)
+#plt.show()
