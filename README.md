@@ -143,7 +143,7 @@ The following images provide different perspectives on Pluto's orbit and the Kui
 
 | Top-Down View | 45° Elevation, 300° Azimuth |
 |---------------|-----------------------------|
-| ![Top-Down View](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_top_down_view.jpg?raw=true) | ![45° Elevation, 300° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_45_300.jpg?raw=true) |
+| ![Top-Down View](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_90_0.jpg?raw=true) | ![45° Elevation, 300° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_45_300.jpg?raw=true) |
 
 | 30° Elevation, 210° Azimuth | 20° Elevation, 120° Azimuth |
 |-----------------------------|-----------------------------|
