@@ -137,6 +137,20 @@ plt.savefig("orbit.jpg", dpi=300)
 plt.show()
 ```
 
+## 3D Visualization of Pluto's Orbit and the Kuiper Belt
+
+The following images provide different perspectives on Pluto's orbit and the Kuiper Belt, showcasing the 3D modeling capabilities of `matplotlib`. These images are generated from various viewing angles to illustrate the complex spatial relationships within this region of our solar system.
+
+| Top-Down View | 45° Elevation, 300° Azimuth |
+|---------------|-----------------------------|
+| ![Top-Down View](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_top_down_view.jpg?raw=true) | ![45° Elevation, 300° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_45_300.jpg?raw=true) |
+
+| 30° Elevation, 210° Azimuth | 20° Elevation, 120° Azimuth |
+|-----------------------------|-----------------------------|
+| ![30° Elevation, 210° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_30_210.jpg?raw=true) | ![20° Elevation, 120° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_20_120.jpg?raw=true) |
+
+These images are part of a comprehensive visualization effort to understand the spatial dynamics of Pluto in relation to the surrounding Kuiper Belt. Each image offers a unique perspective, contributing to our understanding of the outer solar system's structure and composition.
+
 ## Conclusion
 This script is an educational tool that visualizes the orbits within our solar system, with a focus on Pluto and the Kuiper Belt. It demonstrates the power of numpy and matplotlib in creating complex scientific visualizations. Feel free to modify the constants and functions to explore other celestial mechanics or solar system objects.
 
