@@ -2,11 +2,13 @@
 
 This Python script provides a detailed visualization of the orbital paths of the major planets in our solar system, with a special focus on Pluto and its relationship with the Kuiper Belt. Utilizing `numpy` for mathematical calculations and `matplotlib` for plotting, the script generates a comprehensive diagram showing the orbits of the planets, Pluto's elliptical orbit, and the scattered distribution of the Kuiper Belt.
 
+| Inner Solar System With Jupiter | Solar System With Kuiper Belt |
 |---------------|-----------------------------|
-| ![Top-Down View](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/inner_solar_system_with_jupiter_1.jpg?raw=true) | ![45° Elevation, 300° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/solar_system_with_kuiper_belt_2.jpg?raw=true) |
+| ![Inner Solar System With Jupiter](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/inner_solar_system_with_jupiter_1.jpg?raw=true) | ![Solar System With Kuiper Belt](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/solar_system_with_kuiper_belt_2.jpg?raw=true) |
 
+| Solar System With Oort Cloud | Solar System with Alpha Centauri |
 |-----------------------------|-----------------------------|
-| ![30° Elevation, 210° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/solar_system_with_oort_cloud_3.jpg?raw=true) | ![20° Elevation, 120° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/solar_system_with_alpha_centauri_4.jpg?raw=true) |
+| ![Solar System With Oort Cloud](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/solar_system_with_oort_cloud_3.jpg?raw=true) | ![Solar System with Alpha Centauri](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/solar_system_with_alpha_centauri_4.jpg?raw=true) |
 
 ## Getting Started
 
