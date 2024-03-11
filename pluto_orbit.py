@@ -153,7 +153,7 @@ for i, limits in enumerate(axis_limits):
         ax.annotate('Oort Cloud (100000 AU)', xy=(100000, 5), xytext=(70000, 25000),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)   
     if limits[3] == 'solar_system_with_alpha_centauri':  
-        ax.text(alpha_centauri_a[0] + 10000, alpha_centauri_a[1]+10000, 'Alpha Centauri A and B', fontsize=font_size, va='bottom', ha='center')
+        ax.text(alpha_centauri_a[0] - 10000, alpha_centauri_a[1]+10000, 'Alpha Centauri A and B', fontsize=font_size, va='bottom', ha='center')
         ax.text(proxima_centauri[0] - 10000, proxima_centauri[1]-10000, 'Proxima Centauri', fontsize=font_size, va='bottom', ha='center')
 
     plt.title(f'{limits[4]}', fontsize=limits[2], pad=50)
