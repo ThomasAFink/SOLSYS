@@ -81,5 +81,5 @@ for angle in view_angles:
     ax.set_title('3D Representation of Pluto’s Orbit and the Kuiper Belt', fontsize=20)
     ax.legend()
     plt.axis('off')  # Removes the axes for a cleaner look
-    plt.savefig(f"pluto_orbit_3d_view_{angle[0]}_{angle[1]}.jpg", bbox_inches='tight')
+    plt.savefig(f"output/pluto_orbit_3d_view_{angle[0]}_{angle[1]}.jpg", bbox_inches='tight')
     plt.close()  # Close the plot to free memory

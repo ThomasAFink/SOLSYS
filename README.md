@@ -4,11 +4,16 @@ This Python script provides a detailed visualization of the orbital paths of the
 
 | Inner Solar System With Jupiter | Solar System With Kuiper Belt |
 |---------------|-----------------------------|
-| ![Inner Solar System With Jupiter](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/inner_solar_system_with_jupiter_1.jpg?raw=true) | ![Solar System With Kuiper Belt](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/solar_system_with_kuiper_belt_2.jpg?raw=true) |
+| ![Inner Solar System With Jupiter](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/1_inner_solar_system_with_jupiter.jpg?raw=true) | ![Solar System With Kuiper Belt](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/2_solar_system_with_kuiper_belt.jpg?raw=true) |
 
 | Solar System With Oort Cloud | Solar System with Alpha Centauri |
 |-----------------------------|-----------------------------|
-| ![Solar System With Oort Cloud](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/solar_system_with_oort_cloud_3.jpg?raw=true) | ![Solar System with Alpha Centauri](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/solar_system_with_alpha_centauri_4.jpg?raw=true) |
+| ![Solar System With Oort Cloud](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/3_solar_system_with_oort_cloud.jpg?raw=true) | ![Solar System with Alpha Centauri](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/4_solar_system_with_alpha_centauri.jpg?raw=true) |
+
+| Interstellar Neighbors Within 10 Light Years | Interstellar Neighbors Within 25 Light Years |
+|-----------------------------|-----------------------------|
+| ![Interstellar Neighbors Within 10 Light Years](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/5_solar_system_with_nearest_stars_10.jpg?raw=true) | ![Interstellar Neighbors Within 25 Light Years](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/6_solar_system_with_nearest_stars_25.jpg?raw=true) |
+
 
 ## Getting Started
 
