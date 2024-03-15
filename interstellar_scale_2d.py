@@ -4,13 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-def calculate_pluto_ellipse(eccentricity, semi_major_axis, theta):
-    pluto_b = semi_major_axis * np.sqrt(1 - eccentricity**2)
-    pluto_r = (semi_major_axis * (1 - eccentricity**2)) / (1 + eccentricity * np.cos(theta))
-    pluto_x = pluto_r * np.cos(theta)
-    pluto_y = pluto_r * np.sin(theta)
-    return pluto_x, pluto_y
-
 # Function to parse RA from "14h 29m 43.0s" to degrees
 def parse_ra_to_degrees(ra_str):
     if not isinstance(ra_str, str):
@@ -262,9 +255,6 @@ for i, limit in enumerate(axis_limits):
                 ax.scatter(x[random_index], y[random_index], color=data['color'], s=int(10+(data['diameter']/100)))
             else:
                 ax.scatter(x[random_index], y[random_index], color=data['color'], s=int(10+(data['diameter']/1000)))
-
-        
-        ax.plot(pluto_x, pluto_y, color='blue')
         ax.plot(PLUTO_PERIHELION, 0, 'bo')
         ax.plot(-PLUTO_APHELION, 0, 'bo')
         ax.scatter(asteroid_belt_x, asteroid_belt_y, color='gray', s=5)
