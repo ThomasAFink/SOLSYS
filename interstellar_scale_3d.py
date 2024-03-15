@@ -302,7 +302,7 @@ for i, limit in enumerate(axis_limits):
 
         # Select a random index for x, y, z to simulate a random position in the orbit
         if planet == "Jupiter":
-            ax.scatter(x[50], y[50], z[50], color=data['color'], s=10+(data['diameter']/2500))
+            ax.scatter(x[50], y[50], z[50], color=data['color'], s=int(10+(data['diameter']/2500)))
         else:
             random_index = random.randint(-360, 360)
             ax.scatter(x[random_index], y[random_index], z[random_index], color=data['color'], s=int(10+(data['diameter']/2500)))

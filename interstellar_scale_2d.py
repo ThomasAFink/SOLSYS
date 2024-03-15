@@ -1,3 +1,4 @@
+import random
 import re
 import numpy as np
 import matplotlib.pyplot as plt
@@ -99,6 +100,13 @@ def hildas_cluster_bands(cluster_points, num_interpolation_points, spread_radius
     
     return np.array(interpolated_x), np.array(interpolated_y), np.array(interpolated_z)
 
+def calculate_2d_orbit(semi_major_axis, eccentricity, inclination, num_points=100):
+    inclination = np.radians(inclination)
+    theta = np.linspace(0, 2 * np.pi, num_points)
+    r = semi_major_axis * (1 - eccentricity ** 2) / (1 + eccentricity * np.cos(theta))
+    x = r * np.cos(theta)
+    y = r * np.sin(theta) * np.cos(inclination)
+    return x, y
 
 # Load the stars data
 stars_data_path = 'data/nearby_stars_25.csv'  # Update this path as necessary
@@ -126,9 +134,20 @@ labeled_star_systems = set()
 for i, limit in enumerate(axis_limits):
     
     labeled_star_systems.clear()
+
+    PLANET_DATA = {
+    'Mercury': {'a': 0.39, 'e': 0.205, 'i': 7, 'color': 'gray', 'diameter': 4879, 'period': 88},
+    'Venus': {'a': 0.72, 'e': 0.007, 'i': 3.4, 'color': 'yellow', 'diameter': 12104, 'period': 224.7},
+    'Earth': {'a': 1.00, 'e': 0.017, 'i': 0, 'color': 'blue', 'diameter': 12742, 'period': 365.2},
+    'Mars': {'a': 1.52, 'e': 0.093, 'i': 1.85, 'color': 'red', 'diameter': 6779, 'period': 687},
+    'Jupiter': {'a': 5.20, 'e': 0.048, 'i': 1.3, 'color': 'orange', 'diameter': 139822, 'period': 4331},
+    'Saturn': {'a': 9.58, 'e': 0.056, 'i': 2.49, 'color': 'gold', 'diameter': 116464, 'period': 10747},
+    'Uranus': {'a': 19.22, 'e': 0.046, 'i': 0.77, 'color': 'lightblue', 'diameter': 50724, 'period': 30589},
+    'Neptune': {'a': 30.05, 'e': 0.010, 'i': 1.77, 'color': 'blue', 'diameter': 49244, 'period': 59800},
+    'Pluto': {'a': 39.48, 'e': 0.248, 'i': 17.16, 'color': 'brown', 'diameter': 2376, 'period': 90560}
+    }
     
     ORBIT_POINTS = 1000
-    PLANET_ORBITS = [0.39, 0.72, 1.0, 1.52, 5.2, 9.5, 19.2, 30]
     PLUTO_PERIHELION = 29.7
     PLUTO_APHELION = 49.5
     PLUTO_ECCENTRICITY = 0.25
@@ -158,21 +177,21 @@ for i, limit in enumerate(axis_limits):
     elif limit[3] == 'inner_solar_system_with_jupiter':
         ASTEROID_BELT_POINTS = 10000
         TROJANS_GREEKS_POINTS = 2000
-        HILDAS_POINTS = 2000
+        HILDAS_POINTS = 100
         KUIPER_BELT_POINTS = 10000
         OORT_CLOUD_POINTS = 50000
 
     elif limit[3] == 'solar_system_with_kuiper_belt':
-        ASTEROID_BELT_POINTS = 100
-        TROJANS_GREEKS_POINTS = 10
-        HILDAS_POINTS = 100
+        ASTEROID_BELT_POINTS = 500
+        TROJANS_GREEKS_POINTS = 20
+        HILDAS_POINTS = 15
         KUIPER_BELT_POINTS = 10000
         OORT_CLOUD_POINTS = 50000
     
     elif limit[3] == 'solar_system_with_oort_cloud':
         ASTEROID_BELT_POINTS = 20
         TROJANS_GREEKS_POINTS = 10
-        HILDAS_POINTS = 10
+        HILDAS_POINTS = 100
         KUIPER_BELT_POINTS = 100
         OORT_CLOUD_POINTS = 50000
 
@@ -222,27 +241,29 @@ for i, limit in enumerate(axis_limits):
 
     fig, ax = plt.subplots(figsize=(39, 39))
 
-    if  limit[3] != 'solar_system_with_nearest_stars_10' and limit[3] != 'solar_system_with_nearest_stars_25':
-        for orbit in PLANET_ORBITS:
-            circle = plt.Circle((0, 0), orbit, color='black', fill=False)
-            ax.add_artist(circle)
-        if limit[3] == 'inner_solar_system_with_jupiter' or limit[3] == 'inner_solar_system':
-            ax.plot(0, 0, 'o', markersize=50, color='yellow')
-            ax.plot(PLANET_ORBITS[0] * np.cos(5), PLANET_ORBITS[0] * np.sin(5), 'o', markersize=8, color='gray')
-            ax.plot(PLANET_ORBITS[1] * np.cos(160), PLANET_ORBITS[1] * np.sin(160), 'o', markersize=14, color='orange')
-            ax.plot(PLANET_ORBITS[2] * np.cos(100), PLANET_ORBITS[2] * np.sin(100), 'o', markersize=14, color='blue')
-            ax.plot(PLANET_ORBITS[3] * np.cos(10), PLANET_ORBITS[3] * np.sin(10), 'o', markersize=16, color='red')
-            ax.plot(PLANET_ORBITS[4] * np.cos(0), PLANET_ORBITS[4] * np.sin(0), 'o', markersize=30, color='orange')
+    if limit[3] == 'inner_solar_system_with_jupiter' or limit[3] == 'inner_solar_system':
+        ax.plot(0, 0, 'o', markersize=75, color='yellow')
+    else:
+        ax.plot(0, 0, 'o', markersize=8, color='yellow')
+
+    for planet, data in PLANET_DATA.items():
+        x, y = calculate_2d_orbit(data['a'], data['e'], data['i'], 1000)
+        ax.plot(x, y, color="black")  # Orbit path
+
+        # Select a random index for x, y, z to simulate a random position in the orbit
+        if planet == "Jupiter":
+            if limit[3] == 'inner_solar_system_with_jupiter' or limit[3] == 'inner_solar_system':
+                ax.scatter(x[50], y[50], color=data['color'], s=int(10+(data['diameter']/100)))
+            else:
+                ax.scatter(x[50], y[50], color=data['color'], s=int(10+(data['diameter']/1000)))
         else:
-            ax.plot(0, 0, 'o', markersize=10, color='yellow')
-            ax.plot(PLANET_ORBITS[0] * np.cos(5), PLANET_ORBITS[0] * np.sin(5), 'o', markersize=1, color='gray')
-            ax.plot(PLANET_ORBITS[1] * np.cos(160), PLANET_ORBITS[1] * np.sin(160), 'o', markersize=3, color='orange')
-            ax.plot(PLANET_ORBITS[2] * np.cos(100), PLANET_ORBITS[2] * np.sin(100), 'o', markersize=3, color='blue')
-            ax.plot(PLANET_ORBITS[3] * np.cos(10), PLANET_ORBITS[3] * np.sin(10), 'o', markersize=2, color='red')
-            ax.plot(PLANET_ORBITS[4] * np.cos(0), PLANET_ORBITS[4] * np.sin(0), 'o', markersize=9, color='orange')
-        ax.plot(PLANET_ORBITS[5] * np.cos(40), PLANET_ORBITS[5] * np.sin(40), 'o', markersize=7, color='beige')
-        ax.plot(PLANET_ORBITS[6] * np.cos(200), PLANET_ORBITS[6] * np.sin(200), 'o', markersize=6, color='blue')
-        ax.plot(PLANET_ORBITS[7] * np.cos(60), PLANET_ORBITS[7] * np.sin(60), 'o', markersize=5, color='blue')        
+            random_index = random.randint(-360, 360)
+            if limit[3] == 'inner_solar_system_with_jupiter' or limit[3] == 'inner_solar_system':
+                ax.scatter(x[random_index], y[random_index], color=data['color'], s=int(10+(data['diameter']/100)))
+            else:
+                ax.scatter(x[random_index], y[random_index], color=data['color'], s=int(10+(data['diameter']/1000)))
+
+        
         ax.plot(pluto_x, pluto_y, color='blue')
         ax.plot(PLUTO_PERIHELION, 0, 'bo')
         ax.plot(-PLUTO_APHELION, 0, 'bo')
@@ -252,7 +273,7 @@ for i, limit in enumerate(axis_limits):
 
         hildas_x, hildas_y, hildas_z = hildas_cluster_distribution(
         JUPITER_SEMI_MAJOR_AXIS, JUPITER_ECCENTRICITY, JUPITER_INCLINATION, 3, max(int(HILDAS_POINTS / 4), 1))
-        ax.scatter(hildas_x, hildas_y, color='gray', s=5)
+        ax.scatter(hildas_x, hildas_y, color='lightgray', s=5)
 
         # Ensure the indices used are within bounds
         num_points_total = len(hildas_x)
@@ -260,7 +281,7 @@ for i, limit in enumerate(axis_limits):
 
         bowed_x, bowed_y, bowed_z = hildas_cluster_bands(
             [(hildas_x[i], hildas_y[i], hildas_z[i]) for i in cluster_indices], HILDAS_POINTS, spread_radius=0.5, bow_factor= -1.75)     
-        ax.scatter(bowed_x, bowed_y, color='gray', s=5)
+        ax.scatter(bowed_x, bowed_y, color='lightgray', s=5)
     
     ax.scatter(kuiper_belt_x, kuiper_belt_y, color='gray', s=5)   
     ax.scatter(oort_cloud_x, oort_cloud_y, color='gray', s=5)  # Oort Cloud
