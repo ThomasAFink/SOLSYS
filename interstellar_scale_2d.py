@@ -177,7 +177,7 @@ for i, limit in enumerate(axis_limits):
     elif limit[3] == 'inner_solar_system_with_jupiter':
         ASTEROID_BELT_POINTS = 10000
         TROJANS_GREEKS_POINTS = 2000
-        HILDAS_POINTS = 100
+        HILDAS_POINTS = 1000
         KUIPER_BELT_POINTS = 10000
         OORT_CLOUD_POINTS = 50000
 
