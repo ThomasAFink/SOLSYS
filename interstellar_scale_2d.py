@@ -312,7 +312,7 @@ for i, limit in enumerate(axis_limits):
         ax.annotate('Asteroid Belt (2.2-3.2 AU)', xy=(ASTEROID_BELT_OUTER, 0), xytext=(ASTEROID_BELT_INNER+0.1, 1.5),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
     if limit[3] == 'inner_solar_system_with_jupiter':
-        ax.annotate('Asteroid Belt (2.2-3.2 AU)', xy=(ASTEROID_BELT_OUTER, 0), xytext=(ASTEROID_BELT_INNER+0.1, 1.5),
+        ax.annotate('Asteroid Belt (2.2-3.2 AU)', xy=(ASTEROID_BELT_OUTER, 0), xytext=(ASTEROID_BELT_INNER+0.1, 2),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
         ax.annotate('Hildas', xy=(-HILDAS_OUTER, 0), xytext=(-HILDAS_OUTER-1, -2.5),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
