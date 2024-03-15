@@ -1,18 +1,18 @@
-# Visualization of Pluto's Orbit and the Kuiper Belt
+# Visualization of The Solar System on an Interstellar Scale
 
 This Python script provides a detailed visualization of the orbital paths of the major planets in our solar system, with a special focus on Pluto and its relationship with the Kuiper Belt. Utilizing `numpy` for mathematical calculations and `matplotlib` for plotting, the script generates a comprehensive diagram showing the orbits of the planets, Pluto's elliptical orbit, and the scattered distribution of the Kuiper Belt.
 
 | Inner Solar System With Jupiter | Solar System With Kuiper Belt |
 |---------------|-----------------------------|
-| ![Inner Solar System With Jupiter](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/1_inner_solar_system_with_jupiter.jpg?raw=true) | ![Solar System With Kuiper Belt](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/2_solar_system_with_kuiper_belt.jpg?raw=true) |
+| ![Inner Solar System With Jupiter](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/2d/1_inner_solar_system_with_jupiter.jpg?raw=true) | ![Solar System With Kuiper Belt](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/2d/2_solar_system_with_kuiper_belt.jpg?raw=true) |
 
 | Solar System With Oort Cloud | Solar System with Alpha Centauri |
 |-----------------------------|-----------------------------|
-| ![Solar System With Oort Cloud](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/3_solar_system_with_oort_cloud.jpg?raw=true) | ![Solar System with Alpha Centauri](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/4_solar_system_with_alpha_centauri.jpg?raw=true) |
+| ![Solar System With Oort Cloud](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/2d/3_solar_system_with_oort_cloud.jpg?raw=true) | ![Solar System with Alpha Centauri](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/2d/4_solar_system_with_alpha_centauri.jpg?raw=true) |
 
 | Interstellar Neighbors Within 10 Light Years | Interstellar Neighbors Within 25 Light Years |
 |-----------------------------|-----------------------------|
-| ![Interstellar Neighbors Within 10 Light Years](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/5_solar_system_with_nearest_stars_10.jpg?raw=true) | ![Interstellar Neighbors Within 25 Light Years](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/6_solar_system_with_nearest_stars_25.jpg?raw=true) |
+| ![Interstellar Neighbors Within 10 Light Years](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/2d/5_solar_system_with_nearest_stars_10.jpg?raw=true) | ![Interstellar Neighbors Within 25 Light Years](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/2d/6_solar_system_with_nearest_stars_25.jpg?raw=true) |
 
 
 ## Getting Started
@@ -20,8 +20,10 @@ This Python script provides a detailed visualization of the orbital paths of the
 To run this script, you need Python installed on your system along with the `numpy` and `matplotlib` libraries. These dependencies can be installed using pip:
 
 ```bash
-pip install numpy numpy
-pip install numpy matplotlib
+pip3 install numpy
+pip3 install pandas
+pip3 install matplotlib
+pip3 install mpl_toolkits
 ```
 
 
@@ -29,24 +31,86 @@ pip install numpy matplotlib
 **Importing Libraries**
 
 ```python
+import re
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 ```
 
 **Constants Definition**
 
-These constants define various parameters for the orbits of the major planets, Pluto, and the Kuiper Belt. The semi-major axes of the planet orbits and specific parameters related to Pluto's orbit and the Kuiper Belt are set here.
+These constants define various parameters for the orbits of the major planets, Pluto, and the various asteroid belts. The semi-major axes of the planet orbits and specific parameters related to Pluto's orbit and the Kuiper Belt are set here.
 
 ```python
-ORBIT_POINTS = 1000  # Number of points to plot for each orbit
-PLANET_ORBITS = [0.39, 0.72, 1.0, 1.52, 5.2, 9.5, 19.2, 30]  # Semi-major axes of the planets in AU
-PLUTO_PERIHELION = 29.7  # Pluto's closest point to the Sun in AU
-PLUTO_APHELION = 49.5  # Pluto's farthest point from the Sun in AU
-PLUTO_ECCENTRICITY = 0.25  # Pluto's orbital eccentricity
-PLUTO_SEMI_MAJOR_AXIS = (PLUTO_PERIHELION + PLUTO_APHELION) / 2  # Semi-major axis of Pluto's orbit
-KUIPER_BELT_INNER = 30  # Inner edge of the Kuiper Belt in AU
-KUIPER_BELT_OUTER = 50  # Outer edge of the Kuiper Belt in AU
-KUIPER_BELT_POINTS = 20000  # Number of points to represent the Kuiper Belt
+ORBIT_POINTS = 1000
+PLANET_ORBITS = [0.39, 0.72, 1.0, 1.52, 5.2, 9.5, 19.2, 30]
+PLUTO_PERIHELION = 29.7
+PLUTO_APHELION = 49.5
+PLUTO_ECCENTRICITY = 0.25
+PLUTO_SEMI_MAJOR_AXIS = (PLUTO_PERIHELION + PLUTO_APHELION) / 2
+KUIPER_BELT_INNER = 30
+KUIPER_BELT_OUTER = 50
+ASTEROID_BELT_INNER = 2.2
+ASTEROID_BELT_OUTER = 3.2
+JUPITER_SEMI_MAJOR_AXIS = 5.2
+JUPITER_INCLINATION = 1.3
+JUPITER_ECCENTRICITY = 0.0489
+TROJANS_GREEKS_ANGLE = np.deg2rad(60)
+TROJANS_GREEKS_SPREAD = np.pi / 3
+TROJANS_GREEKS_WIDTH = 0.5
+HILDAS_INNER = ASTEROID_BELT_OUTER+0.25
+HILDAS_OUTER = JUPITER_SEMI_MAJOR_AXIS-0.25
+OORT_CLOUD_INNER = 2000
+OORT_CLOUD_OUTER = 100000
+
+if limit[3] == 'inner_solar_system':
+    ASTEROID_BELT_POINTS = 20000
+    TROJANS_GREEKS_POINTS = 4000
+    HILDAS_POINTS = 4000
+    KUIPER_BELT_POINTS = 10000
+    OORT_CLOUD_POINTS = 50000
+
+elif limit[3] == 'inner_solar_system_with_jupiter':
+    ASTEROID_BELT_POINTS = 10000
+    TROJANS_GREEKS_POINTS = 2000
+    HILDAS_POINTS = 2000
+    KUIPER_BELT_POINTS = 10000
+    OORT_CLOUD_POINTS = 50000
+
+elif limit[3] == 'solar_system_with_kuiper_belt':
+    ASTEROID_BELT_POINTS = 100
+    TROJANS_GREEKS_POINTS = 10
+    HILDAS_POINTS = 100
+    KUIPER_BELT_POINTS = 10000
+    OORT_CLOUD_POINTS = 50000
+
+elif limit[3] == 'solar_system_with_oort_cloud':
+    ASTEROID_BELT_POINTS = 20
+    TROJANS_GREEKS_POINTS = 10
+    HILDAS_POINTS = 10
+    KUIPER_BELT_POINTS = 100
+    OORT_CLOUD_POINTS = 50000
+
+elif limit[3] == 'solar_system_with_alpha_centauri':
+    ASTEROID_BELT_POINTS = 10
+    TROJANS_GREEKS_POINTS = 5
+    HILDAS_POINTS = 5
+    KUIPER_BELT_POINTS = 50
+    OORT_CLOUD_POINTS = 5000  
+
+elif  limit[3] == 'solar_system_with_nearest_stars_10':
+    ASTEROID_BELT_POINTS = 2
+    TROJANS_GREEKS_POINTS = 2
+    HILDAS_POINTS = 2
+    KUIPER_BELT_POINTS = 20
+    OORT_CLOUD_POINTS = 2000
+
+elif  limit[3] == 'solar_system_with_nearest_stars_25':
+    ASTEROID_BELT_POINTS = 1
+    TROJANS_GREEKS_POINTS = 1
+    HILDAS_POINTS = 1
+    KUIPER_BELT_POINTS = 10
+    OORT_CLOUD_POINTS = 1000
 ```
 
 **Function to Calculate Ellipse**
@@ -152,17 +216,19 @@ plt.show()
 
 ## 3D Visualization of Pluto's Orbit and the Kuiper Belt
 
-The following images provide different perspectives on Pluto's orbit and the Kuiper Belt, showcasing the 3D modeling capabilities of `matplotlib`. These images are generated from various viewing angles to illustrate the complex spatial relationships within this region of our solar system.
+The following images provide different perspectives on Pluto's orbit and the Kuiper Belt, showcasing the 3D modeling capabilities of `matplotlib`. These images can be generated from various viewing angles to illustrate the complex spatial relationships within this region of our solar system.
 
-| Top-Down View | 45° Elevation, 300° Azimuth |
+| Inner Solar System With Jupiter | Solar System With Kuiper Belt |
 |---------------|-----------------------------|
-| ![Top-Down View](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_90_0.jpg?raw=true) | ![45° Elevation, 300° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_45_300.jpg?raw=true) |
+| ![Inner Solar System With Jupiter](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/3d/1_inner_solar_system_with_jupiter.jpg?raw=true) | ![Solar System With Kuiper Belt](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/3d/2_solar_system_with_kuiper_belt.jpg?raw=true) |
 
-| 30° Elevation, 210° Azimuth | 20° Elevation, 120° Azimuth |
+| Solar System With Oort Cloud | Solar System with Alpha Centauri |
 |-----------------------------|-----------------------------|
-| ![30° Elevation, 210° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_30_210.jpg?raw=true) | ![20° Elevation, 120° Azimuth](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/pluto_orbit_3d_view_20_120.jpg?raw=true) |
+| ![Solar System With Oort Cloud](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/3d/3_solar_system_with_oort_cloud.jpg?raw=true) | ![Solar System with Alpha Centauri](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/3d/4_solar_system_with_alpha_centauri.jpg?raw=true) |
 
-These images are part of a comprehensive visualization effort to understand the spatial dynamics of Pluto in relation to the surrounding Kuiper Belt. Each image offers a unique perspective, contributing to our understanding of the outer solar system's structure and composition.
+| Interstellar Neighbors Within 10 Light Years | Interstellar Neighbors Within 25 Light Years |
+|-----------------------------|-----------------------------|
+| ![Interstellar Neighbors Within 10 Light Years](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/3d/5_solar_system_with_nearest_stars_10.jpg?raw=true) | ![Interstellar Neighbors Within 25 Light Years](https://github.com/ThomasAFink/visualization_of_plutos_orbit_and_the_kuiper_belt/blob/main/output/3d/6_solar_system_with_nearest_stars_25.jpg?raw=true) |
 
 ## Conclusion
 This script is an educational tool that visualizes the orbits within our solar system, with a focus on Pluto and the Kuiper Belt. It demonstrates the power of numpy and matplotlib in creating complex scientific visualizations. Feel free to modify the constants and functions to explore other celestial mechanics or solar system objects.
