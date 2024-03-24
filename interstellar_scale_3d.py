@@ -165,6 +165,18 @@ def hildas_cluster_bands(cluster_points, num_interpolation_points, spread_radius
     
     return np.array(interpolated_x), np.array(interpolated_y), np.array(interpolated_z)
 
+def calculate_hyperbolic_orbit_3d(eccentricity, inclination, num_points=1000):
+    inclination = np.radians(inclination)
+    # For a hyperbolic trajectory, theta should not complete a full circle
+    theta = np.linspace(-np.arccos(-1/eccentricity) + 0.000000000001, np.arccos(-1/eccentricity) - 0.000000000001, num_points)
+    # Assuming a pseudo semi-major axis to compute r for visualization purposes
+    a = 1.0  # Adjust this based on 'Oumuamua's specific path if you have the data
+    r = a * (1 - eccentricity**2) / (1 + eccentricity * np.cos(theta))
+    x = r * np.cos(theta)
+    y = r * np.sin(theta) * np.cos(inclination)
+    z = r * np.sin(theta) * np.sin(inclination)
+    return x, y, z
+
 
 axis_limits = [(-3.5, 3.5, 80, 'inner_solar_system', 'Inner Solar System'),
                (-6, 6, 80, 'inner_solar_system_with_jupiter', 'Inner Solar System With Jupiter'),
@@ -307,6 +319,15 @@ for i, limit in enumerate(axis_limits):
             random_index = random.randint(-360, 360)
             ax.scatter(x[random_index], y[random_index], z[random_index], color=data['color'], s=int(10+(data['diameter']/2500)))
 
+    
+    # Add 'Oumuamua's orbit calculation to your plot
+    oumuamua_eccentricity = 1.2
+    oumuamua_inclination = 122.74
+
+    # Inside your plotting loop, after plotting the stars
+    oumuamua_x, oumuamua_y, oumuamua_z = calculate_hyperbolic_orbit_3d(oumuamua_eccentricity, oumuamua_inclination, 5000)
+    ax.plot(oumuamua_x, oumuamua_y, oumuamua_z, '--', color='darkred', label="'Oumuamua's Path")
+    
     
     # Plot stars within the current view limit, if applicable
     view_limit = limit[1]  # Assuming this is the maximal distance we're considering in AU
