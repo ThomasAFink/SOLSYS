@@ -93,6 +93,27 @@ def hildas_cluster_bands(cluster_points, num_interpolation_points, spread_radius
     
     return np.array(interpolated_x), np.array(interpolated_y), np.array(interpolated_z)
 
+
+def calculate_hyperbolic_orbit_parabolic_segment(eccentricity, semi_major_axis, inclination, num_points=1000):
+    """
+    Calculate the parabolic segment of a hyperbolic trajectory.
+    
+    :param eccentricity: Eccentricity of the orbit (e > 1 for hyperbolic orbits).
+    :param semi_major_axis: Semi-major axis of the orbit in AU.
+    :param inclination: Inclination of the orbit in degrees.
+    :param num_points: Number of points to calculate along the orbit segment.
+    :return: x, y coordinates of the orbit segment.
+    """
+    inclination = np.radians(inclination)
+    # Focus on the segment representing the parabolic shape
+    theta = np.linspace(-np.arccos(-1/eccentricity) + 0.000000000001, np.arccos(-1/eccentricity) - 0.000000000001, num_points)
+    r = semi_major_axis * (1 - eccentricity**2) / (1 + eccentricity * np.cos(theta))
+    x = r * np.cos(theta)
+    y = r * np.sin(theta) * np.cos(inclination)
+    return x, y
+
+
+
 def calculate_2d_orbit(semi_major_axis, eccentricity, inclination, num_points=100):
     inclination = np.radians(inclination)
     theta = np.linspace(0, 2 * np.pi, num_points)
@@ -159,6 +180,9 @@ for i, limit in enumerate(axis_limits):
     HILDAS_OUTER = JUPITER_SEMI_MAJOR_AXIS-0.25
     OORT_CLOUD_INNER = 2000
     OORT_CLOUD_OUTER = 100000
+    oumuamua_eccentricity = 1.2
+    oumuamua_semi_major_axis = -1.279  # Negative value due to the nature of its hyperbolic trajectory
+    oumuamua_inclination = 122.74  # Based on actual data
     
     if limit[3] == 'inner_solar_system':
         ASTEROID_BELT_POINTS = 20000
@@ -222,7 +246,6 @@ for i, limit in enumerate(axis_limits):
     greeks_x = greeks_r * np.cos(greeks_theta)
     greeks_y = greeks_r * np.sin(greeks_theta)
     theta = np.linspace(0, 2 * np.pi, ORBIT_POINTS)
-    pluto_x, pluto_y = calculate_pluto_ellipse(PLUTO_ECCENTRICITY, PLUTO_SEMI_MAJOR_AXIS, theta)
     kuiper_belt_r = np.random.uniform(KUIPER_BELT_INNER, KUIPER_BELT_OUTER, KUIPER_BELT_POINTS)
     kuiper_belt_theta = np.random.uniform(0, 2 * np.pi, KUIPER_BELT_POINTS)
     kuiper_belt_x = kuiper_belt_r * np.cos(kuiper_belt_theta)
@@ -291,6 +314,9 @@ for i, limit in enumerate(axis_limits):
             if row['System'][:20] not in labeled_star_systems:
                 ax.text(row['x'] + 0.01 * (limit[1] - limit[0]), row['y'], row['System'][:20], fontsize=20, ha='left', va='center')
                 labeled_star_systems.add(row['System'])
+                
+    oumuamua_x, oumuamua_y = calculate_hyperbolic_orbit_parabolic_segment(oumuamua_eccentricity, oumuamua_semi_major_axis, oumuamua_inclination, num_points=10000)
+    ax.plot(oumuamua_x, oumuamua_y, '--', color='darkred')  # Plotting Oumuamua's trajectory
 
     ax.set_xlim(limit[0], limit[1])
     ax.set_ylim(limit[0], limit[1])
@@ -301,6 +327,8 @@ for i, limit in enumerate(axis_limits):
     if limit[3] == 'inner_solar_system':
         ax.annotate('Asteroid Belt (2.2-3.2 AU)', xy=(ASTEROID_BELT_OUTER, 0), xytext=(ASTEROID_BELT_INNER+0.1, 1.5),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
+        ax.annotate('Oumuamua Orbit', xy=(-1.5, -0.90), xytext=(-2.5, -3),
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)  
     if limit[3] == 'inner_solar_system_with_jupiter':
         ax.annotate('Asteroid Belt (2.2-3.2 AU)', xy=(ASTEROID_BELT_OUTER, 0), xytext=(ASTEROID_BELT_INNER+0.1, 2),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
@@ -309,7 +337,9 @@ for i, limit in enumerate(axis_limits):
         ax.annotate('Trojans', xy=(3, -(JUPITER_SEMI_MAJOR_AXIS + TROJANS_GREEKS_WIDTH)+1), xytext=(2, -(JUPITER_SEMI_MAJOR_AXIS + TROJANS_GREEKS_WIDTH)-1),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
         ax.annotate('Greeks', xy=(4, (JUPITER_SEMI_MAJOR_AXIS + TROJANS_GREEKS_WIDTH)-1.75), xytext=(3, (JUPITER_SEMI_MAJOR_AXIS + TROJANS_GREEKS_WIDTH)),
-            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)        
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size) 
+        ax.annotate('Oumuamua Orbit', xy=(-1.5, -0.90), xytext=(-2.5, -3),
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)             
     if limit[3] == 'solar_system_with_kuiper_belt':
         ax.annotate('Kuiper Belt (50 AU)', xy=(KUIPER_BELT_OUTER, 0), xytext=(KUIPER_BELT_OUTER+5, 10),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
@@ -317,15 +347,21 @@ for i, limit in enumerate(axis_limits):
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
         ax.annotate("Pluto's perihelion (29.7 AU)", xy=(PLUTO_PERIHELION, 0), xytext=(PLUTO_PERIHELION+10, -10),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
+        ax.annotate('Oumuamua Orbit', xy=(-15, -5), xytext=(-25, -30),
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size) 
     if limit[3] == 'solar_system_with_oort_cloud':
         ax.annotate('Kuiper Belt (50 AU)', xy=(-KUIPER_BELT_OUTER+2500, 3500), xytext=(KUIPER_BELT_OUTER-90000, -90000),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
         ax.annotate('Oort Cloud (100000 AU)', xy=(100000, 5), xytext=(70000, 25000),
-            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)   
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
+        ax.annotate('Oumuamua Orbit', xy=(-95000, 33250), xytext=(-100000, 75000),
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size) 
     if limit[3] == 'solar_system_with_alpha_centauri':
         ax.annotate('Kuiper Belt (50 AU)', xy=(-KUIPER_BELT_OUTER+1000, 3500), xytext=(KUIPER_BELT_OUTER-90000, -125000),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
         ax.annotate('Oort Cloud (100000 AU)', xy=(-100000, 5), xytext=(-180000, -25000),
+            arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
+        ax.annotate('Oumuamua Orbit', xy=(-95000, 33250), xytext=(-100000, 75000),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)  
 
     plt.title(f'{limit[4]}', fontsize=limit[2], pad=50)
