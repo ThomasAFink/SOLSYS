@@ -4,6 +4,18 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
 import re
+from scipy.spatial.transform import Rotation as R
+
+# Function to parse RA from "14h 29m 43.0s" to degrees
+def parse_ra_to_degrees(ra_str):
+    if not isinstance(ra_str, str):
+        return None  # Or handle the non-string case as needed
+    match = re.match(r'(\d+)h\s*(\d+)m\s*(\d+(?:\.\d*)?)s', ra_str)
+    if match:
+        hours, minutes, seconds = map(float, match.groups())
+        degrees = 15 * (hours + minutes / 60 + seconds / 3600)
+        return degrees
+    return None
 
 def calculate_3d_orbit(semi_major_axis, eccentricity, inclination, num_points=100):
     inclination = np.radians(inclination)
@@ -165,17 +177,67 @@ def hildas_cluster_bands(cluster_points, num_interpolation_points, spread_radius
     
     return np.array(interpolated_x), np.array(interpolated_y), np.array(interpolated_z)
 
-def calculate_hyperbolic_orbit_3d(eccentricity, inclination, num_points=1000):
-    inclination = np.radians(inclination)
-    # For a hyperbolic trajectory, theta should not complete a full circle
-    theta = np.linspace(-np.arccos(-1/eccentricity) + 0.000000000001, np.arccos(-1/eccentricity) - 0.000000000001, num_points)
-    # Assuming a pseudo semi-major axis to compute r for visualization purposes
-    a = 1.0  # Adjust this based on 'Oumuamua's specific path if you have the data
-    r = a * (1 - eccentricity**2) / (1 + eccentricity * np.cos(theta))
+def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axis, inclination, num_points=1000):
+    """
+    Calculate and rotate the 3D parabolic segment of a hyperbolic trajectory to ensure it passes through the Solar System
+    near the specified point and ends at Vega.
+    """
+    # Adjust the range of theta to ensure the trajectory extends outward from the solar system
+    theta = np.linspace(-np.pi/2, np.pi/2, num_points)
+    
+    # Calculate the initial parabolic segment
+    r = semi_major_axis * (1 - eccentricity**2) / (1 + eccentricity * np.cos(theta))
     x = r * np.cos(theta)
-    y = r * np.sin(theta) * np.cos(inclination)
-    z = r * np.sin(theta) * np.sin(inclination)
-    return x, y, z
+    y = r * np.sin(theta) * np.cos(np.radians(inclination))
+    z = r * np.sin(theta) * np.sin(np.radians(inclination))
+
+    # Specify the point through which the trajectory must pass (near the solar system center)
+    solar_system_pass_point = np.array([0.24742940409, 0.24742940409, 0])
+
+    # Vega's position relative to the Solar System (origin)
+    vega_x, vega_y, vega_z = 198133.63647947184, -1218652.875270329, 992106.3881115752
+
+    # Normalize the initial and final direction vectors
+    initial_direction = np.array([x[-1], y[-1], z[-1]]) - np.array([x[0], y[0], z[0]])
+    final_direction = np.array([vega_x, vega_y, vega_z]) - solar_system_pass_point
+    print(final_direction)
+    #[  198133.38905007 -1218653.12269973   992106.38811158]
+    initial_direction_norm = initial_direction / np.linalg.norm(initial_direction)
+    final_direction_norm = final_direction / np.linalg.norm(final_direction)
+
+    # Calculate the rotation needed to align the initial trajectory with the final direction
+    rotation_axis = np.cross(initial_direction_norm, final_direction_norm)
+    rotation_angle = np.arccos(np.dot(initial_direction_norm, final_direction_norm))
+    
+    # Rodrigues' rotation formula for rotation matrix
+    K = np.array([[0, -rotation_axis[2], rotation_axis[1]],
+                  [rotation_axis[2], 0, -rotation_axis[0]],
+                  [-rotation_axis[1], rotation_axis[0], 0]])
+    rotation_matrix = np.eye(3) + np.sin(rotation_angle) * K + (1 - np.cos(rotation_angle)) * np.dot(K, K)
+
+    # Apply rotation to align with the final direction
+    rotated_trajectory = np.dot(rotation_matrix, np.vstack((x, y, z)))
+
+    # Adjust the trajectory to pass through the specified solar system point
+    # This involves translating the trajectory
+    trajectory_offset = solar_system_pass_point - rotated_trajectory[:,0]  # Adjustment from the first point
+    rotated_and_translated_trajectory = rotated_trajectory + trajectory_offset[:, np.newaxis]
+
+    # Scale the trajectory to ensure it ends exactly at Vega's position
+    end_point_vector = np.array([vega_x, vega_y, vega_z]) - rotated_and_translated_trajectory[:, -1]
+    scale_factor = np.linalg.norm(end_point_vector) / np.linalg.norm(rotated_and_translated_trajectory[:, -1] - rotated_and_translated_trajectory[:, 0])
+    scaled_trajectory = rotated_and_translated_trajectory * scale_factor
+
+    # Adjust final position to match Vega exactly (due to potential scaling imprecision)
+    final_adjustment = np.array([vega_x, vega_y, vega_z]) - scaled_trajectory[:, -1]
+    adjusted_trajectory = scaled_trajectory + final_adjustment[:, np.newaxis]
+
+    return adjusted_trajectory[0], adjusted_trajectory[1], adjusted_trajectory[2]
+
+
+
+
+
 
 
 axis_limits = [(-3.5, 3.5, 80, 'inner_solar_system', 'Inner Solar System'),
@@ -184,9 +246,10 @@ axis_limits = [(-3.5, 3.5, 80, 'inner_solar_system', 'Inner Solar System'),
                (-50000, 50000, 80, 'solar_system_with_oort_cloud', 'Solar System With Oort Cloud'),
                (-280000, 280000, 80, 'solar_system_with_alpha_centauri', 'Solar System with Alpha Centauri'),
                (-632410.77088, 632410.77088, 80, 'solar_system_with_nearest_stars_10', 'Interstellar Neighbors Within 10 Light Years'),
-               (-1581026.9272, 1581026.9272, 80, 'solar_system_with_nearest_stars_25', 'Interstellar Neighbors Within 25 Light Years')]
+               (-1584188.9811, 1584188.9811, 80, 'solar_system_with_nearest_stars_25', 'Interstellar Neighbors Within 25 Light Years'),
+               (-1897232.3126, 1897232.3126, 80, 'solar_system_with_nearest_stars_30', 'Interstellar Neighbors Within 30 Light Years')]
 
-stars_data = pd.read_csv('data/nearby_stars_25.csv')  # Correct the path if necessary
+stars_data = pd.read_csv('data/nearby_stars_30.csv')  # Correct the path if necessary
 # Assuming 'RA_degrees' and 'DEC_degrees' are already processed and included in the CSV
 # If not, you'll need to add code here to process them as needed
 
@@ -270,7 +333,7 @@ for i, limit in enumerate(axis_limits):
         KUIPER_BELT_POINTS = 20
         OORT_CLOUD_POINTS = 2000
 
-    elif  limit[3] == 'solar_system_with_nearest_stars_25':
+    elif  limit[3] == 'solar_system_with_nearest_stars_25' or limit[3] == 'solar_system_with_nearest_stars_30':
         ASTEROID_BELT_POINTS = 1
         TROJANS_GREEKS_POINTS = 1
         HILDAS_POINTS = 1
@@ -280,7 +343,7 @@ for i, limit in enumerate(axis_limits):
     ax = fig.add_subplot(111, projection='3d')
 
     ax.scatter([0], [0], [0], color='yellow', s=50)
-    ax.view_init(elev=33, azim=120)
+    ax.view_init(elev=25, azim=120)
 
     asteroid_x, asteroid_y, asteroid_z = generate_belt_points(ASTEROID_BELT_INNER, ASTEROID_BELT_OUTER, THICKNESS, ASTEROID_BELT_POINTS)
     ax.scatter(asteroid_x, asteroid_y, asteroid_z, color='gray', s=1)
@@ -323,21 +386,24 @@ for i, limit in enumerate(axis_limits):
     # Add 'Oumuamua's orbit calculation to your plot
     oumuamua_eccentricity = 1.2
     oumuamua_inclination = 122.74
+    oumuamua_semi_major_axis = -1.279
 
     # Inside your plotting loop, after plotting the stars
-    oumuamua_x, oumuamua_y, oumuamua_z = calculate_hyperbolic_orbit_3d(oumuamua_eccentricity, oumuamua_inclination, 5000)
-    ax.plot(oumuamua_x, oumuamua_y, oumuamua_z, '--', color='darkred', label="'Oumuamua's Path")
+    oumuamua_x, oumuamua_y, oumuamua_z = calculate_hyperbolic_orbit_parabolic_segment_3d(oumuamua_eccentricity, oumuamua_semi_major_axis, oumuamua_inclination, 5000)
+    ax.plot(oumuamua_x, oumuamua_y, oumuamua_z, '--', color='darkred')
     
-    
-    # Plot stars within the current view limit, if applicable
-    view_limit = limit[1]  # Assuming this is the maximal distance we're considering in AU
-    stars_range = stars_data[stars_data['Distance (AU)'] <= view_limit]
-    ax.scatter(stars_range['x'], stars_range['y'], stars_range['z'], color='orange', s=80, alpha=1)
 
     # Plot stars within the current view limit, if applicable
     view_limit = limit[1]  # Assuming this is the maximal distance we're considering in AU
     stars_range = stars_data[stars_data['Distance (AU)'] <= view_limit]
-    ax.scatter(stars_range['x'], stars_range['y'], stars_range['z'], color='orange', s=80, alpha=.9)
+    print(stars_range)
+    for index, row in stars_range.iterrows():
+        if 'Vega' in row['System']:
+            print("Vega: ", row['x'], row['y'], row['z'])
+            ax.scatter(row['x'], row['y'], row['z'], color='silver', s=500, alpha=.9)
+        else:
+            ax.scatter(row['x'], row['y'], row['z'], color='orange', s=80, alpha=.9)
+
 
     for index, row in stars_range.iterrows():
         if row['System'][:20] not in labeled_star_systems:
