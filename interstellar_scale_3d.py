@@ -177,6 +177,7 @@ def hildas_cluster_bands(cluster_points, num_interpolation_points, spread_radius
     
     return np.array(interpolated_x), np.array(interpolated_y), np.array(interpolated_z)
 
+'''
 def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axis, inclination, num_points=1000):
     """
     Calculate and rotate the 3D parabolic segment of a hyperbolic trajectory to ensure it passes through the Solar System
@@ -233,12 +234,108 @@ def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axi
     adjusted_trajectory = scaled_trajectory + final_adjustment[:, np.newaxis]
 
     return adjusted_trajectory[0], adjusted_trajectory[1], adjusted_trajectory[2]
+'''
+
+
+def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axis, inclination, num_points=1000):
+    """
+    Calculate and rotate the parabolic segment of a hyperbolic trajectory to point towards Vega in 3D.
+    
+    :param eccentricity: Eccentricity of the orbit (e > 1 for hyperbolic orbits).
+    :param semi_major_axis: Semi-major axis of the orbit in AU (must be positive for correct computation).
+    :param inclination: Inclination of the orbit in degrees.
+    :param num_points: Number of points to calculate along the orbit segment.
+    :return: x, y, z coordinates of the orbit segment rotated to point towards Vega.
+    """
+    inclination = np.radians(inclination)
+    # Generate the original orbit segment
+    theta = np.linspace(-np.arccos(-1/eccentricity) + 0.0000000001, np.arccos(-1/eccentricity) - 0.0000000001, num_points)
+    r = semi_major_axis * (1 - eccentricity**2) / (1 + eccentricity * np.cos(theta))
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
+    z = r * np.sin(theta) * np.sin(inclination)
+
+    # Calculate Vega's position
+    vega_ra_deg = parse_ra_to_degrees("18h 36m 56s")
+    vega_dec_deg = 38.783  # Declination of Vega
+    vega_distance_au = 25.04 * 63241  # Convert light years to AU
+    vega_x = vega_distance_au * np.cos(np.radians(vega_dec_deg)) * np.cos(np.radians(vega_ra_deg))
+    vega_y = vega_distance_au * np.cos(np.radians(vega_dec_deg)) * np.sin(np.radians(vega_ra_deg))
+    vega_z = vega_distance_au * np.sin(np.radians(vega_dec_deg))
+
+    # Calculate the rotation angle to align the orbit's end towards Vega
+    oumuamua_direction = np.array([x[-1], y[-1], z[-1]])  # Direction of orbit at the last point
+    vega_direction = np.array([vega_x, vega_y, vega_z])  # Direction from the Sun to Vega
+    rotation_angle = np.arctan2(vega_direction[1], vega_x) - np.arctan2(oumuamua_direction[1], oumuamua_direction[0])
+
+    # Apply rotation to the orbit trajectory
+    cos_angle = np.cos(rotation_angle)
+    sin_angle = np.sin(rotation_angle)
+    x_rotated = x * cos_angle - y * sin_angle
+    y_rotated = x * sin_angle + y * cos_angle
+    z_rotated = z  # z remains unchanged as rotation is in the x-y plane
+
+    return x_rotated, y_rotated, z_rotated
 
 
 
+'''
+def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axis, inclination, num_points=1000):
+    """
+    Calculate and rotate the parabolic segment of a hyperbolic trajectory to point directly towards Vega in 3D.
+    
+    :param eccentricity: Eccentricity of the orbit (e > 1 for hyperbolic orbits).
+    :param semi_major_axis: Semi-major axis of the orbit in AU (must be positive for correct computation).
+    :param inclination: Inclination of the orbit in degrees.
+    :param num_points: Number of points to calculate along the orbit segment.
+    :return: x, y, z coordinates of the orbit segment aligned directly towards Vega.
+    """
+    inclination = np.radians(inclination)
+    # Generate the original orbit segment
+    theta = np.linspace(-np.arccos(-1/eccentricity) + 0.0000000001, np.arccos(-1/eccentricity) - 0.0000000001, num_points)
+    r = semi_major_axis * (1 - eccentricity**2) / (1 + eccentricity * np.cos(theta))
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
+    z = r * np.sin(theta) * np.sin(inclination)
 
+    # Calculate Vega's position
+    vega_ra_deg = parse_ra_to_degrees("18h 36m 56s")
+    vega_dec_deg = 38.783  # Declination of Vega
+    vega_distance_au = 25.04 * 63241  # Convert light years to AU
+    vega_x = vega_distance_au * np.cos(np.radians(vega_dec_deg)) * np.cos(np.radians(vega_ra_deg))
+    vega_y = vega_distance_au * np.cos(np.radians(vega_dec_deg)) * np.sin(np.radians(vega_ra_deg))
+    vega_z = vega_distance_au * np.sin(np.radians(vega_dec_deg))
 
+    # Normalized vector towards Vega
+    vega_vector = np.array([vega_x, vega_y, vega_z])
+    vega_vector /= np.linalg.norm(vega_vector)
 
+    # Normalized end direction of the original trajectory
+    orbit_end_vector = np.array([x[-1], y[-1], z[-1]])
+    orbit_end_vector /= np.linalg.norm(orbit_end_vector)
+
+    # Axis of rotation (cross product) and angle
+    rotation_axis = np.cross(orbit_end_vector, vega_vector)
+    rotation_angle = np.arccos(np.dot(orbit_end_vector, vega_vector))
+
+    # Rotation matrix
+    kx, ky, kz = rotation_axis
+    cos_k = np.cos(rotation_angle)
+    sin_k = np.sin(rotation_angle)
+    R = np.array([[cos_k + kx*kx*(1-cos_k), kx*ky*(1-cos_k) - kz*sin_k, kx*kz*(1-cos_k) + ky*sin_k],
+                  [ky*kx*(1-cos_k) + kz*sin_k, cos_k + ky*ky*(1-cos_k), ky*kz*(1-cos_k) - kx*sin_k],
+                  [kz*kx*(1-cos_k) - ky*sin_k, kz*ky*(1-cos_k) + kx*sin_k, cos_k + kz*kz*(1-cos_k)]])
+
+    # Apply rotation to all points
+    points = np.vstack((x, y, z)).T
+    rotated_points = points @ R.T
+
+    # Scale the trajectory to end at Vega
+    final_scale = vega_distance_au / np.linalg.norm(rotated_points[-1])
+    rotated_scaled_points = rotated_points * final_scale
+
+    return rotated_scaled_points[:, 0], rotated_scaled_points[:, 1], rotated_scaled_points[:, 2]
+'''
 
 axis_limits = [(-3.5, 3.5, 80, 'inner_solar_system', 'Inner Solar System'),
                (-6, 6, 80, 'inner_solar_system_with_jupiter', 'Inner Solar System With Jupiter'),
