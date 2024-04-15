@@ -236,7 +236,7 @@ def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axi
     return adjusted_trajectory[0], adjusted_trajectory[1], adjusted_trajectory[2]
 '''
 
-
+'''
 def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axis, inclination, num_points=1000):
     """
     Calculate and rotate the parabolic segment of a hyperbolic trajectory to point towards Vega in 3D.
@@ -276,10 +276,10 @@ def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axi
     z_rotated = z  # z remains unchanged as rotation is in the x-y plane
 
     return x_rotated, y_rotated, z_rotated
-
-
-
 '''
+
+
+
 def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axis, inclination, num_points=1000):
     """
     Calculate and rotate the parabolic segment of a hyperbolic trajectory to point directly towards Vega in 3D.
@@ -335,7 +335,7 @@ def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axi
     rotated_scaled_points = rotated_points * final_scale
 
     return rotated_scaled_points[:, 0], rotated_scaled_points[:, 1], rotated_scaled_points[:, 2]
-'''
+
 
 axis_limits = [(-3.5, 3.5, 80, 'inner_solar_system', 'Inner Solar System'),
                (-6, 6, 80, 'inner_solar_system_with_jupiter', 'Inner Solar System With Jupiter'),
