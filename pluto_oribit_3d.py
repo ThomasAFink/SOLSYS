@@ -40,12 +40,14 @@ def calculate_3d_kuiper_belt(inner_radius, outer_radius, num_points, inclination
 
 # Constants
 ORBIT_POINTS = 1000
-PLANET_ORBITS = [0.39, 0.72, 1.0, 1.52, 5.2, 9.5, 19.2, 30]
-PLUTO_ECCENTRICITY = 0.25
-PLUTO_SEMI_MAJOR_AXIS = 39.5  # Average distance in AU
-PLUTO_INCLINATION = np.radians(17)
+PLANET_ORBITS = [0.387, 0.723, 1.0, 1.52, 5.2, 9.58, 19.22, 30.05]
+PLUTO_ECCENTRICITY = 0.2488
+PLUTO_SEMI_MAJOR_AXIS = 39.482
+PLUTO_PERIHELION = PLUTO_SEMI_MAJOR_AXIS * (1 - PLUTO_ECCENTRICITY)
+PLUTO_APHELION = PLUTO_SEMI_MAJOR_AXIS * (1 + PLUTO_ECCENTRICITY)
+PLUTO_INCLINATION = np.radians(17.16)
 KUIPER_BELT_INNER = 30
-KUIPER_BELT_OUTER = 50
+KUIPER_BELT_OUTER = 55
 KUIPER_BELT_POINTS = 20000
 
 theta = np.linspace(0, 2 * np.pi, ORBIT_POINTS)
@@ -72,8 +74,8 @@ for angle in view_angles:
         ax.plot(circle_x, circle_y, 0, color='black')
     ax.plot(x, y, z, color='blue', label="Pluto's Orbit")  # Pluto's orbit
     ax.scatter(kuiper_belt_x, kuiper_belt_y, kuiper_belt_z, color='darkgray', s=1, alpha=0.5)  # Kuiper Belt
-    ax.text(-PLUTO_SEMI_MAJOR_AXIS, 0, 0, "Pluto's aphelion", color='blue', fontsize=12)
-    ax.text(PLUTO_SEMI_MAJOR_AXIS, 0, 0, "Pluto's perihelion", color='blue', fontsize=12)
+    ax.text(-PLUTO_APHELION, 0, 0, "Pluto's aphelion", color='blue', fontsize=12)
+    ax.text(PLUTO_PERIHELION, 0, 0, "Pluto's perihelion", color='blue', fontsize=12)
     ax.set_xlabel('X (AU)')
     ax.set_ylabel('Y (AU)')
     ax.set_zlabel('Z (AU)')

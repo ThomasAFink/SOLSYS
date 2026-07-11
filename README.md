@@ -45,74 +45,26 @@ These constants define various parameters for the orbits of the major planets, P
 
 ```python
 ORBIT_POINTS = 1000
-PLANET_ORBITS = [0.39, 0.72, 1.0, 1.52, 5.2, 9.5, 19.2, 30]
-PLUTO_PERIHELION = 29.7
-PLUTO_APHELION = 49.5
-PLUTO_ECCENTRICITY = 0.25
-PLUTO_SEMI_MAJOR_AXIS = (PLUTO_PERIHELION + PLUTO_APHELION) / 2
+PLANET_ORBITS = [0.387, 0.723, 1.0, 1.52, 5.2, 9.58, 19.22, 30.05]
+PLUTO_SEMI_MAJOR_AXIS = 39.482
+PLUTO_ECCENTRICITY = 0.2488
+PLUTO_PERIHELION = PLUTO_SEMI_MAJOR_AXIS * (1 - PLUTO_ECCENTRICITY)  # ~29.7 AU
+PLUTO_APHELION = PLUTO_SEMI_MAJOR_AXIS * (1 + PLUTO_ECCENTRICITY)    # ~49.3 AU
 KUIPER_BELT_INNER = 30
-KUIPER_BELT_OUTER = 50
+KUIPER_BELT_OUTER = 55
 ASTEROID_BELT_INNER = 2.2
 ASTEROID_BELT_OUTER = 3.2
 JUPITER_SEMI_MAJOR_AXIS = 5.2
 JUPITER_INCLINATION = 1.3
 JUPITER_ECCENTRICITY = 0.0489
-TROJANS_GREEKS_ANGLE = np.deg2rad(60)
+TROJANS_GREEKS_ANGLE = np.deg2rad(60)  # L4/L5 Lagrange points are ±60° from Jupiter
 TROJANS_GREEKS_SPREAD = np.pi / 3
 TROJANS_GREEKS_WIDTH = 0.5
 HILDAS_INNER = ASTEROID_BELT_OUTER+0.25
 HILDAS_OUTER = JUPITER_SEMI_MAJOR_AXIS-0.25
 OORT_CLOUD_INNER = 2000
 OORT_CLOUD_OUTER = 100000
-
-if limit[3] == 'inner_solar_system':
-    ASTEROID_BELT_POINTS = 20000
-    TROJANS_GREEKS_POINTS = 4000
-    HILDAS_POINTS = 4000
-    KUIPER_BELT_POINTS = 10000
-    OORT_CLOUD_POINTS = 50000
-
-elif limit[3] == 'inner_solar_system_with_jupiter':
-    ASTEROID_BELT_POINTS = 10000
-    TROJANS_GREEKS_POINTS = 2000
-    HILDAS_POINTS = 2000
-    KUIPER_BELT_POINTS = 10000
-    OORT_CLOUD_POINTS = 50000
-
-elif limit[3] == 'solar_system_with_kuiper_belt':
-    ASTEROID_BELT_POINTS = 100
-    TROJANS_GREEKS_POINTS = 10
-    HILDAS_POINTS = 100
-    KUIPER_BELT_POINTS = 10000
-    OORT_CLOUD_POINTS = 50000
-
-elif limit[3] == 'solar_system_with_oort_cloud':
-    ASTEROID_BELT_POINTS = 20
-    TROJANS_GREEKS_POINTS = 10
-    HILDAS_POINTS = 10
-    KUIPER_BELT_POINTS = 100
-    OORT_CLOUD_POINTS = 50000
-
-elif limit[3] == 'solar_system_with_alpha_centauri':
-    ASTEROID_BELT_POINTS = 10
-    TROJANS_GREEKS_POINTS = 5
-    HILDAS_POINTS = 5
-    KUIPER_BELT_POINTS = 50
-    OORT_CLOUD_POINTS = 5000  
-
-elif  limit[3] == 'solar_system_with_nearest_stars_10':
-    ASTEROID_BELT_POINTS = 2
-    TROJANS_GREEKS_POINTS = 2
-    HILDAS_POINTS = 2
-    KUIPER_BELT_POINTS = 20
-    OORT_CLOUD_POINTS = 2000
-
-elif  limit[3] == 'solar_system_with_nearest_stars_25':
-    ASTEROID_BELT_POINTS = 1
-    TROJANS_GREEKS_POINTS = 1
-    HILDAS_POINTS = 1
-    KUIPER_BELT_POINTS = 10
-    OORT_CLOUD_POINTS = 1000
+LIGHT_YEAR_TO_AU = 63241.077
 ```
 
 **Function to Calculate Ellipse**
@@ -185,7 +137,7 @@ Plots Pluto's elliptical orbit and scatters points for the Kuiper Belt.
 # Plot the elliptical orbit of Pluto
 ax.plot(x, y, color='blue')
 
-# Mark the perihelion and aphelion of Pluto's orbit
+# Mark the perihelion and aphelion of Pluto's orbit (Sun at one focus, not the ellipse center)
 ax.plot(PLUTO_PERIHELION, 0, 'bo')  # Perihelion
 ax.plot(-PLUTO_APHELION, 0, 'bo')  # Aphelion
 
@@ -199,9 +151,9 @@ Adds annotations for key features such as Pluto's perihelion and aphelion, and l
 font_size = 48
 ax.annotate('Kuiper Belt', xy=(KUIPER_BELT_OUTER, 0), xytext=(KUIPER_BELT_OUTER+5, 10),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
-ax.annotate("Pluto's aphelion (49.5 AU)", xy=(-PLUTO_APHELION, 0), xytext=(-PLUTO_APHELION-25, 10),
+ax.annotate("Pluto's aphelion (~49.3 AU)", xy=(-PLUTO_APHELION, 0), xytext=(-PLUTO_APHELION-25, 10),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
-ax.annotate("Pluto's perihelion (29.7 AU)", xy=(PLUTO_PERIHELION, 0), xytext=(PLUTO_PERIHELION+10, -10),
+ax.annotate("Pluto's perihelion (~29.7 AU)", xy=(PLUTO_PERIHELION, 0), xytext=(PLUTO_PERIHELION+10, -10),
             arrowprops=dict(facecolor='black', shrink=0.05), fontsize=font_size)
 ```
 
