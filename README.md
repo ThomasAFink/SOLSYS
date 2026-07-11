@@ -2,7 +2,19 @@
 
 <img width="500" align="right" alt="Inner Solar System With Jupiter Animation" src="https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/animate/2d/inner_solar_system_light.gif" />
 
-This Python script provides a detailed visualization of the orbital paths of the major planets in our solar system, with a special focus on Pluto and its relationship with the Kuiper Belt. Utilizing `numpy` for mathematical calculations and `matplotlib` for plotting, the script generates a comprehensive diagram showing the orbits of the planets, Pluto's elliptical orbit, and the scattered distribution of the Kuiper Belt.
+This project visualizes the solar system from the inner planets out to the nearest stars, with a special focus on Pluto and the Kuiper Belt. Built with `numpy`, `pandas`, and `matplotlib`, it uses corrected Keplerian orbital physics — elliptical planet orbits, spherical 3D asteroid/Kuiper/Oort shells, Jupiter-relative Trojan and Greek clouds, Hilda clusters, and `'Oumuamua`'s hyperbolic trajectory from JPL elements — rendered across multiple zoom levels and scales.
+
+**What's included:**
+
+- **Static 2D views** (`interstellar_scale_2d.py`) — nine zoom levels from the inner solar system (±3.5 AU) through the Oort cloud (±100,000 AU) to the 30 light-year stellar neighborhood, plus an `'Oumuamua` and Vega context map
+- **Static 3D views** (`interstellar_scale_3d.py`) — eight matching 3D perspectives with full spherical belt distributions and nearby stars placed from RA/Dec coordinates
+- **Animated 2D inner system** (`inner_solar_system_animation_2d.py`) — Mercury through Jupiter, asteroid belt, Hildas, and Jupiter Lagrange clouds in light and dark themes
+- **Animated 3D solar system** (`solar_system_animation_3d.py`) — staged camera zoom from the Oort cloud down to the inner system, with scale-matched asteroid visibility and light/dark GIF output
+- **Pluto orbit study** (`pluto_oribit_3d.py`) — inclined 3D Pluto orbit and Kuiper Belt from four camera angles
+- **Interstellar neighborhood** (`interstellar_neighborhood.py`) — 3D map of stars within 10 light years
+- **Shared core** (`solsys_core.py`, `solsys_animation.py`) — constants, orbit math, star catalog, view registry, and animated asteroid populations used by all renderers
+
+Outputs live in `output/2d/`, `output/3d/`, `output/animate/`, and `output/pluto_orbit_3d_view_*.jpg`.
 
 | Inner Solar System With Jupiter | Solar System With Kuiper Belt |
 |---------------|-----------------------------|
