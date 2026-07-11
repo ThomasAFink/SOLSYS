@@ -184,6 +184,51 @@ class OrbitCalculator:
         )
         return positionX, positionY, positionZ
 
+    @staticmethod
+    def ellipticalPosition(
+        semiMajorAxisAu: float,
+        eccentricity: float,
+        inclinationDeg: float,
+        trueAnomalyRad: float | np.ndarray,
+        ascendingNodeDeg: float = 0.0,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        inclinationRad = np.radians(inclinationDeg)
+        ascendingNodeRad = np.radians(ascendingNodeDeg)
+        radiusAu = semiMajorAxisAu * (1 - eccentricity ** 2) / (
+            1 + eccentricity * np.cos(trueAnomalyRad)
+        )
+        orbitPlaneX = radiusAu * np.cos(trueAnomalyRad)
+        orbitPlaneY = radiusAu * np.sin(trueAnomalyRad)
+        positionX = (
+            orbitPlaneX * np.cos(ascendingNodeRad)
+            - orbitPlaneY * np.cos(inclinationRad) * np.sin(ascendingNodeRad)
+        )
+        positionY = (
+            orbitPlaneX * np.sin(ascendingNodeRad)
+            + orbitPlaneY * np.cos(inclinationRad) * np.cos(ascendingNodeRad)
+        )
+        positionZ = orbitPlaneY * np.sin(inclinationRad)
+        return positionX, positionY, positionZ
+
+    @staticmethod
+    def keplerianAngularVelocityRad(semiMajorAxisAu: float | np.ndarray) -> np.ndarray:
+        """Angular speed (rad per day) using Kepler's third law with semi-major axis in AU."""
+        semiMajorAxisArray = np.maximum(np.abs(np.asarray(semiMajorAxisAu, dtype=float)), 0.01)
+        orbitalPeriodDays = semiMajorAxisArray ** 1.5 * 365.25
+        return 2 * np.pi / orbitalPeriodDays
+
+    @staticmethod
+    def eclipticPosition2d(
+        radiusAu: float | np.ndarray,
+        inclinationDeg: float | np.ndarray,
+        meanAnomalyRad: float | np.ndarray,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        inclinationRad = np.radians(inclinationDeg)
+        positionX = radiusAu * np.cos(meanAnomalyRad)
+        positionY = radiusAu * np.sin(meanAnomalyRad) * np.cos(inclinationRad)
+        positionZ = radiusAu * np.sin(meanAnomalyRad) * np.sin(inclinationRad)
+        return positionX, positionY, positionZ
+
 
 class PlanetCatalog:
     def __init__(self, constants: AstronomicalConstants):
