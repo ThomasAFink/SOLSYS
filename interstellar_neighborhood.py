@@ -1,73 +1,109 @@
-import pandas as pd
-import numpy as np
+"""3D neighborhood map of stars within a given light-year radius."""
+
+from __future__ import annotations
+
+import os
+from typing import Tuple
+
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-import re
+import numpy as np
+import pandas as pd
 
-# Load the data from the uploaded CSV file
-stars_data_path = 'nearby_stars_25.csv'
-stars_data = pd.read_csv(stars_data_path)
-stars_data = stars_data[stars_data['Distance (ly)'] <= 10]
+from solsys_core import AstronomicalConstants, OrbitCalculator, StarCatalog
 
-# Function to parse the right ascension and declination from the data, adjusted to handle non-string inputs
-def parse_ra_dec_safe(ra_str, dec_str):
-    if not isinstance(ra_str, str) or not isinstance(dec_str, str):
-        return None, None
-    ra_pattern = re.compile(r'(\d+)h\s*(\d+)m\s*(\d+(?:\.\d*)?)s')
-    dec_pattern = re.compile(r'([+-]?\d+)°\s*(\d+)′\s*(\d+(?:\.\d*)?)″')
-    ra_match = ra_pattern.search(ra_str)
-    dec_match = dec_pattern.search(dec_str)
-    if ra_match and dec_match:
-        ra = float(ra_match.group(1)) + float(ra_match.group(2)) / 60.0 + float(ra_match.group(3)) / 3600.0
-        dec = float(dec_match.group(1)) + float(dec_match.group(2)) / 60.0 + float(dec_match.group(3)) / 3600.0
-        ra *= 15.0  # Convert RA to degrees
-        if '-' in dec_match.group(1):
-            dec *= -1
-        return ra, dec
-    else:
-        return None, None
+FIGURE_SIZE_INCHES = (12, 12)
+MAX_DISTANCE_LIGHT_YEARS = 10
 
-# Function to convert spherical coordinates (RA, Dec, Distance) to Cartesian (X, Y, Z)
-def spherical_to_cartesian(ra_deg, dec_deg, distance):
-    ra_rad = np.radians(ra_deg)
-    dec_rad = np.radians(dec_deg)
-    x = distance * np.cos(ra_rad) * np.cos(dec_rad)
-    y = distance * np.sin(ra_rad) * np.cos(dec_rad)
-    z = distance * np.sin(dec_rad)
-    return x, y, z
 
-# Exclude the Sun from transformation, then calculate Cartesian coordinates
-stars_data = stars_data.iloc[1:].copy()
-stars_data['RA_deg'], stars_data['Dec_deg'] = zip(*stars_data.apply(lambda row: parse_ra_dec_safe(row['RA'], row['Dec']), axis=1))
-stars_data = stars_data.dropna(subset=['RA_deg', 'Dec_deg'])
-stars_data['x'], stars_data['y'], stars_data['z'] = zip(*stars_data.apply(lambda row: spherical_to_cartesian(row['RA_deg'], row['Dec_deg'], row['Distance (ly)']), axis=1))
+class InterstellarNeighborhoodVisualizer:
+    def __init__(self, starsCsvPath: str, maxDistanceLightYears: float = MAX_DISTANCE_LIGHT_YEARS):
+        self.constants = AstronomicalConstants()
+        self.starCatalog = StarCatalog(starsCsvPath, self.constants)
+        self.maxDistanceLightYears = maxDistanceLightYears
+        self.orbitCalculator = OrbitCalculator()
 
-# Ensure there are no NaN or Inf values in the calculations for axes limits
-valid_coordinates = stars_data[['x', 'y', 'z']].dropna()
-max_range = np.max(np.abs(valid_coordinates.values))
+    def starsWithinRadius(self) -> pd.DataFrame:
+        starsFrame = self.starCatalog.starsDataFrame
+        nearbyStars = starsFrame[
+            (starsFrame['Distance (ly)'] <= self.maxDistanceLightYears)
+            & starsFrame['rightAscensionDeg'].notna()
+            & starsFrame['declinationDeg'].notna()
+        ].copy()
+        nearbyStars = nearbyStars.iloc[1:].copy()
 
-fig = plt.figure(figsize=(12, 12))
-ax = fig.add_subplot(111, projection='3d')
-ax.set_facecolor('black')
+        cartesianCoords = nearbyStars.apply(
+            lambda row: self._equatorialToCartesianLightYears(
+                row['rightAscensionDeg'],
+                row['declinationDeg'],
+                row['Distance (ly)'],
+            ),
+            axis=1,
+        )
+        nearbyStars['positionX'] = cartesianCoords.apply(lambda coord: coord[0])
+        nearbyStars['positionY'] = cartesianCoords.apply(lambda coord: coord[1])
+        nearbyStars['positionZ'] = cartesianCoords.apply(lambda coord: coord[2])
+        return nearbyStars.dropna(subset=['positionX', 'positionY', 'positionZ'])
 
-# Plot each star
-for index, star in valid_coordinates.iterrows():
-    star_name_or_system = stars_data.loc[index, 'Star or (sub-) brown dwarf'] if pd.notnull(stars_data.loc[index, 'Star or (sub-) brown dwarf']) else stars_data.loc[index, 'System']
-    color = 'yellow' if 'Sun' in star_name_or_system else 'white'
-    ax.scatter(star['x'], star['y'], star['z'], color=color, s=100, depthshade=True, marker='o')
-    label = star_name_or_system
-    ax.text(star['x'], star['y'], star['z'], label, color='white', fontsize=5, ha='center')
+    @staticmethod
+    def _equatorialToCartesianLightYears(
+        rightAscensionDeg: float, declinationDeg: float, distanceLightYears: float
+    ) -> Tuple[float, float, float]:
+        rightAscensionRad = np.radians(rightAscensionDeg)
+        declinationRad = np.radians(declinationDeg)
+        positionX = distanceLightYears * np.cos(declinationRad) * np.cos(rightAscensionRad)
+        positionY = distanceLightYears * np.cos(declinationRad) * np.sin(rightAscensionRad)
+        positionZ = distanceLightYears * np.sin(declinationRad)
+        return positionX, positionY, positionZ
 
-# Place the Sun at the center
-ax.scatter(0, 0, 0, color='yellow', s=200, depthshade=True, marker='o')
-ax.text(0, 0, 0, "Sun", color='white', fontsize=8, ha='center')
+    def render(self, showPlot: bool = True) -> None:
+        nearbyStars = self.starsWithinRadius()
+        validCoordinates = nearbyStars[['positionX', 'positionY', 'positionZ']].dropna()
+        maxRangeLightYears = float(np.max(np.abs(validCoordinates.values)))
 
-# Adjusting axes limits to center the plot
-ax.set_xlim([-max_range, max_range])
-ax.set_ylim([-max_range, max_range])
-ax.set_zlim([-max_range, max_range])
+        figure = plt.figure(figsize=FIGURE_SIZE_INCHES)
+        axes = figure.add_subplot(111, projection='3d')
+        axes.set_facecolor('black')
 
-ax.axis('off')
-ax.set_title('3D Interstellar Neighborhood with Spheres', color='white')
+        for index, starRow in validCoordinates.iterrows():
+            starName = (
+                nearbyStars.loc[index, 'Star or (sub-) brown dwarf']
+                if pd.notnull(nearbyStars.loc[index, 'Star or (sub-) brown dwarf'])
+                else nearbyStars.loc[index, 'System']
+            )
+            markerColor = 'yellow' if 'Sun' in str(starName) else 'white'
+            axes.scatter(
+                starRow['positionX'],
+                starRow['positionY'],
+                starRow['positionZ'],
+                color=markerColor,
+                s=100,
+                depthshade=True,
+                marker='o',
+            )
+            axes.text(
+                starRow['positionX'],
+                starRow['positionY'],
+                starRow['positionZ'],
+                str(starName),
+                color='white',
+                fontsize=5,
+                ha='center',
+            )
 
-plt.show()
+        axes.scatter(0, 0, 0, color='yellow', s=200, depthshade=True, marker='o')
+        axes.text(0, 0, 0, 'Sun', color='white', fontsize=8, ha='center')
+        axes.set_xlim([-maxRangeLightYears, maxRangeLightYears])
+        axes.set_ylim([-maxRangeLightYears, maxRangeLightYears])
+        axes.set_zlim([-maxRangeLightYears, maxRangeLightYears])
+        axes.axis('off')
+        axes.set_title('3D Interstellar Neighborhood with Spheres', color='white')
+
+        if showPlot:
+            plt.show()
+        else:
+            plt.close(figure)
+
+
+if __name__ == '__main__':
+    visualizer = InterstellarNeighborhoodVisualizer('data/nearby_stars_30.csv')
+    visualizer.render()

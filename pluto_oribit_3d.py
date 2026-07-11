@@ -1,87 +1,103 @@
-import numpy as np
+"""3D views of Pluto's orbit and the Kuiper belt."""
+
+from __future__ import annotations
+
+import os
+from typing import List, Tuple
+
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
 
-def calculate_ellipse(eccentricity, semi_major_axis, theta):
-    """
-    Calculate the x, y coordinates of an ellipse based on eccentricity and semi-major axis.
-    """
-    b = semi_major_axis * np.sqrt(1 - eccentricity**2)  # Semi-minor axis
-    r = (semi_major_axis * (1 - eccentricity**2)) / (1 + eccentricity * np.cos(theta))
-    x = r * np.cos(theta)
-    y = r * np.sin(theta)
-    return x, y
+from solsys_core import AstronomicalConstants, BeltPointGenerator, OrbitCalculator, PlanetCatalog
 
-def calculate_3d_ellipse(eccentricity, semi_major_axis, theta, inclination):
-    """
-    Calculate the x, y, z coordinates of an inclined ellipse based on eccentricity,
-    semi-major axis, and inclination.
-    """
-    b = semi_major_axis * np.sqrt(1 - eccentricity**2)
-    r = (semi_major_axis * (1 - eccentricity**2)) / (1 + eccentricity * np.cos(theta))
-    x = r * np.cos(theta)
-    y = r * np.sin(theta) * np.cos(inclination)
-    z = r * np.sin(theta) * np.sin(inclination)
-    return x, y, z
-
-def calculate_3d_kuiper_belt(inner_radius, outer_radius, num_points, inclination):
-    """
-    Generate random 3D coordinates for the Kuiper Belt points within a torus shape.
-    """
-    radii = np.random.uniform(inner_radius, outer_radius, num_points)
-    theta = np.random.uniform(0, 2 * np.pi, num_points)
-    phi = np.random.uniform(0, 2 * np.pi, num_points)
-    
-    x = radii * np.cos(theta)
-    y = radii * np.sin(theta) * np.cos(inclination)
-    z = radii * np.sin(theta) * np.sin(inclination) * np.sin(phi)
-    
-    return x, y, z
-
-# Constants
-ORBIT_POINTS = 1000
-PLANET_ORBITS = [0.387, 0.723, 1.0, 1.52, 5.2, 9.58, 19.22, 30.05]
-PLUTO_ECCENTRICITY = 0.2488
-PLUTO_SEMI_MAJOR_AXIS = 39.482
-PLUTO_PERIHELION = PLUTO_SEMI_MAJOR_AXIS * (1 - PLUTO_ECCENTRICITY)
-PLUTO_APHELION = PLUTO_SEMI_MAJOR_AXIS * (1 + PLUTO_ECCENTRICITY)
-PLUTO_INCLINATION = np.radians(17.16)
-KUIPER_BELT_INNER = 30
-KUIPER_BELT_OUTER = 55
-KUIPER_BELT_POINTS = 20000
-
-theta = np.linspace(0, 2 * np.pi, ORBIT_POINTS)
-
-# Generate the 3D orbit of Pluto and Kuiper Belt
-x, y, z = calculate_3d_ellipse(PLUTO_ECCENTRICITY, PLUTO_SEMI_MAJOR_AXIS, theta, PLUTO_INCLINATION)
-kuiper_belt_x, kuiper_belt_y, kuiper_belt_z = calculate_3d_kuiper_belt(KUIPER_BELT_INNER, KUIPER_BELT_OUTER, KUIPER_BELT_POINTS, PLUTO_INCLINATION)
-
-# Define viewing angles
-view_angles = [
-    (90, 0),  # top-down view
-    (45, 300),  # elevation and azimuth
-    (30, 210),  # elevation and azimuth
-    (20, 120)  # elevation and azimuth
+FIGURE_SIZE_INCHES = (20, 20)
+OUTPUT_DPI = 300
+ORBIT_SAMPLE_POINTS = 1000
+KUIPER_BELT_POINT_COUNT = 20000
+CAMERA_ANGLES_DEG: List[Tuple[int, int]] = [
+    (90, 0),
+    (45, 300),
+    (30, 210),
+    (20, 120),
 ]
 
-# Loop through each view angle to plot and save the figure
-for angle in view_angles:
-    fig = plt.figure(figsize=(20, 20))
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(0, 0, 0, color='yellow', s=100, label='Sun')  # Sun
-    for orbit in PLANET_ORBITS:
-        circle_x, circle_y = calculate_ellipse(0, orbit, theta)  # Planets' orbits
-        ax.plot(circle_x, circle_y, 0, color='black')
-    ax.plot(x, y, z, color='blue', label="Pluto's Orbit")  # Pluto's orbit
-    ax.scatter(kuiper_belt_x, kuiper_belt_y, kuiper_belt_z, color='darkgray', s=1, alpha=0.5)  # Kuiper Belt
-    ax.text(-PLUTO_APHELION, 0, 0, "Pluto's aphelion", color='blue', fontsize=12)
-    ax.text(PLUTO_PERIHELION, 0, 0, "Pluto's perihelion", color='blue', fontsize=12)
-    ax.set_xlabel('X (AU)')
-    ax.set_ylabel('Y (AU)')
-    ax.set_zlabel('Z (AU)')
-    ax.view_init(elev=angle[0], azim=angle[1])
-    ax.set_title('3D Representation of Pluto’s Orbit and the Kuiper Belt', fontsize=20)
-    ax.legend()
-    plt.axis('off')  # Removes the axes for a cleaner look
-    plt.savefig(f"output/pluto_orbit_3d_view_{angle[0]}_{angle[1]}.jpg", bbox_inches='tight')
-    plt.close()  # Close the plot to free memory
+
+class PlutoOrbitVisualizer3D:
+    def __init__(self):
+        self.constants = AstronomicalConstants()
+        self.planetCatalog = PlanetCatalog(self.constants)
+        self.orbitCalculator = OrbitCalculator()
+        self.beltGenerator = BeltPointGenerator()
+
+    def renderAllViews(self, outputDirectory: str = 'output') -> None:
+        os.makedirs(outputDirectory, exist_ok=True)
+        for elevationDeg, azimuthDeg in CAMERA_ANGLES_DEG:
+            outputPath = f'{outputDirectory}/pluto_orbit_3d_view_{elevationDeg}_{azimuthDeg}.jpg'
+            print(f'Generating Pluto orbit view (elev={elevationDeg}, azim={azimuthDeg})...')
+            self.renderView(elevationDeg, azimuthDeg, outputPath)
+            print(f'Saved to {outputPath}')
+
+    def renderView(self, elevationDeg: int, azimuthDeg: int, outputPath: str) -> None:
+        constants = self.constants
+        pluto = self.planetCatalog.planets['Pluto']
+
+        figure = plt.figure(figsize=FIGURE_SIZE_INCHES)
+        axes = figure.add_subplot(111, projection='3d')
+        axes.scatter(0, 0, 0, color='yellow', s=100, label='Sun')
+
+        for planet in self.planetCatalog.planets.values():
+            if planet.name == 'Pluto':
+                continue
+            orbitX, orbitY = self.orbitCalculator.ellipticalOrbit2d(
+                planet.semiMajorAxisAu,
+                planet.eccentricity,
+                planet.inclinationDeg,
+                numPoints=ORBIT_SAMPLE_POINTS,
+            )
+            axes.plot(orbitX, orbitY, 0, color='black')
+
+        plutoX, plutoY, plutoZ = self.orbitCalculator.ellipticalOrbit3d(
+            pluto.semiMajorAxisAu,
+            pluto.eccentricity,
+            pluto.inclinationDeg,
+            numPoints=ORBIT_SAMPLE_POINTS,
+        )
+        axes.plot(plutoX, plutoY, plutoZ, color='blue', label="Pluto's Orbit")
+
+        kuiperBeltX, kuiperBeltY, kuiperBeltZ = self._kuiperBeltPoints()
+        axes.scatter(kuiperBeltX, kuiperBeltY, kuiperBeltZ, color='darkgray', s=1, alpha=0.5)
+
+        axes.text(-constants.plutoAphelionAu, 0, 0, "Pluto's aphelion", color='blue', fontsize=12)
+        axes.text(constants.plutoPerihelionAu, 0, 0, "Pluto's perihelion", color='blue', fontsize=12)
+        axes.set_xlabel('X (AU)')
+        axes.set_ylabel('Y (AU)')
+        axes.set_zlabel('Z (AU)')
+        axes.view_init(elev=elevationDeg, azim=azimuthDeg)
+        axes.set_title('3D Representation of Pluto’s Orbit and the Kuiper Belt', fontsize=20)
+        axes.legend()
+        plt.axis('off')
+        figure.savefig(outputPath, bbox_inches='tight', dpi=OUTPUT_DPI)
+        plt.close(figure)
+
+    def _kuiperBeltPoints(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        constants = self.constants
+        plutoInclinationRad = np.radians(self.planetCatalog.planets['Pluto'].inclinationDeg)
+        radiusAu = np.random.uniform(
+            constants.kuiperBeltInnerAu,
+            constants.kuiperBeltOuterAu,
+            KUIPER_BELT_POINT_COUNT,
+        )
+        trueAnomalyRad = np.random.uniform(0, 2 * np.pi, KUIPER_BELT_POINT_COUNT)
+        polarAngleRad = np.random.uniform(0, 2 * np.pi, KUIPER_BELT_POINT_COUNT)
+        positionX = radiusAu * np.cos(trueAnomalyRad)
+        positionY = radiusAu * np.sin(trueAnomalyRad) * np.cos(plutoInclinationRad)
+        positionZ = (
+            radiusAu * np.sin(trueAnomalyRad) * np.sin(plutoInclinationRad) * np.sin(polarAngleRad)
+        )
+        return positionX, positionY, positionZ
+
+
+if __name__ == '__main__':
+    visualizer = PlutoOrbitVisualizer3D()
+    visualizer.renderAllViews()
+    print('All Pluto orbit visualizations completed!')
