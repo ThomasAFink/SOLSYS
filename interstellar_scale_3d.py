@@ -30,15 +30,16 @@ def parse_ra_dec_safe(ra_str, dec_str):
     if not isinstance(ra_str, str) or not isinstance(dec_str, str):
         return None, None
     ra_pattern = re.compile(r'(\d+)h\s*(\d+)m\s*(\d+(?:\.\d*)?)s')
+    dec_normalized = dec_str.replace('−', '-').replace('–', '-')
     dec_pattern = re.compile(r'([+-]?\d+)°\s*(\d+)′\s*(\d+(?:\.\d*)?)″')
     ra_match = ra_pattern.search(ra_str)
-    dec_match = dec_pattern.search(dec_str)
+    dec_match = dec_pattern.search(dec_normalized)
     if ra_match and dec_match:
         ra = float(ra_match.group(1)) + float(ra_match.group(2)) / 60.0 + float(ra_match.group(3)) / 3600.0
-        dec = float(dec_match.group(1)) + float(dec_match.group(2)) / 60.0 + float(dec_match.group(3)) / 3600.0
-        ra *= 15.0  # Convert RA to degrees
-        if '-' in dec_match.group(1):
-            dec *= -1
+        dec_sign = -1 if dec_match.group(1).startswith('-') else 1
+        dec = dec_sign * (abs(float(dec_match.group(1))) + float(dec_match.group(2)) / 60.0 +
+                          float(dec_match.group(3)) / 3600.0)
+        ra *= 15.0
         return ra, dec
     else:
         return None, None
@@ -280,67 +281,41 @@ def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axi
 
 
 
-def calculate_hyperbolic_orbit_parabolic_segment_3d(eccentricity, semi_major_axis, inclination, num_points=1000):
-    """
-    Calculate and rotate the parabolic segment of a hyperbolic trajectory to point directly towards Vega in 3D.
-    
-    :param eccentricity: Eccentricity of the orbit (e > 1 for hyperbolic orbits).
-    :param semi_major_axis: Semi-major axis of the orbit in AU (must be positive for correct computation).
-    :param inclination: Inclination of the orbit in degrees.
-    :param num_points: Number of points to calculate along the orbit segment.
-    :return: x, y, z coordinates of the orbit segment aligned directly towards Vega.
-    """
-    inclination = np.radians(inclination)
-    # Generate the original orbit segment
-    theta = np.linspace(-np.arccos(-1/eccentricity) + 0.0000000001, np.arccos(-1/eccentricity) - 0.0000000001, num_points)
-    r = semi_major_axis * (1 - eccentricity**2) / (1 + eccentricity * np.cos(theta))
-    x = r * np.cos(theta)
-    y = r * np.sin(theta)
-    z = r * np.sin(theta) * np.sin(inclination)
+def calculate_hyperbolic_orbit_from_elements(perihelion, eccentricity, inclination,
+                                             longitude_ascending_node, argument_of_perihelion,
+                                             num_points=1000):
+    """Heliocentric ecliptic coordinates for a hyperbolic trajectory (e > 1)."""
+    i = np.radians(inclination)
+    Omega = np.radians(longitude_ascending_node)
+    omega = np.radians(argument_of_perihelion)
+    nu_max = np.arccos(-1 / eccentricity) - 1e-6
+    nu = np.linspace(-nu_max, nu_max, num_points)
+    r = perihelion * (1 + eccentricity) / (1 + eccentricity * np.cos(nu))
 
-    # Calculate Vega's position
-    vega_ra_deg = parse_ra_to_degrees("18h 36m 56s")
-    vega_dec_deg = 38.783  # Declination of Vega
-    vega_distance_au = 25.04 * 63241  # Convert light years to AU
-    vega_x = vega_distance_au * np.cos(np.radians(vega_dec_deg)) * np.cos(np.radians(vega_ra_deg))
-    vega_y = vega_distance_au * np.cos(np.radians(vega_dec_deg)) * np.sin(np.radians(vega_ra_deg))
-    vega_z = vega_distance_au * np.sin(np.radians(vega_dec_deg))
+    x_p = r * np.cos(nu)
+    y_p = r * np.sin(nu)
 
-    # Normalized vector towards Vega
-    vega_vector = np.array([vega_x, vega_y, vega_z])
-    vega_vector /= np.linalg.norm(vega_vector)
+    x = ((np.cos(Omega) * np.cos(omega) - np.sin(Omega) * np.sin(omega) * np.cos(i)) * x_p +
+         (-np.cos(Omega) * np.sin(omega) - np.sin(Omega) * np.cos(omega) * np.cos(i)) * y_p)
+    y = ((np.sin(Omega) * np.cos(omega) + np.cos(Omega) * np.sin(omega) * np.cos(i)) * x_p +
+         (-np.sin(Omega) * np.sin(omega) + np.cos(Omega) * np.cos(omega) * np.cos(i)) * y_p)
+    z = (np.sin(omega) * np.sin(i) * x_p + np.cos(omega) * np.sin(i) * y_p)
+    return x, y, z
 
-    # Normalized end direction of the original trajectory
-    orbit_end_vector = np.array([x[-1], y[-1], z[-1]])
-    orbit_end_vector /= np.linalg.norm(orbit_end_vector)
 
-    # Axis of rotation (cross product) and angle
-    rotation_axis = np.cross(orbit_end_vector, vega_vector)
-    rotation_angle = np.arccos(np.dot(orbit_end_vector, vega_vector))
-
-    # Rotation matrix
-    kx, ky, kz = rotation_axis
-    cos_k = np.cos(rotation_angle)
-    sin_k = np.sin(rotation_angle)
-    R = np.array([[cos_k + kx*kx*(1-cos_k), kx*ky*(1-cos_k) - kz*sin_k, kx*kz*(1-cos_k) + ky*sin_k],
-                  [ky*kx*(1-cos_k) + kz*sin_k, cos_k + ky*ky*(1-cos_k), ky*kz*(1-cos_k) - kx*sin_k],
-                  [kz*kx*(1-cos_k) - ky*sin_k, kz*ky*(1-cos_k) + kx*sin_k, cos_k + kz*kz*(1-cos_k)]])
-
-    # Apply rotation to all points
-    points = np.vstack((x, y, z)).T
-    rotated_points = points @ R.T
-
-    # Scale the trajectory to end at Vega
-    final_scale = vega_distance_au / np.linalg.norm(rotated_points[-1])
-    rotated_scaled_points = rotated_points * final_scale
-
-    return rotated_scaled_points[:, 0], rotated_scaled_points[:, 1], rotated_scaled_points[:, 2]
-
+LIGHT_YEAR_TO_AU = 63241.077
+PLUTO_SEMI_MAJOR_AXIS = 39.482
+PLUTO_ECCENTRICITY = 0.2488
+OUMUAMUA_ECCENTRICITY = 1.2011
+OUMUAMUA_PERIHELION = 0.2559
+OUMUAMUA_INCLINATION = 122.74
+OUMUAMUA_LONGITUDE_ASCENDING_NODE = 24.60
+OUMUAMUA_ARGUMENT_OF_PERIHELION = 241.69
 
 axis_limits = [(-3.5, 3.5, 80, 'inner_solar_system', 'Inner Solar System'),
                (-6, 6, 80, 'inner_solar_system_with_jupiter', 'Inner Solar System With Jupiter'),
                (-70, 70, 80, 'solar_system_with_kuiper_belt', 'Solar System With Kuiper Belt'),
-               (-50000, 50000, 80, 'solar_system_with_oort_cloud', 'Solar System With Oort Cloud'),
+               (-100000, 100000, 80, 'solar_system_with_oort_cloud', 'Solar System With Oort Cloud'),
                (-280000, 280000, 80, 'solar_system_with_alpha_centauri', 'Solar System with Alpha Centauri'),
                (-632410.77088, 632410.77088, 80, 'solar_system_with_nearest_stars_10', 'Interstellar Neighbors Within 10 Light Years'),
                (-1584188.9811, 1584188.9811, 80, 'solar_system_with_nearest_stars_25', 'Interstellar Neighbors Within 25 Light Years'),
@@ -352,20 +327,21 @@ stars_data = pd.read_csv('data/nearby_stars_30.csv')  # Correct the path if nece
 
 # Process star data for 3D coordinates
 stars_data['RA_deg'], stars_data['DEC_deg'] = zip(*stars_data.apply(lambda row: parse_ra_dec_safe(row['RA'], row['Dec']), axis=1))
-stars_data['Distance (AU)'] = stars_data['Distance (ly)'] * 63241  # Convert light-years to AU
+stars_data['Distance (AU)'] = stars_data['Distance (ly)'] * LIGHT_YEAR_TO_AU
+stars_data = stars_data.dropna(subset=['RA_deg', 'DEC_deg'])
 stars_data['x'], stars_data['y'], stars_data['z'] = zip(*stars_data.apply(lambda row: ra_dec_to_3d(row['RA_deg'], row['DEC_deg'], row['Distance (AU)']), axis=1))
 
 # Updated PLANET_DATA with colors, diameters (in kilometers), and orbital periods (in days)
 PLANET_DATA = {
-    'Mercury': {'a': 0.39, 'e': 0.205, 'i': 7, 'color': 'gray', 'diameter': 4879, 'period': 88},
-    'Venus': {'a': 0.72, 'e': 0.007, 'i': 3.4, 'color': 'yellow', 'diameter': 12104, 'period': 224.7},
+    'Mercury': {'a': 0.387, 'e': 0.205, 'i': 7, 'color': 'gray', 'diameter': 4879, 'period': 88},
+    'Venus': {'a': 0.723, 'e': 0.007, 'i': 3.4, 'color': 'yellow', 'diameter': 12104, 'period': 224.7},
     'Earth': {'a': 1.00, 'e': 0.017, 'i': 0, 'color': 'blue', 'diameter': 12742, 'period': 365.2},
     'Mars': {'a': 1.52, 'e': 0.093, 'i': 1.85, 'color': 'red', 'diameter': 6779, 'period': 687},
     'Jupiter': {'a': 5.20, 'e': 0.048, 'i': 1.3, 'color': 'orange', 'diameter': 139822, 'period': 4331},
     'Saturn': {'a': 9.58, 'e': 0.056, 'i': 2.49, 'color': 'gold', 'diameter': 116464, 'period': 10747},
     'Uranus': {'a': 19.22, 'e': 0.046, 'i': 0.77, 'color': 'lightblue', 'diameter': 50724, 'period': 30589},
     'Neptune': {'a': 30.05, 'e': 0.010, 'i': 1.77, 'color': 'blue', 'diameter': 49244, 'period': 59800},
-    'Pluto': {'a': 39.48, 'e': 0.248, 'i': 17.16, 'color': 'brown', 'diameter': 2376, 'period': 90560}
+    'Pluto': {'a': PLUTO_SEMI_MAJOR_AXIS, 'e': PLUTO_ECCENTRICITY, 'i': 17.16, 'color': 'brown', 'diameter': 2376, 'period': 90560}
 }
 
 JUPITER_SEMI_MAJOR_AXIS = 5.2
@@ -383,9 +359,9 @@ for i, limit in enumerate(axis_limits):
     ASTEROID_BELT_INNER = 2.2
     ASTEROID_BELT_OUTER = 3.2
     KUIPER_BELT_INNER = 30
-    KUIPER_BELT_OUTER = 50
+    KUIPER_BELT_OUTER = 55
     OORT_CLOUD_INNER = 2000
-    OORT_CLOUD_OUTER = 50000
+    OORT_CLOUD_OUTER = 100000
     THICKNESS = 0.05
 
     if limit[3] == 'inner_solar_system':
@@ -476,24 +452,54 @@ for i, limit in enumerate(axis_limits):
         if planet == "Jupiter":
             ax.scatter(x[50], y[50], z[50], color=data['color'], s=int(10+(data['diameter']/2500)))
         else:
-            random_index = random.randint(-360, 360)
+            random_index = random.randint(0, len(x) - 1)
             ax.scatter(x[random_index], y[random_index], z[random_index], color=data['color'], s=int(10+(data['diameter']/2500)))
 
     
-    # Add 'Oumuamua's orbit calculation to your plot
-    oumuamua_eccentricity = 1.2
-    oumuamua_inclination = 122.74
-    oumuamua_semi_major_axis = -1.279
+    oumuamua_x, oumuamua_y, oumuamua_z = calculate_hyperbolic_orbit_from_elements(
+        OUMUAMUA_PERIHELION, OUMUAMUA_ECCENTRICITY, OUMUAMUA_INCLINATION,
+        OUMUAMUA_LONGITUDE_ASCENDING_NODE, OUMUAMUA_ARGUMENT_OF_PERIHELION, 5000)
+    ax.plot(oumuamua_x, oumuamua_y, oumuamua_z, '--', color='darkred', label="'Oumuamua hyperbolic trajectory")
 
-    # Inside your plotting loop, after plotting the stars
-    oumuamua_x, oumuamua_y, oumuamua_z = calculate_hyperbolic_orbit_parabolic_segment_3d(oumuamua_eccentricity, oumuamua_semi_major_axis, oumuamua_inclination, 5000)
-    ax.plot(oumuamua_x, oumuamua_y, oumuamua_z, '--', color='darkred')
+    oumuamua_r = np.sqrt(oumuamua_x**2 + oumuamua_y**2 + oumuamua_z**2)
+    zoomed_out_views = {
+        'solar_system_with_kuiper_belt',
+        'solar_system_with_oort_cloud',
+        'solar_system_with_alpha_centauri',
+    }
+    if limit[3] in zoomed_out_views:
+        far_idx = 0
+        direction = np.array([
+            oumuamua_x[far_idx] / oumuamua_r[far_idx],
+            oumuamua_y[far_idx] / oumuamua_r[far_idx],
+            oumuamua_z[far_idx] / oumuamua_r[far_idx],
+        ])
+        target_r = {
+            'solar_system_with_kuiper_belt': 55,
+            'solar_system_with_oort_cloud': 45000,
+            'solar_system_with_alpha_centauri': 45000,
+        }[limit[3]]
+        label_point = direction * target_r
+        perp = np.array([-direction[1], direction[0], 0.0])
+        perp_norm = np.linalg.norm(perp)
+        if perp_norm > 0:
+            perp /= perp_norm
+            if np.dot(perp[:2], label_point[:2]) < 0:
+                perp *= -1
+            text_point = label_point + perp * (0.10 * (limit[1] - limit[0]))
+        else:
+            text_point = label_point
+        ax.text(text_point[0], text_point[1], text_point[2],
+                "'Oumuamua hyperbolic trajectory", fontsize=10, color='darkred')
+    else:
+        label_idx = int(np.argmin(oumuamua_r))
+        ax.text(oumuamua_x[label_idx], oumuamua_y[label_idx], oumuamua_z[label_idx],
+                "'Oumuamua hyperbolic trajectory", fontsize=10, color='darkred')
     
 
     # Plot stars within the current view limit, if applicable
     view_limit = limit[1]  # Assuming this is the maximal distance we're considering in AU
-    stars_range = stars_data[stars_data['Distance (AU)'] <= view_limit]
-    print(stars_range)
+    stars_range = stars_data[stars_data['Distance (AU)'] <= view_limit].dropna(subset=['x', 'y', 'z'])
     for index, row in stars_range.iterrows():
         if 'Vega' in row['System']:
             print("Vega: ", row['x'], row['y'], row['z'])
