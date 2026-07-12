@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 from solsys_animation import AnimatedAsteroidPopulation, AsteroidPopulationCounts, planetMeanAnomalyRad
-from solsys_core import AstronomicalConstants, OrbitCalculator, PlanetCatalog
+from solsys_core import AstronomicalConstants, MoonCatalog, OrbitCalculator, PlanetCatalog
 
 FIGURE_SIZE_INCHES = (12, 12)
 AXIS_LIMIT_AU = 6.5
@@ -26,6 +26,7 @@ class InnerSolarSystemAnimator2D:
         self.figure, self.axes = plt.subplots(figsize=FIGURE_SIZE_INCHES)
         self.constants = AstronomicalConstants()
         self.planetCatalog = PlanetCatalog(self.constants)
+        self.moonCatalog = MoonCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.asteroidPopulation = AnimatedAsteroidPopulation(
             self.constants,
@@ -46,6 +47,29 @@ class InnerSolarSystemAnimator2D:
             meanAnomalyRad,
         )
         return float(positionX), float(positionY)
+
+    def _drawMoons(self, frame: int) -> None:
+        moonDisplayScale = self.moonCatalog.displayScaleForAxisSpanAu(2 * AXIS_LIMIT_AU)
+        if moonDisplayScale <= 0.0:
+            return
+
+        for planetName in INNER_PLANET_NAMES:
+            positionX, positionY = self._planetPosition(planetName, frame)
+            for moon in self.moonCatalog.forPlanet(planetName):
+                ringX, ringY = self.moonCatalog.moonOrbitRing2d(
+                    moon, positionX, positionY, moonDisplayScale
+                )
+                self.axes.plot(ringX, ringY, color=moon.color, alpha=0.2, linewidth=0.5, zorder=6)
+                moonMeanAnomalyRad = planetMeanAnomalyRad(
+                    moon.orbitalPeriodDays, frame, ANIMATION_SPEED
+                )
+                moonX, moonY, _ = self.moonCatalog.heliocentricPosition(
+                    positionX, positionY, 0.0, moon, moonMeanAnomalyRad, moonDisplayScale
+                )
+                moonMarkerSize = self.moonCatalog.markerSize2d(moon, 1200)
+                self.axes.scatter(
+                    float(moonX), float(moonY), color=moon.color, s=moonMarkerSize, zorder=8
+                )
 
     def _jupiterMeanAnomalyRad(self, frame: int) -> float:
         jupiter = self.planetCatalog.planets['Jupiter']
@@ -92,6 +116,8 @@ class InnerSolarSystemAnimator2D:
                 positionX, positionY, color=planet.color, s=markerSize, zorder=6
             )
             self.axes.text(positionX + 0.15, positionY + 0.15, planetName, fontsize=8)
+
+        self._drawMoons(frame)
 
         self.axes.set_aspect('equal')
         self.axes.set_xlim(-AXIS_LIMIT_AU, AXIS_LIMIT_AU)

@@ -12,6 +12,7 @@ import numpy as np
 from solsys_core import (
     AstronomicalConstants,
     BeltPointGenerator,
+    MoonCatalog,
     OrbitCalculator,
     PlanetCatalog,
     PointDensityConfig,
@@ -102,6 +103,7 @@ class SolarSystemVisualizer3D:
         self.constants = AstronomicalConstants()
         self.starCatalog = StarCatalog(starsCsvPath, self.constants)
         self.planetCatalog = PlanetCatalog(self.constants)
+        self.moonCatalog = MoonCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.beltGenerator = BeltPointGenerator()
         self.hildaGenerator = HildaPointGenerator3D()
@@ -129,7 +131,7 @@ class SolarSystemVisualizer3D:
         self._drawHildas(axes, pointCounts['hildas'])
         self._drawKuiperBelt(axes, pointCounts['kuiperBelt'])
         self._drawOortCloud(axes, pointCounts['oortCloud'])
-        self._drawPlanets(axes)
+        self._drawPlanets(axes, viewDefinition)
         self._drawOumuamua(axes, viewDefinition)
         self._drawStars(axes, viewDefinition)
 
@@ -225,7 +227,11 @@ class SolarSystemVisualizer3D:
         )
         axes.scatter(positionX, positionY, positionZ, color='gray', s=1)
 
-    def _drawPlanets(self, axes: plt.Axes) -> None:
+    def _drawPlanets(self, axes: plt.Axes, viewDefinition: ViewDefinition) -> None:
+        moonDisplayScale = self.moonCatalog.displayScaleForAxisSpanAu(
+            viewDefinition.axisMaxAu - viewDefinition.axisMinAu
+        )
+
         for planet in self.planetCatalog.planets.values():
             orbitX, orbitY, orbitZ = self.orbitCalculator.ellipticalOrbit3d(
                 planet.semiMajorAxisAu,
@@ -236,13 +242,37 @@ class SolarSystemVisualizer3D:
             axes.plot(orbitX, orbitY, orbitZ, color='black')
             sampleIndex = 50 if planet.name == 'Jupiter' else random.randint(0, len(orbitX) - 1)
             markerSize = int(10 + planet.diameterKm / 2500)
-            axes.scatter(
-                orbitX[sampleIndex],
-                orbitY[sampleIndex],
-                orbitZ[sampleIndex],
-                color=planet.color,
-                s=markerSize,
-            )
+            planetX = float(orbitX[sampleIndex])
+            planetY = float(orbitY[sampleIndex])
+            planetZ = float(orbitZ[sampleIndex])
+            axes.scatter(planetX, planetY, planetZ, color=planet.color, s=markerSize)
+
+            if moonDisplayScale <= 0.0:
+                continue
+
+            for moon in self.moonCatalog.forPlanet(planet.name):
+                ringAzimuthRad = np.linspace(0, 2 * np.pi, 48)
+                orbitRadiusAu = self.moonCatalog.displayOrbitRadiusAu(moon, moonDisplayScale)
+                axes.plot(
+                    planetX + orbitRadiusAu * np.cos(ringAzimuthRad),
+                    planetY + orbitRadiusAu * np.sin(ringAzimuthRad),
+                    planetZ,
+                    color=moon.color,
+                    alpha=0.25,
+                    linewidth=0.6,
+                )
+                moonMeanAnomalyRad = self.moonCatalog.initialPhaseRad(moon.name)
+                moonX, moonY, moonZ = self.moonCatalog.heliocentricPosition(
+                    planetX, planetY, planetZ, moon, moonMeanAnomalyRad, moonDisplayScale
+                )
+                moonMarkerSize = self.moonCatalog.markerSize3d(moon)
+                axes.scatter(
+                    float(moonX),
+                    float(moonY),
+                    float(moonZ),
+                    color=moon.color,
+                    s=moonMarkerSize,
+                )
 
     def _drawOumuamua(self, axes: plt.Axes, viewDefinition: ViewDefinition) -> None:
         constants = self.constants

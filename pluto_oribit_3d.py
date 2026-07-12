@@ -8,7 +8,7 @@ from typing import List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
-from solsys_core import AstronomicalConstants, BeltPointGenerator, OrbitCalculator, PlanetCatalog
+from solsys_core import AstronomicalConstants, BeltPointGenerator, MoonCatalog, OrbitCalculator, PlanetCatalog
 
 FIGURE_SIZE_INCHES = (20, 20)
 OUTPUT_DPI = 300
@@ -26,6 +26,7 @@ class PlutoOrbitVisualizer3D:
     def __init__(self):
         self.constants = AstronomicalConstants()
         self.planetCatalog = PlanetCatalog(self.constants)
+        self.moonCatalog = MoonCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.beltGenerator = BeltPointGenerator()
 
@@ -63,6 +64,45 @@ class PlutoOrbitVisualizer3D:
             numPoints=ORBIT_SAMPLE_POINTS,
         )
         axes.plot(plutoX, plutoY, plutoZ, color='blue', label="Pluto's Orbit")
+
+        plutoSampleIndex = len(plutoX) // 4
+        axes.scatter(
+            plutoX[plutoSampleIndex],
+            plutoY[plutoSampleIndex],
+            plutoZ[plutoSampleIndex],
+            color=pluto.color,
+            s=40,
+            label='Pluto',
+        )
+        for moon in self.moonCatalog.forPlanet('Pluto'):
+            moonDisplayScale = self.moonCatalog.DISPLAY_ORBIT_SCALE
+            ringAzimuthRad = np.linspace(0, 2 * np.pi, 48)
+            orbitRadiusAu = self.moonCatalog.displayOrbitRadiusAu(moon, moonDisplayScale)
+            axes.plot(
+                plutoX[plutoSampleIndex] + orbitRadiusAu * np.cos(ringAzimuthRad),
+                plutoY[plutoSampleIndex] + orbitRadiusAu * np.sin(ringAzimuthRad),
+                plutoZ[plutoSampleIndex],
+                color=moon.color,
+                alpha=0.35,
+                linewidth=0.8,
+            )
+            moonMeanAnomalyRad = self.moonCatalog.initialPhaseRad(moon.name)
+            moonX, moonY, moonZ = self.moonCatalog.heliocentricPosition(
+                plutoX[plutoSampleIndex],
+                plutoY[plutoSampleIndex],
+                plutoZ[plutoSampleIndex],
+                moon,
+                moonMeanAnomalyRad,
+                moonDisplayScale,
+            )
+            axes.scatter(
+                float(moonX),
+                float(moonY),
+                float(moonZ),
+                color=moon.color,
+                s=self.moonCatalog.markerSize3d(moon, 400),
+                label=moon.name,
+            )
 
         kuiperBeltX, kuiperBeltY, kuiperBeltZ = self._kuiperBeltPoints()
         axes.scatter(kuiperBeltX, kuiperBeltY, kuiperBeltZ, color='darkgray', s=1, alpha=0.5)

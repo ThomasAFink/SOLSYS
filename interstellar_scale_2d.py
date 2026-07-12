@@ -12,6 +12,7 @@ import numpy as np
 from solsys_core import (
     AstronomicalConstants,
     BeltPointGenerator,
+    MoonCatalog,
     OrbitCalculator,
     PlanetCatalog,
     PointDensityConfig,
@@ -38,6 +39,7 @@ class SolarSystemVisualizer2D:
         self.constants = AstronomicalConstants()
         self.starCatalog = StarCatalog(starsCsvPath, self.constants)
         self.planetCatalog = PlanetCatalog(self.constants)
+        self.moonCatalog = MoonCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.beltGenerator = BeltPointGenerator()
         self.labeledStarSystems: set[str] = set()
@@ -68,6 +70,8 @@ class SolarSystemVisualizer2D:
     def _drawPlanets(self, axes: plt.Axes, viewId: str) -> None:
         isInnerView = viewId in {'0_inner_solar_system', '1_inner_solar_system_with_jupiter'}
         markerScaleDivisor = 100 if isInnerView else 1000
+        axisMinAu, axisMaxAu = ViewRegistry.axisLimitsForView(viewId)
+        moonDisplayScale = self.moonCatalog.displayScaleForAxisSpanAu(axisMaxAu - axisMinAu)
 
         for planet in self.planetCatalog.planets.values():
             orbitX, orbitY = self.orbitCalculator.ellipticalOrbit2d(
@@ -79,9 +83,24 @@ class SolarSystemVisualizer2D:
             axes.plot(orbitX, orbitY, color='black')
             markerSize = int(10 + planet.diameterKm / markerScaleDivisor)
             sampleIndex = 50 if planet.name == 'Jupiter' else random.randint(0, len(orbitX) - 1)
-            axes.scatter(
-                orbitX[sampleIndex], orbitY[sampleIndex], color=planet.color, s=markerSize
-            )
+            planetX = float(orbitX[sampleIndex])
+            planetY = float(orbitY[sampleIndex])
+            axes.scatter(planetX, planetY, color=planet.color, s=markerSize)
+
+            if moonDisplayScale <= 0.0:
+                continue
+
+            for moon in self.moonCatalog.forPlanet(planet.name):
+                ringX, ringY = self.moonCatalog.moonOrbitRing2d(
+                    moon, planetX, planetY, moonDisplayScale
+                )
+                axes.plot(ringX, ringY, color=moon.color, alpha=0.25, linewidth=0.6, zorder=4)
+                moonMeanAnomalyRad = self.moonCatalog.initialPhaseRad(moon.name)
+                moonX, moonY, _ = self.moonCatalog.heliocentricPosition(
+                    planetX, planetY, 0.0, moon, moonMeanAnomalyRad, moonDisplayScale
+                )
+                moonMarkerSize = self.moonCatalog.markerSize2d(moon, markerScaleDivisor)
+                axes.scatter(float(moonX), float(moonY), color=moon.color, s=moonMarkerSize, zorder=5)
 
     def _jupiterOrbitalAngleRad(self) -> float:
         jupiter = self.planetCatalog.planets['Jupiter']
