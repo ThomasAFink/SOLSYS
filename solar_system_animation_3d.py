@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 from solsys_animation import AnimatedAsteroidPopulation, AsteroidPopulationCounts, planetMeanAnomalyRad
-from solsys_core import AstronomicalConstants, OrbitCalculator, PlanetCatalog
+from solsys_core import AstronomicalConstants, MoonCatalog, OrbitCalculator, PlanetCatalog
 
 FIGURE_SIZE_INCHES = (12, 12)
 ANIMATION_FRAMES = 500
@@ -80,6 +80,7 @@ class SolarSystemAnimator3D:
         self.renderStyle = ASTEROID_RENDER_STYLES['dark' if style == 'dark_background' else 'light']
         self.constants = AstronomicalConstants()
         self.planetCatalog = PlanetCatalog(self.constants)
+        self.moonCatalog = MoonCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.asteroidPopulation = AnimatedAsteroidPopulation(
             self.constants,
@@ -249,6 +250,37 @@ class SolarSystemAnimator3D:
                 s=markerSize,
                 alpha=planetAlpha,
             )
+
+            for moon in self.moonCatalog.forPlanet(planet.name):
+                moonDisplayScale = self.moonCatalog.displayScaleForCameraAu(cameraDistanceAu)
+                if moonDisplayScale <= 0.0:
+                    continue
+
+                ringAzimuthRad = np.linspace(0, 2 * np.pi, 48)
+                orbitRadiusAu = self.moonCatalog.displayOrbitRadiusAu(moon, moonDisplayScale)
+                self.axes.plot(
+                    positionX + orbitRadiusAu * np.cos(ringAzimuthRad),
+                    positionY + orbitRadiusAu * np.sin(ringAzimuthRad),
+                    positionZ,
+                    color=moon.color,
+                    alpha=0.2,
+                    linewidth=0.5,
+                )
+                moonMeanAnomalyRad = planetMeanAnomalyRad(
+                    moon.orbitalPeriodDays, frame, animationSpeed
+                )
+                moonX, moonY, moonZ = self.moonCatalog.heliocentricPosition(
+                    positionX, positionY, positionZ, moon, moonMeanAnomalyRad, moonDisplayScale
+                )
+                moonAlpha = float(self._visibilityAlpha(moonX, moonY, moonZ, cameraDistanceAu))
+                self.axes.scatter(
+                    moonX,
+                    moonY,
+                    moonZ,
+                    color=moon.color,
+                    s=self.moonCatalog.markerSize3d(moon, 1200),
+                    alpha=moonAlpha,
+                )
 
         self.axes.set_xlim(-cameraDistanceAu, cameraDistanceAu)
         self.axes.set_ylim(-cameraDistanceAu, cameraDistanceAu)
