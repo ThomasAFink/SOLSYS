@@ -12,6 +12,7 @@ import numpy as np
 from solsys_core import (
     AstronomicalConstants,
     BeltPointGenerator,
+    FamousAsteroidCatalog,
     MoonCatalog,
     OrbitCalculator,
     PlanetCatalog,
@@ -104,6 +105,7 @@ class SolarSystemVisualizer3D:
         self.starCatalog = StarCatalog(starsCsvPath, self.constants)
         self.planetCatalog = PlanetCatalog(self.constants)
         self.moonCatalog = MoonCatalog()
+        self.famousAsteroidCatalog = FamousAsteroidCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.beltGenerator = BeltPointGenerator()
         self.hildaGenerator = HildaPointGenerator3D()
@@ -132,6 +134,7 @@ class SolarSystemVisualizer3D:
         self._drawKuiperBelt(axes, pointCounts['kuiperBelt'])
         self._drawOortCloud(axes, pointCounts['oortCloud'])
         self._drawPlanets(axes, viewDefinition)
+        self._drawFamousAsteroids(axes, viewDefinition)
         self._drawOumuamua(axes, viewDefinition)
         self._drawStars(axes, viewDefinition)
 
@@ -272,6 +275,43 @@ class SolarSystemVisualizer3D:
                     float(moonZ),
                     color=moon.color,
                     s=moonMarkerSize,
+                )
+
+    def _drawFamousAsteroids(self, axes: plt.Axes, viewDefinition: ViewDefinition) -> None:
+        axisSpanAu = viewDefinition.axisMaxAu - viewDefinition.axisMinAu
+
+        for asteroid in self.famousAsteroidCatalog.asteroids.values():
+            if not self.famousAsteroidCatalog.visibleForAxisSpanAu(axisSpanAu, asteroid.category):
+                continue
+
+            orbitX, orbitY, orbitZ = self.orbitCalculator.ellipticalOrbit3d(
+                asteroid.semiMajorAxisAu,
+                asteroid.eccentricity,
+                asteroid.inclinationDeg,
+                numPoints=300,
+            )
+            axes.plot(orbitX, orbitY, orbitZ, color=asteroid.color, alpha=0.45, linewidth=0.8)
+
+            meanAnomalyRad = self.famousAsteroidCatalog.initialPhaseRad(asteroid.name)
+            positionX, positionY, positionZ = self.famousAsteroidCatalog.positionAtMeanAnomaly(
+                asteroid, meanAnomalyRad, self.orbitCalculator
+            )
+            markerSize = self.famousAsteroidCatalog.markerSize3d(asteroid)
+            axes.scatter(
+                float(positionX),
+                float(positionY),
+                float(positionZ),
+                color=asteroid.color,
+                s=markerSize,
+            )
+            if axisSpanAu <= 25 or asteroid.category == 'kuiper':
+                axes.text(
+                    float(positionX),
+                    float(positionY),
+                    float(positionZ),
+                    asteroid.name,
+                    fontsize=8,
+                    color=asteroid.color,
                 )
 
     def _drawOumuamua(self, axes: plt.Axes, viewDefinition: ViewDefinition) -> None:

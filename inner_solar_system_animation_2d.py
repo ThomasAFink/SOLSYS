@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 from solsys_animation import AnimatedAsteroidPopulation, AsteroidPopulationCounts, planetMeanAnomalyRad
-from solsys_core import AstronomicalConstants, MoonCatalog, OrbitCalculator, PlanetCatalog
+from solsys_core import AstronomicalConstants, FamousAsteroidCatalog, MoonCatalog, OrbitCalculator, PlanetCatalog
 
 FIGURE_SIZE_INCHES = (12, 12)
 AXIS_LIMIT_AU = 6.5
@@ -27,6 +27,7 @@ class InnerSolarSystemAnimator2D:
         self.constants = AstronomicalConstants()
         self.planetCatalog = PlanetCatalog(self.constants)
         self.moonCatalog = MoonCatalog()
+        self.famousAsteroidCatalog = FamousAsteroidCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.asteroidPopulation = AnimatedAsteroidPopulation(
             self.constants,
@@ -70,6 +71,39 @@ class InnerSolarSystemAnimator2D:
                 self.axes.scatter(
                     float(moonX), float(moonY), color=moon.color, s=moonMarkerSize, zorder=8
                 )
+
+    def _drawFamousAsteroids(self, frame: int) -> None:
+        axisSpanAu = 2 * AXIS_LIMIT_AU
+        for asteroid in self.famousAsteroidCatalog.asteroids.values():
+            if not self.famousAsteroidCatalog.visibleForAxisSpanAu(axisSpanAu, asteroid.category):
+                continue
+
+            orbitX, orbitY = self.orbitCalculator.ellipticalOrbit2d(
+                asteroid.semiMajorAxisAu,
+                asteroid.eccentricity,
+                asteroid.inclinationDeg,
+                numPoints=120,
+            )
+            self.axes.plot(orbitX, orbitY, color=asteroid.color, alpha=0.35, linewidth=0.6, zorder=4)
+
+            meanAnomalyRad = planetMeanAnomalyRad(
+                asteroid.orbitalPeriodDays, frame, ANIMATION_SPEED
+            )
+            positionX, positionY, _ = self.famousAsteroidCatalog.positionAtMeanAnomaly(
+                asteroid, meanAnomalyRad, self.orbitCalculator
+            )
+            markerSize = self.famousAsteroidCatalog.markerSize2d(asteroid, 120)
+            self.axes.scatter(
+                float(positionX), float(positionY), color=asteroid.color, s=markerSize, zorder=7
+            )
+            self.axes.text(
+                float(positionX) + 0.1,
+                float(positionY) + 0.1,
+                asteroid.name,
+                fontsize=7,
+                color=asteroid.color,
+                zorder=8,
+            )
 
     def _jupiterMeanAnomalyRad(self, frame: int) -> float:
         jupiter = self.planetCatalog.planets['Jupiter']
@@ -118,6 +152,7 @@ class InnerSolarSystemAnimator2D:
             self.axes.text(positionX + 0.15, positionY + 0.15, planetName, fontsize=8)
 
         self._drawMoons(frame)
+        self._drawFamousAsteroids(frame)
 
         self.axes.set_aspect('equal')
         self.axes.set_xlim(-AXIS_LIMIT_AU, AXIS_LIMIT_AU)

@@ -12,6 +12,7 @@ import numpy as np
 from solsys_core import (
     AstronomicalConstants,
     BeltPointGenerator,
+    FamousAsteroidCatalog,
     MoonCatalog,
     OrbitCalculator,
     PlanetCatalog,
@@ -40,6 +41,7 @@ class SolarSystemVisualizer2D:
         self.starCatalog = StarCatalog(starsCsvPath, self.constants)
         self.planetCatalog = PlanetCatalog(self.constants)
         self.moonCatalog = MoonCatalog()
+        self.famousAsteroidCatalog = FamousAsteroidCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.beltGenerator = BeltPointGenerator()
         self.labeledStarSystems: set[str] = set()
@@ -53,6 +55,7 @@ class SolarSystemVisualizer2D:
         pointCounts = PointDensityConfig.forView(viewId)
         self._drawSun(axes, viewId)
         self._drawPlanets(axes, viewId)
+        self._drawFamousAsteroids(axes, viewId)
         self._drawBeltsAndClouds(axes, pointCounts)
         if 'nearest_stars' in viewId or 'alpha_centauri' in viewId:
             self._drawNearbyStars(axes, viewId)
@@ -101,6 +104,43 @@ class SolarSystemVisualizer2D:
                 )
                 moonMarkerSize = self.moonCatalog.markerSize2d(moon, markerScaleDivisor)
                 axes.scatter(float(moonX), float(moonY), color=moon.color, s=moonMarkerSize, zorder=5)
+
+    def _drawFamousAsteroids(self, axes: plt.Axes, viewId: str) -> None:
+        axisMinAu, axisMaxAu = ViewRegistry.axisLimitsForView(viewId)
+        axisSpanAu = axisMaxAu - axisMinAu
+        isInnerView = viewId in {'0_inner_solar_system', '1_inner_solar_system_with_jupiter'}
+        markerScaleDivisor = 80 if isInnerView else 400
+        labelFontSize = 14 if isInnerView else 10
+
+        for asteroid in self.famousAsteroidCatalog.asteroids.values():
+            if not self.famousAsteroidCatalog.visibleForAxisSpanAu(axisSpanAu, asteroid.category):
+                continue
+
+            orbitX, orbitY = self.orbitCalculator.ellipticalOrbit2d(
+                asteroid.semiMajorAxisAu,
+                asteroid.eccentricity,
+                asteroid.inclinationDeg,
+                numPoints=300,
+            )
+            axes.plot(orbitX, orbitY, color=asteroid.color, alpha=0.45, linewidth=0.8, zorder=3)
+
+            meanAnomalyRad = self.famousAsteroidCatalog.initialPhaseRad(asteroid.name)
+            positionX, positionY, _ = self.famousAsteroidCatalog.positionAtMeanAnomaly(
+                asteroid, meanAnomalyRad, self.orbitCalculator
+            )
+            markerSize = self.famousAsteroidCatalog.markerSize2d(asteroid, markerScaleDivisor)
+            axes.scatter(
+                float(positionX), float(positionY), color=asteroid.color, s=markerSize, zorder=6
+            )
+            if isInnerView or asteroid.category == 'kuiper':
+                axes.text(
+                    float(positionX) + 0.12,
+                    float(positionY) + 0.12,
+                    asteroid.name,
+                    fontsize=labelFontSize,
+                    color=asteroid.color,
+                    zorder=7,
+                )
 
     def _jupiterOrbitalAngleRad(self) -> float:
         jupiter = self.planetCatalog.planets['Jupiter']
