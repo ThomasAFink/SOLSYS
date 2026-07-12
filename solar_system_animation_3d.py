@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 from solsys_animation import AnimatedAsteroidPopulation, AsteroidPopulationCounts, planetMeanAnomalyRad
-from solsys_core import AstronomicalConstants, MoonCatalog, OrbitCalculator, PlanetCatalog
+from solsys_core import AstronomicalConstants, FamousAsteroidCatalog, MoonCatalog, OrbitCalculator, PlanetCatalog
 
 FIGURE_SIZE_INCHES = (12, 12)
 ANIMATION_FRAMES = 500
@@ -81,6 +81,7 @@ class SolarSystemAnimator3D:
         self.constants = AstronomicalConstants()
         self.planetCatalog = PlanetCatalog(self.constants)
         self.moonCatalog = MoonCatalog()
+        self.famousAsteroidCatalog = FamousAsteroidCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.asteroidPopulation = AnimatedAsteroidPopulation(
             self.constants,
@@ -281,6 +282,37 @@ class SolarSystemAnimator3D:
                     s=self.moonCatalog.markerSize3d(moon, 1200),
                     alpha=moonAlpha,
                 )
+
+        for asteroid in self.famousAsteroidCatalog.asteroids.values():
+            if not self.famousAsteroidCatalog.visibleForCameraAu(cameraDistanceAu, asteroid.category):
+                continue
+
+            orbitX, orbitY, orbitZ = self.orbitCalculator.ellipticalOrbit3d(
+                asteroid.semiMajorAxisAu,
+                asteroid.eccentricity,
+                asteroid.inclinationDeg,
+                numPoints=120,
+            )
+            orbitAlpha = self._visibilityAlpha(orbitX, orbitY, orbitZ, cameraDistanceAu)
+            self.axes.plot(
+                orbitX, orbitY, orbitZ, color=asteroid.color, alpha=float(np.mean(orbitAlpha)) * 0.4
+            )
+
+            meanAnomalyRad = planetMeanAnomalyRad(
+                asteroid.orbitalPeriodDays, frame, animationSpeed
+            )
+            positionX, positionY, positionZ = self.famousAsteroidCatalog.positionAtMeanAnomaly(
+                asteroid, meanAnomalyRad, self.orbitCalculator
+            )
+            asteroidAlpha = float(self._visibilityAlpha(positionX, positionY, positionZ, cameraDistanceAu))
+            self.axes.scatter(
+                positionX,
+                positionY,
+                positionZ,
+                color=asteroid.color,
+                s=self.famousAsteroidCatalog.markerSize3d(asteroid, 500),
+                alpha=asteroidAlpha,
+            )
 
         self.axes.set_xlim(-cameraDistanceAu, cameraDistanceAu)
         self.axes.set_ylim(-cameraDistanceAu, cameraDistanceAu)

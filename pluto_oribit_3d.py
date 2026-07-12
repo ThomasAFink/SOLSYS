@@ -8,7 +8,14 @@ from typing import List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
-from solsys_core import AstronomicalConstants, BeltPointGenerator, MoonCatalog, OrbitCalculator, PlanetCatalog
+from solsys_core import (
+    AstronomicalConstants,
+    BeltPointGenerator,
+    FamousAsteroidCatalog,
+    MoonCatalog,
+    OrbitCalculator,
+    PlanetCatalog,
+)
 
 FIGURE_SIZE_INCHES = (20, 20)
 OUTPUT_DPI = 300
@@ -27,6 +34,7 @@ class PlutoOrbitVisualizer3D:
         self.constants = AstronomicalConstants()
         self.planetCatalog = PlanetCatalog(self.constants)
         self.moonCatalog = MoonCatalog()
+        self.famousAsteroidCatalog = FamousAsteroidCatalog()
         self.orbitCalculator = OrbitCalculator()
         self.beltGenerator = BeltPointGenerator()
 
@@ -106,6 +114,29 @@ class PlutoOrbitVisualizer3D:
 
         kuiperBeltX, kuiperBeltY, kuiperBeltZ = self._kuiperBeltPoints()
         axes.scatter(kuiperBeltX, kuiperBeltY, kuiperBeltZ, color='darkgray', s=1, alpha=0.5)
+
+        for asteroid in self.famousAsteroidCatalog.asteroids.values():
+            if asteroid.category != 'kuiper':
+                continue
+            orbitX, orbitY, orbitZ = self.orbitCalculator.ellipticalOrbit3d(
+                asteroid.semiMajorAxisAu,
+                asteroid.eccentricity,
+                asteroid.inclinationDeg,
+                numPoints=300,
+            )
+            axes.plot(orbitX, orbitY, orbitZ, color=asteroid.color, alpha=0.5, linewidth=1.0)
+            meanAnomalyRad = self.famousAsteroidCatalog.initialPhaseRad(asteroid.name)
+            positionX, positionY, positionZ = self.famousAsteroidCatalog.positionAtMeanAnomaly(
+                asteroid, meanAnomalyRad, self.orbitCalculator
+            )
+            axes.scatter(
+                float(positionX),
+                float(positionY),
+                float(positionZ),
+                color=asteroid.color,
+                s=self.famousAsteroidCatalog.markerSize3d(asteroid, 300),
+                label=asteroid.name,
+            )
 
         axes.text(-constants.plutoAphelionAu, 0, 0, "Pluto's aphelion", color='blue', fontsize=12)
         axes.text(constants.plutoPerihelionAu, 0, 0, "Pluto's perihelion", color='blue', fontsize=12)
