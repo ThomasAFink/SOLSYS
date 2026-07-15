@@ -279,7 +279,8 @@ class AnimatedAsteroidPopulation:
         self, frame: int, jupiterMeanAnomalyRad: float, animationSpeed: float, ecliptic2d: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         del animationSpeed
-        meanAnomalyRad = self.hildaMeanAnomalyRad + jupiterMeanAnomalyRad * (2 / 3)
+        # 3:2 resonance: three Hilda orbits per two Jupiter orbits → angular rate 3/2
+        meanAnomalyRad = self.hildaMeanAnomalyRad + jupiterMeanAnomalyRad * (3 / 2)
         oscillationAu = self.hildaOscillationAmplitude * np.sin(
             frame * 0.1 + self.hildaPhaseRad
         )
