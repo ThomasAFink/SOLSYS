@@ -4,7 +4,7 @@
 
 **SOLSYS** visualizes the solar system with corrected Keplerian physics — from the inner planets out past the Kuiper Belt and Oort Cloud to nearby stars.
 
-The **main product** is animation: light/dark GIFs of the inner system and a staged 3D zoom from the Oort cloud inward. A **side product** renders static multi-zoom JPGs and a light-year neighborhood star map. Shared libraries hold orbit math, catalogs, and asteroid-population motion so both products stay in sync.
+The **main product** is animation: light/dark GIFs of the inner system and a staged 3D zoom from the Oort cloud inward. A **side product** renders static multi-zoom JPGs (light/dark) and a light-year neighborhood star map. Shared libraries hold orbit math, catalogs, and asteroid-population motion so both products stay in sync.
 
 Built with `numpy`, `pandas`, and `matplotlib`. Orbital elements include elliptical planet orbits, spherical asteroid/Kuiper/Oort shells, Jupiter Trojans/Greeks, Hilda clusters, moons, named asteroids, and `'Oumuamua`'s hyperbolic trajectory from JPL elements.
 
@@ -14,7 +14,7 @@ Built with `numpy`, `pandas`, and `matplotlib`. Orbital elements include ellipti
 |-------|------|------|
 | CLI | `render.py` | Single entry point: `animate` / `static` / `neighborhood` / `all` |
 | Main product | `animate/` | GIF animations (2D inner system + 3D zoom tour); Blender close-ups planned under `animate/scenes/blender/` |
-| Side product | `static/` | Multi-zoom JPGs (2D top-down / 3D) and neighborhood star map |
+| Side product | `static/` | Multi-zoom JPGs light/dark (2D top-down / 3D) and neighborhood star map |
 | Shared physics | `solsys/physics/` | Constants, orbits, catalogs, belt generators, view registry |
 | Shared motion | `solsys/motion/` | Animated asteroid / Hilda / Trojan / Kuiper / Oort populations |
 
@@ -95,8 +95,8 @@ SOLSYS/
     ├── animate/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
     │   └── 3d/                                    # solar_system_{light,dark}.gif
-    ├── 2d/                                        # Static top-down zoom JPGs
-    ├── 3d/                                        # Static perspective zoom JPGs
+    ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
+    ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
 ```
 
@@ -133,27 +133,67 @@ solsys.motion    → moving asteroid fields for animation frames
 
 ### Static zoom views (side)
 
-| Inner Solar System With Jupiter | Solar System With Kuiper Belt |
-|---------------------------------|-------------------------------|
-| ![Inner](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/1_inner_solar_system_with_jupiter.jpg?raw=true) | ![Kuiper](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/2_solar_system_with_kuiper_belt.jpg?raw=true) |
+**Inner Solar System With Jupiter**
 
-| Solar System With Oort Cloud | Solar System with Alpha Centauri |
-|------------------------------|----------------------------------|
-| ![Oort](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/3_solar_system_with_oort_cloud.jpg?raw=true) | ![Alpha Cen](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/4_solar_system_with_alpha_centauri.jpg?raw=true) |
+| Light | Dark |
+|-------|------|
+| ![Inner light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/1_inner_solar_system_with_jupiter_light.jpg?raw=true) | ![Inner dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/1_inner_solar_system_with_jupiter_dark.jpg?raw=true) |
 
-| Neighbors Within 10 Light Years | Neighbors Within 25 Light Years |
-|---------------------------------|---------------------------------|
-| ![10 ly](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/5_solar_system_with_nearest_stars_10.jpg?raw=true) | ![25 ly](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/6_solar_system_with_nearest_stars_25.jpg?raw=true) |
+**Solar System With Kuiper Belt**
+
+| Light | Dark |
+|-------|------|
+| ![Kuiper light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/2_solar_system_with_kuiper_belt_light.jpg?raw=true) | ![Kuiper dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/2_solar_system_with_kuiper_belt_dark.jpg?raw=true) |
+
+**Solar System With Oort Cloud**
+
+| Light | Dark |
+|-------|------|
+| ![Oort light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/3_solar_system_with_oort_cloud_light.jpg?raw=true) | ![Oort dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/3_solar_system_with_oort_cloud_dark.jpg?raw=true) |
+
+**Solar System with Alpha Centauri**
+
+| Light | Dark |
+|-------|------|
+| ![Alpha Cen light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/4_solar_system_with_alpha_centauri_light.jpg?raw=true) | ![Alpha Cen dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/4_solar_system_with_alpha_centauri_dark.jpg?raw=true) |
+
+**Neighbors Within 10 Light Years**
+
+| Light | Dark |
+|-------|------|
+| ![10 ly light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/5_solar_system_with_nearest_stars_10_light.jpg?raw=true) | ![10 ly dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/5_solar_system_with_nearest_stars_10_dark.jpg?raw=true) |
+
+**Neighbors Within 25 Light Years**
+
+| Light | Dark |
+|-------|------|
+| ![25 ly light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/6_solar_system_with_nearest_stars_25_light.jpg?raw=true) | ![25 ly dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/2d/6_solar_system_with_nearest_stars_25_dark.jpg?raw=true) |
 
 ### Matching 3D static views
 
-| Inner Solar System With Jupiter | Solar System With Kuiper Belt |
-|---------------------------------|-------------------------------|
-| ![3D Inner](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/1_inner_solar_system_with_jupiter.jpg?raw=true) | ![3D Kuiper](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/2_solar_system_with_kuiper_belt.jpg?raw=true) |
+**Inner Solar System With Jupiter**
 
-| Solar System With Oort Cloud | Solar System with Alpha Centauri |
-|------------------------------|----------------------------------|
-| ![3D Oort](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/3_solar_system_with_oort_cloud.jpg?raw=true) | ![3D Alpha](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/4_solar_system_with_alpha_centauri.jpg?raw=true) |
+| Light | Dark |
+|-------|------|
+| ![3D Inner light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/1_inner_solar_system_with_jupiter_light.jpg?raw=true) | ![3D Inner dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/1_inner_solar_system_with_jupiter_dark.jpg?raw=true) |
+
+**Solar System With Kuiper Belt**
+
+| Light | Dark |
+|-------|------|
+| ![3D Kuiper light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/2_solar_system_with_kuiper_belt_light.jpg?raw=true) | ![3D Kuiper dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/2_solar_system_with_kuiper_belt_dark.jpg?raw=true) |
+
+**Solar System With Oort Cloud**
+
+| Light | Dark |
+|-------|------|
+| ![3D Oort light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/3_solar_system_with_oort_cloud_light.jpg?raw=true) | ![3D Oort dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/3_solar_system_with_oort_cloud_dark.jpg?raw=true) |
+
+**Solar System with Alpha Centauri**
+
+| Light | Dark |
+|-------|------|
+| ![3D Alpha light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/4_solar_system_with_alpha_centauri_light.jpg?raw=true) | ![3D Alpha dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/4_solar_system_with_alpha_centauri_dark.jpg?raw=true) |
 
 ## Physics notes
 
