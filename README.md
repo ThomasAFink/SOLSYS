@@ -10,11 +10,10 @@ This project visualizes the solar system from the inner planets out to the neare
 - **Static 3D views** (`interstellar_scale_3d.py`) — eight matching 3D perspectives with full spherical belt distributions and nearby stars placed from RA/Dec coordinates
 - **Animated 2D inner system** (`inner_solar_system_animation_2d.py`) — Mercury through Jupiter, asteroid belt, Hildas, and Jupiter Lagrange clouds in light and dark themes
 - **Animated 3D solar system** (`solar_system_animation_3d.py`) — staged camera zoom from the Oort cloud down to the inner system, with scale-matched asteroid visibility and light/dark GIF output
-- **Pluto orbit study** (`pluto_oribit_3d.py`) — inclined 3D Pluto orbit and Kuiper Belt from four camera angles
 - **Interstellar neighborhood** (`interstellar_neighborhood.py`) — 3D map of stars within 10 light years
 - **Shared core** (`solsys_core.py`, `solsys_animation.py`) — constants, orbit math, star catalog, view registry, and animated asteroid populations used by all renderers
 
-Outputs live in `output/2d/`, `output/3d/`, `output/animate/`, and `output/pluto_orbit_3d_view_*.jpg`.
+Outputs live in `output/2d/`, `output/3d/`, and `output/animate/`.
 
 | Inner Solar System With Jupiter | Solar System With Kuiper Belt |
 |---------------|-----------------------------|
@@ -180,9 +179,9 @@ plt.savefig("orbit.jpg", dpi=300)
 plt.show()
 ```
 
-## 3D Visualization of Pluto's Orbit and the Kuiper Belt
+## 3D Visualization of the Solar System
 
-The following images provide different perspectives on Pluto's orbit and the Kuiper Belt, showcasing the 3D modeling capabilities of `matplotlib`. These images can be generated from various viewing angles to illustrate the complex spatial relationships within this region of our solar system.
+The following images show matching 3D perspectives across the same zoom levels, using shared orbital geometry projected with a perspective camera.
 
 | Inner Solar System With Jupiter | Solar System With Kuiper Belt |
 |---------------|-----------------------------|
