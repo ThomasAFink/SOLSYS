@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from solsys_core import (
+from solsys_physics import (
     AstronomicalConstants,
     BeltPointGenerator,
     FamousAsteroidCatalog,

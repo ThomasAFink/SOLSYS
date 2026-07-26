@@ -1,4 +1,4 @@
-"""Shared solar-system visualization core: constants, orbits, and star catalog."""
+"""Shared solar-system physics library: constants, orbits, catalogs, and belt generators."""
 
 from __future__ import annotations
 
