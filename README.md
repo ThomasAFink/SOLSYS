@@ -28,6 +28,34 @@ Built with `numpy`, `pandas`, and `matplotlib`. Orbital elements include ellipti
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pre-commit install
+.venv/bin/pre-commit install --hook-type commit-msg
+```
+
+### Git hooks (pre-commit)
+
+After install, commits are gated by:
+
+- **pre-commit** — Ruff format + lint on `animate/`, `static/`, `solsys/`, `render.py`
+- **commit-msg** — conventional messages:
+
+```text
+feat(SOLSYS): subject
+fix(SOLSYS): subject
+chore(SOLSYS): subject
+docs(SOLSYS): subject
+clean(SOLSYS): subject
+feat(SOLSYS-123): subject   # optional ticket id
+```
+
+Manual checks:
+
+```bash
+.venv/bin/pre-commit run --all-files
+.venv/bin/ruff format animate static solsys render.py
+.venv/bin/ruff check animate static solsys render.py
+.venv/bin/radon cc animate static solsys render.py -s -a
 ```
 
 Render everything (~several minutes for animations):
@@ -52,6 +80,11 @@ Or render by product:
 SOLSYS/
 ├── render.py                                      # CLI entry point
 ├── requirements.txt
+├── requirements-dev.txt                           # pre-commit, ruff, radon, xenon
+├── pyproject.toml                                 # Ruff config
+├── .pre-commit-config.yaml                        # Git hook definitions
+├── .githooks/
+│   └── commit-msg                                 # type(SOLSYS[-N]): subject
 ├── README.md
 ├── data/
 │   └── nearby_stars_30.csv                        # Nearby-star catalog (RA/Dec, distances)
