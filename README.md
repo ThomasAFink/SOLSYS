@@ -9,7 +9,7 @@ This project visualizes the solar system from the inner planets out to the neare
 - **Render CLI** (`render.py`) — one entry point for everything (`static` / `neighborhood` / `animate` / `all`)
 - **Static views & neighborhood** (`interstellar_scale.py`) — shared XYZ solar-system zoom series (2D top-down or 3D) plus a dark 3D light-year neighborhood star map
 - **Animations** (`solar_system_animation.py`) — shared orbital motion; 2D is a fixed inner-system top-down, 3D adds staged camera zoom from the Oort cloud inward
-- **Shared core** (`solsys_core.py`, `solsys_animation.py`) — constants, orbit math, star catalog, view registry, and animated asteroid populations used by all renderers
+- **Shared libraries** (`solsys_physics.py`, `asteroid_motion.py`) — constants, orbit math, catalogs, and animated asteroid population motion used by the renderers
 
 Outputs live in `output/2d/`, `output/3d/`, `output/neighborhood/`, and `output/animate/`.
 

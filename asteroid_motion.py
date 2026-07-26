@@ -1,4 +1,4 @@
-"""Animated asteroid populations using solsys_core physics and orbital-mechanics randomness."""
+"""Animated asteroid populations using solsys_physics and orbital-mechanics randomness."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Dict, Tuple
 
 import numpy as np
 
-from solsys_core import AstronomicalConstants, BeltPointGenerator, OrbitCalculator
+from solsys_physics import AstronomicalConstants, BeltPointGenerator, OrbitCalculator
 
 LAGRANGE_OFFSET_RAD = np.pi / 3
 BELT_SHELL_THICKNESS_AU = 0.05
