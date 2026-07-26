@@ -38,16 +38,34 @@ python3 -m venv .venv
 After install, commits are gated by:
 
 - **pre-commit** — Ruff format + lint on `animate/`, `static/`, `solsys/`, `render.py`
-- **commit-msg** — conventional messages:
+- **commit-msg** — enforces the commit message rules below
+
+### Commit message rules
+
+First line must match:
 
 ```text
-feat(SOLSYS): subject
-fix(SOLSYS): subject
-chore(SOLSYS): subject
-docs(SOLSYS): subject
-clean(SOLSYS): subject
-feat(SOLSYS-123): subject   # optional ticket id
+type(SOLSYS): subject
+type(SOLSYS-123): subject
 ```
+
+| Part | Rule |
+|------|------|
+| `type` | One of `feat`, `fix`, `chore`, `docs`, `clean` |
+| Scope | `SOLSYS` or `SOLSYS-<ticket>` (digits only) |
+| Subject | Required non-empty text after `: ` |
+
+Examples:
+
+```text
+feat(SOLSYS): add light/dark static themes
+fix(SOLSYS-42): correct Hilda resonance rate
+docs(SOLSYS): document commit message rules
+chore(SOLSYS): bump ruff
+clean(SOLSYS): remove unused Pluto study script
+```
+
+Merge / revert / fixup / squash commits are allowed through unchanged.
 
 Manual checks:
 
