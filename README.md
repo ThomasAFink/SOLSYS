@@ -6,10 +6,9 @@ This project visualizes the solar system from the inner planets out to the neare
 
 **What's included:**
 
-- **Static 2D views** (`interstellar_scale_2d.py`) — nine zoom levels from the inner solar system (±3.5 AU) through the Oort cloud (±100,000 AU) to the 30 light-year stellar neighborhood, plus an `'Oumuamua` and Vega context map
-- **Static 3D views** (`interstellar_scale_3d.py`) — eight matching 3D perspectives with full spherical belt distributions and nearby stars placed from RA/Dec coordinates
-- **Animated 2D inner system** (`inner_solar_system_animation_2d.py`) — Mercury through Jupiter, asteroid belt, Hildas, and Jupiter Lagrange clouds in light and dark themes
-- **Animated 3D solar system** (`solar_system_animation_3d.py`) — staged camera zoom from the Oort cloud down to the inner system, with scale-matched asteroid visibility and light/dark GIF output
+- **Render CLI** (`render.py`) — one entry point for static views and animations (`static` / `animate` / `all`, with `--dimension 2d|3d|all`)
+- **Static views** (`interstellar_scale.py`) — shared XYZ geometry rendered as 2D top-down or 3D perspective. Nine 2D zoom levels (plus `'Oumuamua`/Vega) and eight matching 3D views
+- **Animations** (`solar_system_animation.py`) — shared orbital motion; 2D is a fixed inner-system top-down, 3D adds staged camera zoom from the Oort cloud inward
 - **Interstellar neighborhood** (`interstellar_neighborhood.py`) — 3D map of stars within 10 light years
 - **Shared core** (`solsys_core.py`, `solsys_animation.py`) — constants, orbit math, star catalog, view registry, and animated asteroid populations used by all renderers
 
@@ -30,13 +29,25 @@ Outputs live in `output/2d/`, `output/3d/`, and `output/animate/`.
 
 ## Getting Started
 
-To run this script, you need Python installed on your system along with the `numpy` and `matplotlib` libraries. These dependencies can be installed using pip:
+Install dependencies (preferably in a virtualenv):
 
 ```bash
-pip3 install numpy
-pip3 install pandas
-pip3 install matplotlib
-pip3 install mpl_toolkits
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+Render everything, or pick a subset:
+
+```bash
+.venv/bin/python render.py all
+.venv/bin/python render.py static --dimension 2d
+.venv/bin/python render.py animate --dimension 3d
+```
+
+Neighborhood study remains standalone:
+
+```bash
+.venv/bin/python interstellar_neighborhood.py
 ```
 
 
