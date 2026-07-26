@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import random
+import zlib
 from typing import List, Literal, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -44,12 +45,14 @@ THEME_STYLES = {
         'orbitColor': 'black',
         'beltColor': 'gray',
         'annotationFaceColor': 'black',
+        'oumuamuaColor': 'darkred',
     },
     'dark': {
         'mplStyle': 'dark_background',
         'orbitColor': '#E0E0E0',
         'beltColor': '#C8C8C8',
         'annotationFaceColor': 'white',
+        'oumuamuaColor': '#FF6B6B',
     },
 }
 
@@ -109,8 +112,8 @@ class SolarSystemVisualizer:
             print(f'Saved to {outputPath}')
 
     def renderView(self, viewDefinition: ViewDefinition, outputPath: str) -> None:
-        # Stable planet / cloud sample positions so light/dark match.
-        seed = hash(viewDefinition.shortName) % (2**32)
+        # Stable planet / cloud sample positions so light/dark match across runs.
+        seed = zlib.crc32(viewDefinition.shortName.encode('utf-8')) & 0xFFFFFFFF
         random.seed(seed)
         np.random.seed(seed)
         figure = plt.figure(figsize=FIGURE_SIZE_INCHES)
@@ -369,7 +372,12 @@ class SolarSystemVisualizer:
             numPoints=5000,
         )
         plotter.plot(
-            positionX, positionY, positionZ, '--', color='darkred', label=OUMUAMUA_LABEL
+            positionX,
+            positionY,
+            positionZ,
+            '--',
+            color=self.themeColors['oumuamuaColor'],
+            label=OUMUAMUA_LABEL,
         )
 
         if self.dimension == '2d':
@@ -400,7 +408,12 @@ class SolarSystemVisualizer:
             else:
                 textPoint = labelPoint
             plotter.text(
-                textPoint[0], textPoint[1], textPoint[2], OUMUAMUA_LABEL, fontsize=10, color='darkred'
+                textPoint[0],
+                textPoint[1],
+                textPoint[2],
+                OUMUAMUA_LABEL,
+                fontsize=10,
+                color=self.themeColors['oumuamuaColor'],
             )
         else:
             perihelionIndex = int(np.argmin(radiusAu))
@@ -410,7 +423,7 @@ class SolarSystemVisualizer:
                 positionZ[perihelionIndex],
                 OUMUAMUA_LABEL,
                 fontsize=10,
-                color='darkred',
+                color=self.themeColors['oumuamuaColor'],
             )
 
     def _drawStars(self, plotter: DimensionPlotter, viewDefinition: ViewDefinition) -> None:
@@ -688,14 +701,15 @@ class SolarSystemVisualizer:
 
         axes.plot(0, 0, 'o', markersize=20, color='yellow')
         oumuamuaX, oumuamuaY, _ = self._oumuamuaTrajectory()
-        axes.plot(oumuamuaX, oumuamuaY, '--', color='darkred', linewidth=1.5)
+        oumuamuaColor = self.themeColors['oumuamuaColor']
+        axes.plot(oumuamuaX, oumuamuaY, '--', color=oumuamuaColor, linewidth=1.5)
 
         asymptoteLengthAu = vegaDistanceAu * 0.42
         asymptoteEnd = (
             inboundDirection[0] * asymptoteLengthAu,
             inboundDirection[1] * asymptoteLengthAu,
         )
-        axes.plot([0, asymptoteEnd[0]], [0, asymptoteEnd[1]], '--', color='darkred', linewidth=2)
+        axes.plot([0, asymptoteEnd[0]], [0, asymptoteEnd[1]], '--', color=oumuamuaColor, linewidth=2)
         axes.plot([0, vegaX], [0, vegaY], ':', color=self.themeColors['beltColor'], linewidth=1.5)
 
         for _, starRow in self.starCatalog.starsWithinLightYears(25.05).iterrows():
