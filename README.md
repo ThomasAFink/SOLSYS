@@ -6,13 +6,12 @@ This project visualizes the solar system from the inner planets out to the neare
 
 **What's included:**
 
-- **Render CLI** (`render.py`) — one entry point for static views and animations (`static` / `animate` / `all`, with `--dimension 2d|3d|all`)
-- **Static views** (`interstellar_scale.py`) — shared XYZ geometry rendered as 2D top-down or 3D perspective. Nine 2D zoom levels (plus `'Oumuamua`/Vega) and eight matching 3D views
+- **Render CLI** (`render.py`) — one entry point for everything (`static` / `neighborhood` / `animate` / `all`)
+- **Static views & neighborhood** (`interstellar_scale.py`) — shared XYZ solar-system zoom series (2D top-down or 3D) plus a dark 3D light-year neighborhood star map
 - **Animations** (`solar_system_animation.py`) — shared orbital motion; 2D is a fixed inner-system top-down, 3D adds staged camera zoom from the Oort cloud inward
-- **Interstellar neighborhood** (`interstellar_neighborhood.py`) — 3D map of stars within 10 light years
 - **Shared core** (`solsys_core.py`, `solsys_animation.py`) — constants, orbit math, star catalog, view registry, and animated asteroid populations used by all renderers
 
-Outputs live in `output/2d/`, `output/3d/`, and `output/animate/`.
+Outputs live in `output/2d/`, `output/3d/`, `output/neighborhood/`, and `output/animate/`.
 
 | Inner Solar System With Jupiter | Solar System With Kuiper Belt |
 |---------------|-----------------------------|
@@ -41,13 +40,8 @@ Render everything, or pick a subset:
 ```bash
 .venv/bin/python render.py all
 .venv/bin/python render.py static --dimension 2d
+.venv/bin/python render.py neighborhood --ly 10
 .venv/bin/python render.py animate --dimension 3d
-```
-
-Neighborhood study remains standalone:
-
-```bash
-.venv/bin/python interstellar_neighborhood.py
 ```
 
 
