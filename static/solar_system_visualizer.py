@@ -1,4 +1,4 @@
-"""Interstellar-scale solar system visualizations — 2D is a top-down projection of 3D."""
+"""Side-product: static multi-zoom solar-system visualizations."""
 
 from __future__ import annotations
 
@@ -8,9 +8,8 @@ from typing import List, Literal, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 
-from solsys_physics import (
+from solsys.physics import (
     AstronomicalConstants,
     BeltPointGenerator,
     FamousAsteroidCatalog,
@@ -22,6 +21,8 @@ from solsys_physics import (
     ViewDefinition,
     ViewRegistry,
 )
+from static.hilda_point_generator import HildaPointGenerator
+from static.dimension_plotter import DimensionPlotter
 
 FIGURE_SIZE_INCHES = (39, 39)
 OUTPUT_DPI = 300
@@ -36,101 +37,6 @@ ZOOMED_OUT_SHORT_NAMES = {
     'solar_system_with_alpha_centauri',
 }
 Dimension = Literal['2d', '3d']
-
-
-class DimensionPlotter:
-    """Thin axes adapter: always fed XYZ; drops Z when drawing in 2D."""
-
-    def __init__(self, axes: plt.Axes, dimension: Dimension):
-        self.axes = axes
-        self.is3d = dimension == '3d'
-
-    def scatter(self, positionX, positionY, positionZ=None, **kwargs) -> None:
-        if self.is3d:
-            if positionZ is None:
-                positionZ = np.zeros_like(np.asarray(positionX, dtype=float))
-            self.axes.scatter(positionX, positionY, positionZ, **kwargs)
-        else:
-            self.axes.scatter(positionX, positionY, **kwargs)
-
-    def plot(self, positionX, positionY, positionZ=None, *args, **kwargs) -> None:
-        # Allow matplotlib format strings as *args, e.g. plot(x, y, z, '--', ...)
-        if self.is3d:
-            if positionZ is None:
-                positionZ = np.zeros_like(np.asarray(positionX, dtype=float))
-            self.axes.plot(positionX, positionY, positionZ, *args, **kwargs)
-        else:
-            self.axes.plot(positionX, positionY, *args, **kwargs)
-
-    def text(self, positionX, positionY, positionZ, label: str, **kwargs) -> None:
-        if self.is3d:
-            self.axes.text(positionX, positionY, positionZ, label, **kwargs)
-        else:
-            self.axes.text(positionX, positionY, label, **kwargs)
-
-
-class HildaPointGenerator:
-    @staticmethod
-    def clusterPoints(
-        jupiterSemiMajorAxisAu: float,
-        jupiterEccentricity: float,
-        jupiterInclinationDeg: float,
-        pointsPerCluster: int,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        inclinationRad = np.radians(jupiterInclinationDeg)
-        radialSpreadAu = 0.8
-        verticalSpreadAu = 0.05
-        clusterAnglesRad = np.radians([60, 180, 300])
-        positionX, positionY, positionZ = [], [], []
-
-        for clusterAngleRad in clusterAnglesRad:
-            radiusAu = (
-                jupiterSemiMajorAxisAu * (1 - jupiterEccentricity ** 2)
-                / (1 + jupiterEccentricity * np.cos(clusterAngleRad))
-                - radialSpreadAu / 2
-            )
-            for _ in range(pointsPerCluster):
-                displacementRadiusAu = np.random.uniform(0, radialSpreadAu)
-                displacementAngleRad = np.random.uniform(0, 2 * np.pi)
-                positionX.append(
-                    radiusAu * np.cos(clusterAngleRad)
-                    + displacementRadiusAu * np.cos(displacementAngleRad)
-                )
-                positionY.append(
-                    radiusAu * np.sin(clusterAngleRad)
-                    + displacementRadiusAu * np.sin(displacementAngleRad)
-                )
-                positionZ.append(
-                    np.sin(inclinationRad) * np.random.uniform(-verticalSpreadAu, verticalSpreadAu)
-                )
-
-        return np.array(positionX), np.array(positionY), np.array(positionZ)
-
-    @staticmethod
-    def connectingBands(
-        clusterCenters: List[Tuple[float, float, float]],
-        numInterpolationPoints: int,
-        spreadRadiusAu: float,
-        bowFactor: float,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        interpolatedX, interpolatedY, interpolatedZ = [], [], []
-        numClusters = len(clusterCenters)
-
-        for clusterIndex in range(numClusters):
-            startCenter = np.array(clusterCenters[clusterIndex])
-            endCenter = np.array(clusterCenters[(clusterIndex + 1) % numClusters])
-            for stepIndex in range(1, numInterpolationPoints + 1):
-                interpolationProgress = stepIndex / (numInterpolationPoints + 1)
-                basePoint = (1 - interpolationProgress) * startCenter + interpolationProgress * endCenter
-                bowOffsetAu = bowFactor * np.sin(np.pi * interpolationProgress)
-                spreadDistanceAu = np.random.uniform(-spreadRadiusAu, spreadRadiusAu) + bowOffsetAu
-                directionToSun = -basePoint / np.linalg.norm(basePoint)
-                spreadPoint = basePoint + directionToSun * spreadDistanceAu
-                interpolatedX.append(spreadPoint[0])
-                interpolatedY.append(spreadPoint[1])
-                interpolatedZ.append(spreadPoint[2])
-
-        return np.array(interpolatedX), np.array(interpolatedY), np.array(interpolatedZ)
 
 
 class SolarSystemVisualizer:
@@ -812,119 +718,8 @@ class SolarSystemVisualizer:
         plt.close(figure)
 
 
-NEIGHBORHOOD_FIGURE_SIZE_INCHES = (12, 12)
-NEIGHBORHOOD_MAX_DISTANCE_LY = 10.0
-
-
-class InterstellarNeighborhoodVisualizer:
-    """Dark 3D star map in light-year coordinates (no planets/belts)."""
-
-    def __init__(
-        self,
-        starsCsvPath: str,
-        maxDistanceLightYears: float = NEIGHBORHOOD_MAX_DISTANCE_LY,
-    ):
-        self.constants = AstronomicalConstants()
-        self.starCatalog = StarCatalog(starsCsvPath, self.constants)
-        self.maxDistanceLightYears = maxDistanceLightYears
-
-    def starsWithinRadius(self) -> pd.DataFrame:
-        nearbyStars = self.starCatalog.starsWithinLightYears(self.maxDistanceLightYears).copy()
-        # Exclude the Sun row — plotted at the origin separately.
-        nearbyStars = nearbyStars[
-            ~nearbyStars['System'].astype(str).str.contains('Solar System', na=False)
-        ].copy()
-        lightYearToAu = self.constants.lightYearToAu
-        nearbyStars['positionXLy'] = nearbyStars['positionX'] / lightYearToAu
-        nearbyStars['positionYLy'] = nearbyStars['positionY'] / lightYearToAu
-        nearbyStars['positionZLy'] = nearbyStars['positionZ'] / lightYearToAu
-        return nearbyStars.dropna(subset=['positionXLy', 'positionYLy', 'positionZLy'])
-
-    @staticmethod
-    def _starLabel(starRow: pd.Series) -> str:
-        if 'StarName' in starRow.index and pd.notnull(starRow['StarName']):
-            return str(starRow['StarName'])
-        return str(starRow['System'])
-
-    def render(
-        self,
-        outputPath: str,
-        showPlot: bool = False,
-    ) -> None:
-        nearbyStars = self.starsWithinRadius()
-        coordinates = nearbyStars[['positionXLy', 'positionYLy', 'positionZLy']]
-        maxRangeLightYears = float(np.max(np.abs(coordinates.values)))
-
-        figure = plt.figure(figsize=NEIGHBORHOOD_FIGURE_SIZE_INCHES)
-        axes = figure.add_subplot(111, projection='3d')
-        axes.set_facecolor('black')
-        figure.patch.set_facecolor('black')
-
-        for index, starRow in nearbyStars.iterrows():
-            starName = self._starLabel(starRow)
-            axes.scatter(
-                starRow['positionXLy'],
-                starRow['positionYLy'],
-                starRow['positionZLy'],
-                color='white',
-                s=100,
-                depthshade=True,
-                marker='o',
-            )
-            axes.text(
-                starRow['positionXLy'],
-                starRow['positionYLy'],
-                starRow['positionZLy'],
-                starName,
-                color='white',
-                fontsize=5,
-                ha='center',
-            )
-
-        axes.scatter(0, 0, 0, color='yellow', s=200, depthshade=True, marker='o')
-        axes.text(0, 0, 0, 'Sun', color='white', fontsize=8, ha='center')
-        axes.set_xlim([-maxRangeLightYears, maxRangeLightYears])
-        axes.set_ylim([-maxRangeLightYears, maxRangeLightYears])
-        axes.set_zlim([-maxRangeLightYears, maxRangeLightYears])
-        axes.axis('off')
-        axes.set_title(
-            f'3D Interstellar Neighborhood ({self.maxDistanceLightYears:g} light years)',
-            color='white',
-        )
-
-        os.makedirs(os.path.dirname(outputPath) or '.', exist_ok=True)
-        figure.savefig(outputPath, dpi=OUTPUT_DPI, facecolor=figure.get_facecolor())
-        print(f'Saved to {outputPath}')
-        if showPlot:
-            plt.show()
-        else:
-            plt.close(figure)
-
 
 def renderAll(dimension: Dimension = '2d', starsCsvPath: str = 'data/nearby_stars_30.csv') -> None:
     visualizer = SolarSystemVisualizer(starsCsvPath, dimension=dimension)
     visualizer.renderAllViews()
     print(f'All {dimension.upper()} visualizations completed!')
-
-
-def renderNeighborhood(
-    starsCsvPath: str = 'data/nearby_stars_30.csv',
-    maxDistanceLightYears: float = NEIGHBORHOOD_MAX_DISTANCE_LY,
-    outputPath: str | None = None,
-    showPlot: bool = False,
-) -> None:
-    if outputPath is None:
-        lyLabel = f'{maxDistanceLightYears:g}'.replace('.', 'p')
-        outputPath = f'output/neighborhood/interstellar_neighborhood_{lyLabel}ly.jpg'
-    visualizer = InterstellarNeighborhoodVisualizer(starsCsvPath, maxDistanceLightYears)
-    visualizer.render(outputPath=outputPath, showPlot=showPlot)
-
-
-if __name__ == '__main__':
-    import sys
-
-    if '--neighborhood' in sys.argv:
-        renderNeighborhood()
-    else:
-        selectedDimension: Dimension = '3d' if '--3d' in sys.argv else '2d'
-        renderAll(selectedDimension)

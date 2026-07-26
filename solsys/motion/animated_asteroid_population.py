@@ -1,13 +1,17 @@
-"""Animated asteroid populations using solsys_physics and orbital-mechanics randomness."""
+"""Randomized asteroid fields with Keplerian motion and Jupiter-coupled groups."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Tuple
 
 import numpy as np
 
-from solsys_physics import AstronomicalConstants, BeltPointGenerator, OrbitCalculator
+from solsys.motion.mean_anomaly import meanAnomalyAtFrame
+from solsys.physics.belt_point_generator import BeltPointGenerator
+from solsys.physics.astronomical_constants import AstronomicalConstants
+from solsys.physics.orbit_calculator import OrbitCalculator
+
 
 LAGRANGE_OFFSET_RAD = np.pi / 3
 BELT_SHELL_THICKNESS_AU = 0.05
@@ -365,16 +369,3 @@ class AnimatedAsteroidPopulation:
         positionZ = self.oortRadiusAu * np.cos(self.oortPolarAngleRad)
         return positionX, positionY, positionZ
 
-
-def meanAnomalyAtFrame(
-    initialMeanAnomalyRad: float | np.ndarray,
-    orbitalPeriodDays: float | np.ndarray,
-    frame: int,
-    animationSpeed: float,
-) -> np.ndarray:
-    angularVelocityRad = 2 * np.pi / np.asarray(orbitalPeriodDays, dtype=float)
-    return np.asarray(initialMeanAnomalyRad, dtype=float) - animationSpeed * frame * angularVelocityRad
-
-
-def planetMeanAnomalyRad(planetOrbitalPeriodDays: float, frame: int, animationSpeed: float) -> float:
-    return float(meanAnomalyAtFrame(0.0, planetOrbitalPeriodDays, frame, animationSpeed))

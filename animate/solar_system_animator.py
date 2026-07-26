@@ -1,4 +1,4 @@
-"""Solar system animations — 2D is a fixed top-down view; 3D adds camera zoom."""
+"""Main SOLSYS animation product — 2D top-down or 3D zoom-tour GIFs."""
 
 from __future__ import annotations
 
@@ -9,75 +9,33 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
-from asteroid_motion import AnimatedAsteroidPopulation, AsteroidPopulationCounts, planetMeanAnomalyRad
-from solsys_physics import AstronomicalConstants, FamousAsteroidCatalog, MoonCatalog, OrbitCalculator, PlanetCatalog
+from animate.camera_controller import CameraController
+from animate.animation_styles import (
+    ANIMATION_FPS,
+    ANIMATION_FRAMES_2D,
+    ANIMATION_FRAMES_3D,
+    ANIMATION_SPEED_2D,
+    ANIMATION_SPEED_3D,
+    ASTEROID_RENDER_STYLES,
+    AXIS_LIMIT_2D_AU,
+    CAMERA_AZIMUTH_DEG,
+    CAMERA_ELEVATION_DEG,
+    FIGURE_SIZE_INCHES,
+    INNER_BELT_VISIBLE_BELOW_AU,
+    INNER_PLANET_NAMES,
+    KUIPER_VISIBLE_BELOW_AU,
+    OORT_VISIBLE_ABOVE_AU,
+)
+from solsys.motion import AnimatedAsteroidPopulation, AsteroidPopulationCounts, planetMeanAnomalyRad
+from solsys.physics import (
+    AstronomicalConstants,
+    FamousAsteroidCatalog,
+    MoonCatalog,
+    OrbitCalculator,
+    PlanetCatalog,
+)
 
 Dimension = Literal['2d', '3d']
-
-FIGURE_SIZE_INCHES = (12, 12)
-ANIMATION_FPS = 20
-CAMERA_ELEVATION_DEG = 25
-CAMERA_AZIMUTH_DEG = 120
-
-# 2D: fixed inner-system top-down
-AXIS_LIMIT_2D_AU = 6.5
-ANIMATION_FRAMES_2D = 800
-ANIMATION_SPEED_2D = 4.0
-INNER_PLANET_NAMES = ('Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter')
-
-# 3D: staged zoom from Oort cloud to inner system
-ANIMATION_FRAMES_3D = 500
-ANIMATION_SPEED_3D = 3.0
-MIN_CAMERA_DISTANCE_AU = 3.2
-MAX_CAMERA_DISTANCE_AU = 100000.0
-ZOOM_IN_FRAME_FRACTION = 0.80
-ZOOM_STAGES = (
-    (0.00, 100000.0),
-    (0.14, 600.0),
-    (0.32, 58.0),
-    (0.44, 42.0),
-    (0.54, 33.0),
-    (0.62, 22.0),
-    (0.70, 12.0),
-    (0.78, 7.5),
-    (0.88, 3.2),
-    (1.00, 3.2),
-)
-KUIPER_VISIBLE_BELOW_AU = 48.0
-INNER_BELT_VISIBLE_BELOW_AU = 8.5
-OORT_VISIBLE_ABOVE_AU = 1500.0
-VISIBILITY_FADE_SPAN_AU = 4.0
-
-ASTEROID_RENDER_STYLES = {
-    'light': {
-        'beltColor': '#707070',
-        'clusterColor': '#808080',
-        'kuiperColor': '#757575',
-        'oortColor': '#A0A0A0',
-        'beltSize': 0.5,
-        'clusterSize': 0.5,
-        'kuiperSize': 0.375,
-        'oortSize': 0.25,
-        'beltAlpha': 0.55,
-        'clusterAlpha': 0.5,
-        'kuiperAlpha': 0.45,
-        'oortAlpha': 0.25,
-    },
-    'dark': {
-        'beltColor': '#D8D8D8',
-        'clusterColor': '#CFCFCF',
-        'kuiperColor': '#BDBDBD',
-        'oortColor': '#9A9A9A',
-        'beltSize': 0.875,
-        'clusterSize': 0.75,
-        'kuiperSize': 0.625,
-        'oortSize': 0.375,
-        'beltAlpha': 0.82,
-        'clusterAlpha': 0.78,
-        'kuiperAlpha': 0.72,
-        'oortAlpha': 0.42,
-    },
-}
 
 
 class SolarSystemAnimator:
@@ -113,6 +71,7 @@ class SolarSystemAnimator:
             )
             self.animationFrames = ANIMATION_FRAMES_3D
             self.baseAnimationSpeed = ANIMATION_SPEED_3D
+            self.camera = CameraController(True, self.animationFrames, self.baseAnimationSpeed)
         else:
             self.figure, self.axes = plt.subplots(figsize=FIGURE_SIZE_INCHES)
             self.asteroidPopulation = AnimatedAsteroidPopulation(
@@ -125,44 +84,20 @@ class SolarSystemAnimator:
             )
             self.animationFrames = ANIMATION_FRAMES_2D
             self.baseAnimationSpeed = ANIMATION_SPEED_2D
+            self.camera = CameraController(False, self.animationFrames, self.baseAnimationSpeed)
 
     def _cameraDistanceAu(self, frame: int) -> float:
-        if not self.is3d:
-            return AXIS_LIMIT_2D_AU
-
-        zoomFrameCount = max(int(self.animationFrames * ZOOM_IN_FRAME_FRACTION), 1)
-        if frame >= zoomFrameCount:
-            return MIN_CAMERA_DISTANCE_AU
-
-        zoomProgress = frame / zoomFrameCount
-        for stageIndex in range(len(ZOOM_STAGES) - 1):
-            progressStart, distanceStartAu = ZOOM_STAGES[stageIndex]
-            progressEnd, distanceEndAu = ZOOM_STAGES[stageIndex + 1]
-            if zoomProgress <= progressEnd:
-                segmentSpan = progressEnd - progressStart
-                segmentProgress = (
-                    (zoomProgress - progressStart) / segmentSpan if segmentSpan > 0 else 1.0
-                )
-                logDistance = np.log(distanceStartAu) + segmentProgress * (
-                    np.log(distanceEndAu) - np.log(distanceStartAu)
-                )
-                return float(np.exp(logDistance))
-
-        return MIN_CAMERA_DISTANCE_AU
+        return self.camera.distanceAu(frame)
 
     def _animationSpeedScale(self, cameraDistanceAu: float) -> float:
-        if not self.is3d:
-            return self.baseAnimationSpeed
-        zoomFactor = (cameraDistanceAu / MAX_CAMERA_DISTANCE_AU) ** 0.15
-        return max(0.75, zoomFactor) * self.baseAnimationSpeed
+        return self.camera.animationSpeed(cameraDistanceAu)
 
     def _jupiterMeanAnomalyRad(self, frame: int, animationSpeed: float) -> float:
         jupiter = self.planetCatalog.planets['Jupiter']
         return planetMeanAnomalyRad(jupiter.orbitalPeriodDays, frame, animationSpeed)
 
     def _visibilityAlpha(self, positionX, positionY, positionZ, cameraDistanceAu: float) -> np.ndarray:
-        distances = np.sqrt(positionX ** 2 + positionY ** 2 + positionZ ** 2)
-        return np.clip(0.8 * (1 - distances / (cameraDistanceAu * 1.5)), 0.05, 0.8)
+        return CameraController.visibilityAlpha(positionX, positionY, positionZ, cameraDistanceAu)
 
     def _groupFadeAlpha(
         self,
@@ -171,19 +106,9 @@ class SolarSystemAnimator:
         showAboveAu: float | None,
         baseAlpha: float,
     ) -> float:
-        if showBelowAu is not None and cameraDistanceAu > showBelowAu + VISIBILITY_FADE_SPAN_AU:
-            return 0.0
-        if showAboveAu is not None and cameraDistanceAu < showAboveAu - VISIBILITY_FADE_SPAN_AU:
-            return 0.0
-
-        fadeAlpha = baseAlpha
-        if showBelowAu is not None and cameraDistanceAu > showBelowAu:
-            fadeProgress = (cameraDistanceAu - showBelowAu) / VISIBILITY_FADE_SPAN_AU
-            fadeAlpha *= max(0.0, 1.0 - fadeProgress)
-        if showAboveAu is not None and cameraDistanceAu < showAboveAu:
-            fadeProgress = (showAboveAu - cameraDistanceAu) / VISIBILITY_FADE_SPAN_AU
-            fadeAlpha *= max(0.0, 1.0 - fadeProgress)
-        return fadeAlpha
+        return CameraController.groupFadeAlpha(
+            cameraDistanceAu, showBelowAu, showAboveAu, baseAlpha
+        )
 
     def _scatter(
         self,
@@ -534,12 +459,3 @@ def renderAllAnimations(dimension: Optional[Dimension] = None) -> None:
     print('Animations completed!')
 
 
-if __name__ == '__main__':
-    import sys
-
-    if '--2d' in sys.argv:
-        renderAllAnimations('2d')
-    elif '--3d' in sys.argv:
-        renderAllAnimations('3d')
-    else:
-        renderAllAnimations()
