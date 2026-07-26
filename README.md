@@ -21,75 +21,6 @@ Built with `numpy`, `pandas`, and `matplotlib`. Orbital elements include ellipti
 - Main: `output/animate/2d/`, `output/animate/3d/`
 - Side: `output/2d/`, `output/3d/`, `output/neighborhood/`
 
-## Getting started
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/pip install -r requirements-dev.txt
-.venv/bin/pre-commit install
-.venv/bin/pre-commit install --hook-type commit-msg
-```
-
-### Git hooks (pre-commit)
-
-After install, commits are gated by:
-
-- **pre-commit** — Ruff format + lint on `animate/`, `static/`, `solsys/`, `render.py`
-- **commit-msg** — enforces the commit message rules below
-
-### Commit message rules
-
-First line must match:
-
-```text
-type(SOLSYS): subject
-type(SOLSYS-123): subject
-```
-
-| Part | Rule |
-|------|------|
-| `type` | One of `feat`, `fix`, `chore`, `docs`, `clean` |
-| Scope | `SOLSYS` or `SOLSYS-<ticket>` (digits only) |
-| Subject | Required non-empty text after `: ` |
-
-Examples:
-
-```text
-feat(SOLSYS): add light/dark static themes
-fix(SOLSYS-42): correct Hilda resonance rate
-docs(SOLSYS): document commit message rules
-chore(SOLSYS): bump ruff
-clean(SOLSYS): remove unused Pluto study script
-```
-
-Merge / revert / fixup / squash commits are allowed through unchanged.
-
-Manual checks:
-
-```bash
-.venv/bin/pre-commit run --all-files
-.venv/bin/ruff format animate static solsys render.py
-.venv/bin/ruff check animate static solsys render.py
-.venv/bin/radon cc animate static solsys render.py -s -a
-```
-
-Render everything (~several minutes for animations):
-
-```bash
-export MPLBACKEND=Agg
-.venv/bin/python render.py all
-```
-
-Or render by product:
-
-```bash
-.venv/bin/python render.py animate --dimension all
-.venv/bin/python render.py animate --dimension 3d
-.venv/bin/python render.py static --dimension 2d
-.venv/bin/python render.py neighborhood --ly 10
-```
-
 ## File structure
 
 ```text
@@ -243,6 +174,75 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![3D Alpha light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/4_solar_system_with_alpha_centauri_light.jpg?raw=true) | ![3D Alpha dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/3d/4_solar_system_with_alpha_centauri_dark.jpg?raw=true) |
+
+## Getting started
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pre-commit install
+.venv/bin/pre-commit install --hook-type commit-msg
+```
+
+### Git hooks (pre-commit)
+
+After install, commits are gated by:
+
+- **pre-commit** — Ruff format + lint on `animate/`, `static/`, `solsys/`, `render.py`
+- **commit-msg** — enforces the commit message rules below
+
+### Commit message rules
+
+First line must match:
+
+```text
+type(SOLSYS): subject
+type(SOLSYS-123): subject
+```
+
+| Part | Rule |
+|------|------|
+| `type` | One of `feat`, `fix`, `chore`, `docs`, `clean` |
+| Scope | `SOLSYS` or `SOLSYS-<ticket>` (digits only) |
+| Subject | Required non-empty text after `: ` |
+
+Examples:
+
+```text
+feat(SOLSYS): add light/dark static themes
+fix(SOLSYS-42): correct Hilda resonance rate
+docs(SOLSYS): document commit message rules
+chore(SOLSYS): bump ruff
+clean(SOLSYS): remove unused Pluto study script
+```
+
+Merge / revert / fixup / squash commits are allowed through unchanged.
+
+Manual checks:
+
+```bash
+.venv/bin/pre-commit run --all-files
+.venv/bin/ruff format animate static solsys render.py
+.venv/bin/ruff check animate static solsys render.py
+.venv/bin/radon cc animate static solsys render.py -s -a
+```
+
+Render everything (~several minutes for animations):
+
+```bash
+export MPLBACKEND=Agg
+.venv/bin/python render.py all
+```
+
+Or render by product:
+
+```bash
+.venv/bin/python render.py animate --dimension all
+.venv/bin/python render.py animate --dimension 3d
+.venv/bin/python render.py static --dimension 2d
+.venv/bin/python render.py neighborhood --ly 10
+```
 
 ## Physics notes
 
