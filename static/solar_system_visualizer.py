@@ -52,7 +52,7 @@ THEME_STYLES = {
         'orbitColor': '#E0E0E0',
         'beltColor': '#C8C8C8',
         'annotationFaceColor': 'white',
-        'oumuamuaColor': '#FF6B6B',
+        'oumuamuaColor': '#E0E0E0',
     },
 }
 
