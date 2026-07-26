@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+# Enforce: type(SOLSYS): subject  or  type(SOLSYS-123): subject
+# Used by the pre-commit commit-msg hook.
+
+msg_file="$1"
+first_line=$(head -n 1 "$msg_file")
+
+case "$first_line" in
+  Merge\ *|Revert\ *|fixup!\ *|squash!\ *)
+    exit 0
+    ;;
+esac
+
+if ! printf '%s\n' "$first_line" | grep -Eq '^(feat|fix|chore|docs|clean)\(SOLSYS(-[0-9]+)?\): .+'; then
+  echo ""
+  echo "Invalid commit message:"
+  echo "  $first_line"
+  echo ""
+  echo "Expected:"
+  echo "  type(SOLSYS): subject"
+  echo "  type(SOLSYS-123): subject"
+  echo ""
+  echo "Allowed types: feat, fix, chore, docs, clean"
+  echo "Examples:"
+  echo "  feat(SOLSYS): add light/dark static themes"
+  echo "  fix(SOLSYS-42): correct Hilda resonance rate"
+  echo "  chore(SOLSYS): bump ruff"
+  echo ""
+  exit 1
+fi

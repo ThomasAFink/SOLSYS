@@ -1,0 +1,20 @@
+# Python-native git hooks (https://pre-commit.com)
+# Install: .venv/bin/pre-commit install && .venv/bin/pre-commit install --hook-type commit-msg
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.14
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^(animate|static|solsys)/|render\.py$
+      - id: ruff-format
+        files: ^(animate|static|solsys)/|render\.py$
+
+  - repo: local
+    hooks:
+      - id: solsys-commit-msg
+        name: SOLSYS commit message format
+        language: script
+        entry: .githooks/commit-msg
+        stages: [commit-msg]

@@ -1,0 +1,26 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["animate", "static", "solsys", "render.py"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "C901", # mccabe complexity
+]
+ignore = [
+    "E501", # line length handled by formatter
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
