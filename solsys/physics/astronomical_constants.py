@@ -1,0 +1,34 @@
+"""Astronomical constants used across SOLSYS."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class AstronomicalConstants:
+    plutoSemiMajorAxis: float = 39.482
+    plutoEccentricity: float = 0.2488
+    asteroidBeltInnerAu: float = 2.2
+    asteroidBeltOuterAu: float = 3.2
+    kuiperBeltInnerAu: float = 30.0
+    kuiperBeltOuterAu: float = 55.0
+    jupiterSemiMajorAxisAu: float = 5.2
+    jupiterInclinationDeg: float = 1.3
+    jupiterEccentricity: float = 0.0489
+    oortCloudInnerAu: float = 2000.0
+    oortCloudOuterAu: float = 100000.0
+    lightYearToAu: float = 63241.077
+    oumuamuaEccentricity: float = 1.2011
+    oumuamuaPerihelionAu: float = 0.2559
+    oumuamuaInclinationDeg: float = 122.74
+    oumuamuaLongitudeAscendingNodeDeg: float = 24.60
+    oumuamuaArgumentOfPerihelionDeg: float = 241.69
+
+    @property
+    def plutoPerihelionAu(self) -> float:
+        return self.plutoSemiMajorAxis * (1 - self.plutoEccentricity)
+
+    @property
+    def plutoAphelionAu(self) -> float:
+        return self.plutoSemiMajorAxis * (1 + self.plutoEccentricity)
