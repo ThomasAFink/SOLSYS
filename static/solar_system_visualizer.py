@@ -641,6 +641,11 @@ class SolarSystemVisualizer:
             ],
             '2_solar_system_with_kuiper_belt': [
                 (
+                    'Inner Solar System',
+                    (0, constants.jupiterSemiMajorAxisAu),
+                    (18, 28),
+                ),
+                (
                     f'Kuiper Belt ({constants.kuiperBeltInnerAu}-{constants.kuiperBeltOuterAu} AU)',
                     (constants.kuiperBeltOuterAu, 0),
                     (constants.kuiperBeltOuterAu + 5, 10),
