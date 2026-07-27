@@ -53,6 +53,7 @@ SOLSYS/
 │       ├── inner_system.py                        # Fixed 2D inner-system scene
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
 │       ├── alpha_centauri.py                      # A–B close-up, wide triple, Proxima planets
+│       ├── oumuamua_earth.py                      # ʻOumuamua–Earth closest-approach flyby
 │       └── blender/                               # Future planet close-ups
 │           └── README.md
 │
@@ -85,7 +86,8 @@ SOLSYS/
     ├── animate/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
     │   ├── 3d/                                    # solar_system_{light,dark}.gif
-    │   └── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
+    │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
+    │   └── oumuamua/                              # oumuamua_earth_flyby_{light,dark}.gif
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
@@ -252,6 +254,7 @@ Or render by product:
 .venv/bin/python render.py animate --dimension all
 .venv/bin/python render.py animate --dimension 3d
 .venv/bin/python render.py animate --system alpha_centauri
+.venv/bin/python render.py animate --system oumuamua
 .venv/bin/python render.py static --dimension 2d
 .venv/bin/python render.py neighborhood --ly 10
 ```

@@ -7,6 +7,7 @@ from typing import Literal
 
 from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
+from animate.scenes.oumuamua_earth import renderOumuamuaEarthAnimations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
 
@@ -87,9 +88,9 @@ def buildParser() -> argparse.ArgumentParser:
     )
     animateParser.add_argument(
         '--system',
-        choices=('sol', 'alpha_centauri', 'all'),
+        choices=('sol', 'alpha_centauri', 'oumuamua', 'all'),
         default='sol',
-        help='Which star system scene to render (default: sol)',
+        help='Which scene set to render (default: sol). oumuamua = Earth flyby GIFs.',
     )
     animateParser.add_argument(
         '--stars',
@@ -120,9 +121,9 @@ def buildParser() -> argparse.ArgumentParser:
     )
     allParser.add_argument(
         '--system',
-        choices=('sol', 'alpha_centauri', 'all'),
+        choices=('sol', 'alpha_centauri', 'oumuamua', 'all'),
         default='all',
-        help='Which star system animation(s) to include (default: all)',
+        help='Which scene set(s) to include (default: all)',
     )
 
     return parser
@@ -161,6 +162,11 @@ def main(argv: list[str] | None = None) -> None:
                 figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
                 dpi=ANIMATE_DPI_2D,
                 starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
+            )
+        if systemChoice in ('oumuamua', 'all'):
+            renderOumuamuaEarthAnimations(
+                figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+                dpi=ANIMATE_DPI_2D,
             )
 
     if args.command in ('static', 'all'):
