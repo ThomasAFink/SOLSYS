@@ -53,7 +53,7 @@ SOLSYS/
 │       ├── inner_system.py                        # Fixed 2D inner-system scene
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
 │       ├── alpha_centauri.py                      # A–B close-up, wide triple, Proxima planets
-│       ├── oumuamua_earth.py                      # ʻOumuamua–Earth closest-approach flyby
+│       ├── oumuamua_earth.py                      # ʻOumuamua–Earth flyby (side + oblique)
 │       └── blender/                               # Future planet close-ups
 │           └── README.md
 │
@@ -87,7 +87,7 @@ SOLSYS/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
     │   ├── 3d/                                    # solar_system_{light,dark}.gif
     │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
-    │   └── oumuamua/                              # oumuamua_earth_flyby_{light,dark}.gif
+    │   └── oumuamua/                              # flyby (side) + oblique_{light,dark}.gif
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
@@ -264,6 +264,11 @@ Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animati
 - `alpha_centauri_ab_{light,dark}.gif` — A–B binary close-up (±28 AU)
 - `alpha_centauri_system_{light,dark}.gif` — wide triple with Proxima (~8.7 kau)
 - `proxima_planets_{light,dark}.gif` — confirmed Proxima planets
+
+ʻOumuamua–Earth flyby (issue #2) renders to `output/animate/oumuamua/`:
+
+- `oumuamua_earth_flyby_{light,dark}.gif` — edge-on side view (X–Z)
+- `oumuamua_earth_oblique_{light,dark}.gif` — three-quarter look-down onto the ecliptic
 
 ## Physics notes
 
