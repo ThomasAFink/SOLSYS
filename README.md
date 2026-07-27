@@ -1,5 +1,7 @@
 # SOLSYS
 
+![Kepler's three laws](docs/keplers_three_laws.png)
+
 **SOLSYS** visualizes the solar system with corrected Keplerian physics — from the inner planets out past the Kuiper Belt and Oort Cloud to nearby stars.
 
 The **main product** is animation: light/dark GIFs of the inner system and a staged 3D zoom from the Oort cloud inward. A **side product** renders static multi-zoom JPGs (light/dark) and a light-year neighborhood star map. Shared libraries hold orbit math, catalogs, and asteroid-population motion so both products stay in sync.
@@ -33,6 +35,9 @@ SOLSYS/
 ├── .githooks/
 │   └── commit-msg                                 # type(SOLSYS[-N]): subject
 ├── README.md
+├── docs/
+│   ├── keplers_three_laws.png                     # Kepler laws diagram
+│   └── generate_keplers_laws_figure.py            # Regenerates the diagram
 ├── data/
 │   └── nearby_stars_30.csv                        # Nearby-star catalog (RA/Dec, distances)
 │
