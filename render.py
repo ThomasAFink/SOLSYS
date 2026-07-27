@@ -6,6 +6,7 @@ import argparse
 from typing import Literal
 
 from animate import renderAllAnimations
+from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
 
@@ -82,7 +83,18 @@ def buildParser() -> argparse.ArgumentParser:
         '--dimension',
         choices=('2d', '3d', 'all'),
         default='all',
-        help='Which animation to render (default: all)',
+        help='Which Solar System animation to render (default: all)',
+    )
+    animateParser.add_argument(
+        '--system',
+        choices=('sol', 'alpha_centauri', 'all'),
+        default='sol',
+        help='Which star system scene to render (default: sol)',
+    )
+    animateParser.add_argument(
+        '--stars',
+        default='data/nearby_stars_30.csv',
+        help='Path to nearby-stars CSV (for multi-star systems)',
     )
 
     allParser = subparsers.add_parser(
@@ -106,6 +118,12 @@ def buildParser() -> argparse.ArgumentParser:
         default=10.0,
         help='Neighborhood map radius in light years (default: 10)',
     )
+    allParser.add_argument(
+        '--system',
+        choices=('sol', 'alpha_centauri', 'all'),
+        default='all',
+        help='Which star system animation(s) to include (default: all)',
+    )
 
     return parser
 
@@ -126,15 +144,23 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     dimensions = _parseDimensions(args.dimension)
+    systemChoice = getattr(args, 'system', 'sol')
 
     # Main product first when rendering everything.
     if args.command in ('animate', 'all'):
-        for dimension in dimensions:
-            animateDpi = ANIMATE_DPI_2D if dimension == '2d' else ANIMATE_DPI_3D
-            renderAllAnimations(
-                dimension,
+        if systemChoice in ('sol', 'all'):
+            for dimension in dimensions:
+                animateDpi = ANIMATE_DPI_2D if dimension == '2d' else ANIMATE_DPI_3D
+                renderAllAnimations(
+                    dimension,
+                    figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+                    dpi=animateDpi,
+                )
+        if systemChoice in ('alpha_centauri', 'all'):
+            renderAlphaCentauriAnimations(
                 figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
-                dpi=animateDpi,
+                dpi=ANIMATE_DPI_2D,
+                starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
             )
 
     if args.command in ('static', 'all'):

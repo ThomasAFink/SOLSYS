@@ -1,0 +1,4 @@
+planet_id,system_id,host_star_uuid,name,semi_major_axis_au,eccentricity,inclination_deg,longitude_ascending_node_deg,argument_periapsis_deg,orbital_period_days,color,diameter_km,confidence,notes
+proxima_b,alpha_centauri,4011dfae-aad7-45ab-8b4c-5a20d27a0611,Proxima b,0.04856,0.11,0.0,0.0,0.0,11.186,steelblue,14000,confirmed,Earth-mass planet in HZ; diameter is schematic for plotting
+proxima_d,alpha_centauri,4011dfae-aad7-45ab-8b4c-5a20d27a0611,Proxima d,0.02885,0.04,0.0,0.0,0.0,5.122,cadetblue,9000,confirmed,Sub-Earth; schematic diameter
+proxima_c,alpha_centauri,4011dfae-aad7-45ab-8b4c-5a20d27a0611,Proxima c,1.48,0.04,0.0,0.0,0.0,1928.0,slategray,50000,disputed,Candidate / disputed; included but styled faintly

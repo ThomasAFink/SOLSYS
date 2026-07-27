@@ -1,0 +1,4 @@
+system_id,star_uuid,role,period_days,semi_major_axis_au,eccentricity,inclination_deg,longitude_ascending_node_deg,argument_periapsis_deg,mean_anomaly_deg_epoch,notes
+alpha_centauri,307bcad4-646f-4818-ac6a-1ab23dee162e,primary,29133.0,10.66,0.51947,79.24,205.07,231.52,0.0,"α Cen A (Rigil Kentaurus); a relative to AB barycenter. Relative AB a≈23.3 AU, P≈79.76 yr (Akeson+ 2021). Sky inclination stored; top-down scenes plot in the orbital plane."
+alpha_centauri,ff59fd8c-d30e-4a9f-8585-367dea407307,secondary,29133.0,12.64,0.51947,79.24,205.07,231.52,180.0,"α Cen B (Toliman); mean anomaly +180° from A so stars stay opposite the barycenter."
+alpha_centauri,4011dfae-aad7-45ab-8b4c-5a20d27a0611,wide_companion,200887500.0,8700.0,0.50,107.6,0.0,0.0,0.0,"Proxima; approximate wide orbit about AB (a~8.7 kau, P~550 kyr). Too wide for the A–B top-down frame — drawn in the Proxima-centered scene."
