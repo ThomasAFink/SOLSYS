@@ -11,6 +11,18 @@ from static import renderNeighborhood
 
 Dimension = Literal['2d', '3d']
 
+# Output geometry lives here so README-friendly sizing is one place to tune.
+# Pixel size ≈ inches × dpi.
+ANIMATE_FIGURE_SIZE_INCHES = (12.0, 12.0)
+ANIMATE_DPI_2D = 100  # original size
+ANIMATE_DPI_3D = 50  # half of prior 100 for README
+
+STATIC_FIGURE_SIZE_INCHES = (39.0, 39.0)
+STATIC_DPI = 150  # was 300
+
+NEIGHBORHOOD_FIGURE_SIZE_INCHES = (12.0, 12.0)
+NEIGHBORHOOD_DPI = 150  # was 300
+
 
 def _parseDimensions(choice: str) -> tuple[Dimension, ...]:
     if choice == 'all':
@@ -31,7 +43,7 @@ def buildParser() -> argparse.ArgumentParser:
         '--dimension',
         choices=('2d', '3d', 'all'),
         default='all',
-        help="Which projection to render (default: all)",
+        help='Which projection to render (default: all)',
     )
     staticParser.add_argument(
         '--stars',
@@ -70,7 +82,7 @@ def buildParser() -> argparse.ArgumentParser:
         '--dimension',
         choices=('2d', '3d', 'all'),
         default='all',
-        help="Which animation to render (default: all)",
+        help='Which animation to render (default: all)',
     )
 
     allParser = subparsers.add_parser(
@@ -81,7 +93,7 @@ def buildParser() -> argparse.ArgumentParser:
         '--dimension',
         choices=('2d', '3d', 'all'),
         default='all',
-        help="Which projection(s) to render (default: all)",
+        help='Which projection(s) to render (default: all)',
     )
     allParser.add_argument(
         '--stars',
@@ -108,6 +120,8 @@ def main(argv: list[str] | None = None) -> None:
             maxDistanceLightYears=args.ly,
             outputPath=args.output,
             showPlot=args.show,
+            figureSizeInches=NEIGHBORHOOD_FIGURE_SIZE_INCHES,
+            dpi=NEIGHBORHOOD_DPI,
         )
         return
 
@@ -116,14 +130,29 @@ def main(argv: list[str] | None = None) -> None:
     # Main product first when rendering everything.
     if args.command in ('animate', 'all'):
         for dimension in dimensions:
-            renderAllAnimations(dimension)
+            animateDpi = ANIMATE_DPI_2D if dimension == '2d' else ANIMATE_DPI_3D
+            renderAllAnimations(
+                dimension,
+                figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+                dpi=animateDpi,
+            )
 
     if args.command in ('static', 'all'):
         for dimension in dimensions:
-            renderStatic(dimension, starsCsvPath=args.stars)
+            renderStatic(
+                dimension,
+                starsCsvPath=args.stars,
+                figureSizeInches=STATIC_FIGURE_SIZE_INCHES,
+                dpi=STATIC_DPI,
+            )
 
     if args.command == 'all':
-        renderNeighborhood(starsCsvPath=args.stars, maxDistanceLightYears=args.ly)
+        renderNeighborhood(
+            starsCsvPath=args.stars,
+            maxDistanceLightYears=args.ly,
+            figureSizeInches=NEIGHBORHOOD_FIGURE_SIZE_INCHES,
+            dpi=NEIGHBORHOOD_DPI,
+        )
 
 
 if __name__ == '__main__':

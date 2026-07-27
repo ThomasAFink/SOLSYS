@@ -7,12 +7,11 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
 from solsys.physics import AstronomicalConstants, StarCatalog
 
-OUTPUT_DPI = 300
-
-NEIGHBORHOOD_FIGURE_SIZE_INCHES = (12, 12)
+# Fallbacks when calling without going through render.py
+DEFAULT_FIGURE_SIZE_INCHES = (12.0, 12.0)
+DEFAULT_DPI = 150
 NEIGHBORHOOD_MAX_DISTANCE_LY = 10.0
 
 
@@ -23,10 +22,14 @@ class InterstellarNeighborhoodVisualizer:
         self,
         starsCsvPath: str,
         maxDistanceLightYears: float = NEIGHBORHOOD_MAX_DISTANCE_LY,
+        figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
+        dpi: int = DEFAULT_DPI,
     ):
         self.constants = AstronomicalConstants()
         self.starCatalog = StarCatalog(starsCsvPath, self.constants)
         self.maxDistanceLightYears = maxDistanceLightYears
+        self.figureSizeInches = figureSizeInches
+        self.dpi = dpi
 
     def starsWithinRadius(self) -> pd.DataFrame:
         nearbyStars = self.starCatalog.starsWithinLightYears(self.maxDistanceLightYears).copy()
@@ -55,12 +58,12 @@ class InterstellarNeighborhoodVisualizer:
         coordinates = nearbyStars[['positionXLy', 'positionYLy', 'positionZLy']]
         maxRangeLightYears = float(np.max(np.abs(coordinates.values)))
 
-        figure = plt.figure(figsize=NEIGHBORHOOD_FIGURE_SIZE_INCHES)
+        figure = plt.figure(figsize=self.figureSizeInches)
         axes = figure.add_subplot(111, projection='3d')
         axes.set_facecolor('black')
         figure.patch.set_facecolor('black')
 
-        for index, starRow in nearbyStars.iterrows():
+        for _index, starRow in nearbyStars.iterrows():
             starName = self._starLabel(starRow)
             axes.scatter(
                 starRow['positionXLy'],
@@ -93,7 +96,7 @@ class InterstellarNeighborhoodVisualizer:
         )
 
         os.makedirs(os.path.dirname(outputPath) or '.', exist_ok=True)
-        figure.savefig(outputPath, dpi=OUTPUT_DPI, facecolor=figure.get_facecolor())
+        figure.savefig(outputPath, dpi=self.dpi, facecolor=figure.get_facecolor())
         print(f'Saved to {outputPath}')
         if showPlot:
             plt.show()
@@ -101,15 +104,21 @@ class InterstellarNeighborhoodVisualizer:
             plt.close(figure)
 
 
-
 def renderNeighborhood(
     starsCsvPath: str = 'data/nearby_stars_30.csv',
     maxDistanceLightYears: float = NEIGHBORHOOD_MAX_DISTANCE_LY,
     outputPath: str | None = None,
     showPlot: bool = False,
+    figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
+    dpi: int = DEFAULT_DPI,
 ) -> None:
     if outputPath is None:
         lyLabel = f'{maxDistanceLightYears:g}'.replace('.', 'p')
         outputPath = f'output/neighborhood/interstellar_neighborhood_{lyLabel}ly.jpg'
-    visualizer = InterstellarNeighborhoodVisualizer(starsCsvPath, maxDistanceLightYears)
+    visualizer = InterstellarNeighborhoodVisualizer(
+        starsCsvPath,
+        maxDistanceLightYears,
+        figureSizeInches=figureSizeInches,
+        dpi=dpi,
+    )
     visualizer.render(outputPath=outputPath, showPlot=showPlot)
