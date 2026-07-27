@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import os
-from typing import Literal, Optional
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
+from solsys.motion import AnimatedAsteroidPopulation, AsteroidPopulationCounts, planetMeanAnomalyRad
+from solsys.physics import (
+    AstronomicalConstants,
+    FamousAsteroidCatalog,
+    MoonCatalog,
+    OrbitCalculator,
+    PlanetCatalog,
+)
 
-from animate.camera_controller import CameraController
 from animate.animation_styles import (
     ANIMATION_FPS,
     ANIMATION_FRAMES_2D,
@@ -20,20 +27,17 @@ from animate.animation_styles import (
     AXIS_LIMIT_2D_AU,
     CAMERA_AZIMUTH_DEG,
     CAMERA_ELEVATION_DEG,
-    FIGURE_SIZE_INCHES,
     INNER_BELT_VISIBLE_BELOW_AU,
     INNER_PLANET_NAMES,
     KUIPER_VISIBLE_BELOW_AU,
     OORT_VISIBLE_ABOVE_AU,
 )
-from solsys.motion import AnimatedAsteroidPopulation, AsteroidPopulationCounts, planetMeanAnomalyRad
-from solsys.physics import (
-    AstronomicalConstants,
-    FamousAsteroidCatalog,
-    MoonCatalog,
-    OrbitCalculator,
-    PlanetCatalog,
-)
+from animate.camera_controller import CameraController
+
+# Fallbacks when calling the animator without going through render.py
+DEFAULT_FIGURE_SIZE_INCHES = (12.0, 12.0)
+DEFAULT_DPI_2D = 100
+DEFAULT_DPI_3D = 50
 
 Dimension = Literal['2d', '3d']
 
@@ -41,11 +45,19 @@ Dimension = Literal['2d', '3d']
 class SolarSystemAnimator:
     """Shared animator: 2D drops Z (top-down); 3D uses full XYZ plus zoom camera."""
 
-    def __init__(self, dimension: Dimension = '2d', style: str = 'default'):
+    def __init__(
+        self,
+        dimension: Dimension = '2d',
+        style: str = 'default',
+        figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
+        dpi: int | None = None,
+    ):
         if dimension not in ('2d', '3d'):
             raise ValueError(f"dimension must be '2d' or '3d', got {dimension!r}")
         self.dimension = dimension
         self.is3d = dimension == '3d'
+        self.figureSizeInches = figureSizeInches
+        self.dpi = dpi if dpi is not None else (DEFAULT_DPI_3D if self.is3d else DEFAULT_DPI_2D)
         plt.style.use(style)
         self.renderStyle = ASTEROID_RENDER_STYLES['dark' if style == 'dark_background' else 'light']
         self.constants = AstronomicalConstants()
@@ -55,7 +67,7 @@ class SolarSystemAnimator:
         self.orbitCalculator = OrbitCalculator()
 
         if self.is3d:
-            self.figure = plt.figure(figsize=FIGURE_SIZE_INCHES, layout='none')
+            self.figure = plt.figure(figsize=figureSizeInches, dpi=self.dpi, layout='none')
             self.axes = self.figure.add_axes((0.0, 0.0, 1.0, 1.0), projection='3d')
             self.asteroidPopulation = AnimatedAsteroidPopulation(
                 self.constants,
@@ -73,7 +85,7 @@ class SolarSystemAnimator:
             self.baseAnimationSpeed = ANIMATION_SPEED_3D
             self.camera = CameraController(True, self.animationFrames, self.baseAnimationSpeed)
         else:
-            self.figure, self.axes = plt.subplots(figsize=FIGURE_SIZE_INCHES)
+            self.figure, self.axes = plt.subplots(figsize=figureSizeInches, dpi=self.dpi)
             self.asteroidPopulation = AnimatedAsteroidPopulation(
                 self.constants,
                 AsteroidPopulationCounts(
@@ -96,7 +108,9 @@ class SolarSystemAnimator:
         jupiter = self.planetCatalog.planets['Jupiter']
         return planetMeanAnomalyRad(jupiter.orbitalPeriodDays, frame, animationSpeed)
 
-    def _visibilityAlpha(self, positionX, positionY, positionZ, cameraDistanceAu: float) -> np.ndarray:
+    def _visibilityAlpha(
+        self, positionX, positionY, positionZ, cameraDistanceAu: float
+    ) -> np.ndarray:
         return CameraController.visibilityAlpha(positionX, positionY, positionZ, cameraDistanceAu)
 
     def _groupFadeAlpha(
@@ -207,40 +221,70 @@ class SolarSystemAnimator:
             )
             oortX, oortY, oortZ = self.asteroidPopulation.oortCloudPositions(frame, animationSpeed)
             self._scatterGroup(
-                beltX, beltY, beltZ, cameraDistanceAu,
-                showBelowAu=INNER_BELT_VISIBLE_BELOW_AU, showAboveAu=None,
+                beltX,
+                beltY,
+                beltZ,
+                cameraDistanceAu,
+                showBelowAu=INNER_BELT_VISIBLE_BELOW_AU,
+                showAboveAu=None,
                 baseAlpha=renderStyle['beltAlpha'],
-                color=renderStyle['beltColor'], s=renderStyle['beltSize'],
+                color=renderStyle['beltColor'],
+                s=renderStyle['beltSize'],
             )
             self._scatterGroup(
-                hildaX, hildaY, hildaZ, cameraDistanceAu,
-                showBelowAu=INNER_BELT_VISIBLE_BELOW_AU, showAboveAu=None,
+                hildaX,
+                hildaY,
+                hildaZ,
+                cameraDistanceAu,
+                showBelowAu=INNER_BELT_VISIBLE_BELOW_AU,
+                showAboveAu=None,
                 baseAlpha=renderStyle['clusterAlpha'],
-                color=renderStyle['clusterColor'], s=renderStyle['clusterSize'],
+                color=renderStyle['clusterColor'],
+                s=renderStyle['clusterSize'],
             )
             self._scatterGroup(
-                trojanX, trojanY, trojanZ, cameraDistanceAu,
-                showBelowAu=INNER_BELT_VISIBLE_BELOW_AU, showAboveAu=None,
+                trojanX,
+                trojanY,
+                trojanZ,
+                cameraDistanceAu,
+                showBelowAu=INNER_BELT_VISIBLE_BELOW_AU,
+                showAboveAu=None,
                 baseAlpha=renderStyle['clusterAlpha'],
-                color=renderStyle['clusterColor'], s=renderStyle['clusterSize'],
+                color=renderStyle['clusterColor'],
+                s=renderStyle['clusterSize'],
             )
             self._scatterGroup(
-                greekX, greekY, greekZ, cameraDistanceAu,
-                showBelowAu=INNER_BELT_VISIBLE_BELOW_AU, showAboveAu=None,
+                greekX,
+                greekY,
+                greekZ,
+                cameraDistanceAu,
+                showBelowAu=INNER_BELT_VISIBLE_BELOW_AU,
+                showAboveAu=None,
                 baseAlpha=renderStyle['clusterAlpha'],
-                color=renderStyle['clusterColor'], s=renderStyle['clusterSize'],
+                color=renderStyle['clusterColor'],
+                s=renderStyle['clusterSize'],
             )
             self._scatterGroup(
-                kuiperX, kuiperY, kuiperZ, cameraDistanceAu,
-                showBelowAu=KUIPER_VISIBLE_BELOW_AU, showAboveAu=None,
+                kuiperX,
+                kuiperY,
+                kuiperZ,
+                cameraDistanceAu,
+                showBelowAu=KUIPER_VISIBLE_BELOW_AU,
+                showAboveAu=None,
                 baseAlpha=renderStyle['kuiperAlpha'],
-                color=renderStyle['kuiperColor'], s=renderStyle['kuiperSize'],
+                color=renderStyle['kuiperColor'],
+                s=renderStyle['kuiperSize'],
             )
             self._scatterGroup(
-                oortX, oortY, oortZ, cameraDistanceAu,
-                showBelowAu=None, showAboveAu=OORT_VISIBLE_ABOVE_AU,
+                oortX,
+                oortY,
+                oortZ,
+                cameraDistanceAu,
+                showBelowAu=None,
+                showAboveAu=OORT_VISIBLE_ABOVE_AU,
                 baseAlpha=renderStyle['oortAlpha'],
-                color=renderStyle['oortColor'], s=renderStyle['oortSize'],
+                color=renderStyle['oortColor'],
+                s=renderStyle['oortSize'],
             )
         else:
             beltOpacity = 0.3 + 0.2 * (beltZ / (np.max(np.abs(beltZ)) + 1e-6))
@@ -268,20 +312,34 @@ class SolarSystemAnimator:
                     self._visibilityAlpha(positionX, positionY, positionZ, cameraDistanceAu)
                 )
                 self._scatter(
-                    positionX, positionY, positionZ,
-                    color=planet.color, s=markerSize, alpha=planetAlpha,
+                    positionX,
+                    positionY,
+                    positionZ,
+                    color=planet.color,
+                    s=markerSize,
+                    alpha=planetAlpha,
                 )
             else:
                 self._scatter(
-                    positionX, positionY, positionZ,
-                    color=planet.color, s=markerSize, zorder=6,
+                    positionX,
+                    positionY,
+                    positionZ,
+                    color=planet.color,
+                    s=markerSize,
+                    zorder=6,
                 )
                 self.axes.text(
                     float(positionX) + 0.15, float(positionY) + 0.15, planetName, fontsize=8
                 )
 
             self._drawMoonsForPlanet(
-                planet.name, positionX, positionY, positionZ, frame, animationSpeed, cameraDistanceAu
+                planet.name,
+                positionX,
+                positionY,
+                positionZ,
+                frame,
+                animationSpeed,
+                cameraDistanceAu,
             )
 
         self._drawFamousAsteroids(frame, animationSpeed, cameraDistanceAu)
@@ -309,30 +367,34 @@ class SolarSystemAnimator:
             orbitRadiusAu = self.moonCatalog.displayOrbitRadiusAu(moon, moonDisplayScale)
             ringZ = np.full(48, float(np.asarray(positionZ).reshape(-1)[0]))
             self._plot(
-                float(np.asarray(positionX).reshape(-1)[0]) + orbitRadiusAu * np.cos(ringAzimuthRad),
-                float(np.asarray(positionY).reshape(-1)[0]) + orbitRadiusAu * np.sin(ringAzimuthRad),
+                float(np.asarray(positionX).reshape(-1)[0])
+                + orbitRadiusAu * np.cos(ringAzimuthRad),
+                float(np.asarray(positionY).reshape(-1)[0])
+                + orbitRadiusAu * np.sin(ringAzimuthRad),
                 ringZ,
                 color=moon.color,
                 alpha=0.2,
                 linewidth=0.5,
             )
-            moonMeanAnomalyRad = planetMeanAnomalyRad(
-                moon.orbitalPeriodDays, frame, animationSpeed
-            )
+            moonMeanAnomalyRad = planetMeanAnomalyRad(moon.orbitalPeriodDays, frame, animationSpeed)
             moonX, moonY, moonZ = self.moonCatalog.heliocentricPosition(
                 positionX, positionY, positionZ, moon, moonMeanAnomalyRad, moonDisplayScale
             )
             if self.is3d:
                 moonAlpha = float(self._visibilityAlpha(moonX, moonY, moonZ, cameraDistanceAu))
                 self._scatter(
-                    moonX, moonY, moonZ,
+                    moonX,
+                    moonY,
+                    moonZ,
                     color=moon.color,
                     s=self.moonCatalog.markerSize3d(moon, 1200),
                     alpha=moonAlpha,
                 )
             else:
                 self._scatter(
-                    moonX, moonY, moonZ,
+                    moonX,
+                    moonY,
+                    moonZ,
                     color=moon.color,
                     s=self.moonCatalog.markerSize2d(moon, 1200),
                     zorder=8,
@@ -342,14 +404,14 @@ class SolarSystemAnimator:
         self, frame: int, animationSpeed: float, cameraDistanceAu: float
     ) -> None:
         if self.is3d:
-            visibilityCheck = lambda category: self.famousAsteroidCatalog.visibleForCameraAu(
-                cameraDistanceAu, category
-            )
+
+            def visibilityCheck(category: str) -> bool:
+                return self.famousAsteroidCatalog.visibleForCameraAu(cameraDistanceAu, category)
         else:
             axisSpanAu = 2 * AXIS_LIMIT_2D_AU
-            visibilityCheck = lambda category: self.famousAsteroidCatalog.visibleForAxisSpanAu(
-                axisSpanAu, category
-            )
+
+            def visibilityCheck(category: str) -> bool:
+                return self.famousAsteroidCatalog.visibleForAxisSpanAu(axisSpanAu, category)
 
         for asteroid in self.famousAsteroidCatalog.asteroids.values():
             if not visibilityCheck(asteroid.category):
@@ -364,18 +426,24 @@ class SolarSystemAnimator:
             if self.is3d:
                 orbitAlpha = self._visibilityAlpha(orbitX, orbitY, orbitZ, cameraDistanceAu)
                 self._plot(
-                    orbitX, orbitY, orbitZ,
-                    color=asteroid.color, alpha=float(np.mean(orbitAlpha)) * 0.4,
+                    orbitX,
+                    orbitY,
+                    orbitZ,
+                    color=asteroid.color,
+                    alpha=float(np.mean(orbitAlpha)) * 0.4,
                 )
             else:
                 self._plot(
-                    orbitX, orbitY, orbitZ,
-                    color=asteroid.color, alpha=0.35, linewidth=0.6, zorder=4,
+                    orbitX,
+                    orbitY,
+                    orbitZ,
+                    color=asteroid.color,
+                    alpha=0.35,
+                    linewidth=0.6,
+                    zorder=4,
                 )
 
-            meanAnomalyRad = planetMeanAnomalyRad(
-                asteroid.orbitalPeriodDays, frame, animationSpeed
-            )
+            meanAnomalyRad = planetMeanAnomalyRad(asteroid.orbitalPeriodDays, frame, animationSpeed)
             positionX, positionY, positionZ = self.famousAsteroidCatalog.positionAtMeanAnomaly(
                 asteroid, meanAnomalyRad, self.orbitCalculator
             )
@@ -384,14 +452,18 @@ class SolarSystemAnimator:
                     self._visibilityAlpha(positionX, positionY, positionZ, cameraDistanceAu)
                 )
                 self._scatter(
-                    positionX, positionY, positionZ,
+                    positionX,
+                    positionY,
+                    positionZ,
                     color=asteroid.color,
                     s=self.famousAsteroidCatalog.markerSize3d(asteroid, 500),
                     alpha=asteroidAlpha,
                 )
             else:
                 self._scatter(
-                    positionX, positionY, positionZ,
+                    positionX,
+                    positionY,
+                    positionZ,
                     color=asteroid.color,
                     s=self.famousAsteroidCatalog.markerSize2d(asteroid, 120),
                     zorder=7,
@@ -431,10 +503,10 @@ class SolarSystemAnimator:
             interval=1000 // ANIMATION_FPS,
             blit=False,
         )
+        self.figure.set_size_inches(*self.figureSizeInches)
+        self.figure.set_dpi(self.dpi)
         saveKwargs = {}
         if self.is3d:
-            self.figure.set_size_inches(*FIGURE_SIZE_INCHES)
-            self.figure.set_dpi(100)
             saveKwargs['savefig_kwargs'] = {
                 'pad_inches': 0,
                 'facecolor': self.figure.get_facecolor(),
@@ -444,12 +516,24 @@ class SolarSystemAnimator:
         print(f'Saved {outputPath}')
 
 
-def renderAllAnimations(dimension: Optional[Dimension] = None) -> None:
+def renderAllAnimations(
+    dimension: Dimension | None = None,
+    figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
+    dpi: int | None = None,
+) -> None:
     dimensions: tuple[Dimension, ...] = (dimension,) if dimension else ('2d', '3d')
     for selectedDimension in dimensions:
         outputDirectory = f'output/animate/{selectedDimension}'
+        selectedDpi = dpi
+        if selectedDpi is None:
+            selectedDpi = DEFAULT_DPI_3D if selectedDimension == '3d' else DEFAULT_DPI_2D
         for themeName, styleName in (('light', 'default'), ('dark', 'dark_background')):
-            animator = SolarSystemAnimator(dimension=selectedDimension, style=styleName)
+            animator = SolarSystemAnimator(
+                dimension=selectedDimension,
+                style=styleName,
+                figureSizeInches=figureSizeInches,
+                dpi=selectedDpi,
+            )
             if selectedDimension == '2d':
                 outputPath = f'{outputDirectory}/inner_solar_system_{themeName}.gif'
             else:
@@ -457,5 +541,3 @@ def renderAllAnimations(dimension: Optional[Dimension] = None) -> None:
             print(f'Rendering {outputPath}...')
             animator.saveGif(outputPath)
     print('Animations completed!')
-
-

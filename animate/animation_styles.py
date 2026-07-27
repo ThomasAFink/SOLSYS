@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-
-FIGURE_SIZE_INCHES = (12, 12)
 ANIMATION_FPS = 20
 CAMERA_ELEVATION_DEG = 25
 CAMERA_AZIMUTH_DEG = 120
@@ -67,4 +65,3 @@ ASTEROID_RENDER_STYLES = {
         'oortAlpha': 0.42,
     },
 }
-

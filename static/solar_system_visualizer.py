@@ -5,11 +5,10 @@ from __future__ import annotations
 import os
 import random
 import zlib
-from typing import List, Literal, Optional, Tuple
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from solsys.physics import (
     AstronomicalConstants,
     BeltPointGenerator,
@@ -22,11 +21,13 @@ from solsys.physics import (
     ViewDefinition,
     ViewRegistry,
 )
-from static.hilda_point_generator import HildaPointGenerator
-from static.dimension_plotter import DimensionPlotter
 
-FIGURE_SIZE_INCHES = (39, 39)
-OUTPUT_DPI = 300
+from static.dimension_plotter import DimensionPlotter
+from static.hilda_point_generator import HildaPointGenerator
+
+# Fallbacks when calling without going through render.py
+DEFAULT_FIGURE_SIZE_INCHES = (39.0, 39.0)
+DEFAULT_DPI = 150
 SHELL_THICKNESS_AU = 0.05
 CAMERA_ELEVATION_DEG = 25
 CAMERA_AZIMUTH_DEG = 120
@@ -65,6 +66,8 @@ class SolarSystemVisualizer:
         starsCsvPath: str,
         dimension: Dimension = '2d',
         theme: Theme = 'light',
+        figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
+        dpi: int = DEFAULT_DPI,
     ):
         if dimension not in ('2d', '3d'):
             raise ValueError(f"dimension must be '2d' or '3d', got {dimension!r}")
@@ -72,6 +75,8 @@ class SolarSystemVisualizer:
             raise ValueError(f"theme must be 'light' or 'dark', got {theme!r}")
         self.dimension = dimension
         self.theme = theme
+        self.figureSizeInches = figureSizeInches
+        self.dpi = dpi
         self.themeColors = THEME_STYLES[theme]
         plt.style.use(self.themeColors['mplStyle'])
         self.constants = AstronomicalConstants()
@@ -85,14 +90,14 @@ class SolarSystemVisualizer:
         self.labeledStarSystems: set[str] = set()
 
     @property
-    def views(self) -> List[ViewDefinition]:
+    def views(self) -> list[ViewDefinition]:
         return ViewRegistry.VIEWS_3D if self.dimension == '3d' else ViewRegistry.VIEWS_2D
 
     @property
     def outputDirectoryDefault(self) -> str:
         return f'output/{self.dimension}'
 
-    def renderAllViews(self, outputDirectory: Optional[str] = None) -> None:
+    def renderAllViews(self, outputDirectory: str | None = None) -> None:
         outputDirectory = outputDirectory or self.outputDirectoryDefault
         os.makedirs(outputDirectory, exist_ok=True)
 
@@ -116,7 +121,7 @@ class SolarSystemVisualizer:
         seed = zlib.crc32(viewDefinition.shortName.encode('utf-8')) & 0xFFFFFFFF
         random.seed(seed)
         np.random.seed(seed)
-        figure = plt.figure(figsize=FIGURE_SIZE_INCHES)
+        figure = plt.figure(figsize=self.figureSizeInches)
         if self.dimension == '3d':
             axes = figure.add_subplot(111, projection='3d')
         else:
@@ -129,7 +134,11 @@ class SolarSystemVisualizer:
             'inner_solar_system_with_jupiter',
         }
 
-        sunSize = 75 if (self.dimension == '2d' and isInnerView) else (50 if self.dimension == '3d' else 8)
+        sunSize = (
+            75
+            if (self.dimension == '2d' and isInnerView)
+            else (50 if self.dimension == '3d' else 8)
+        )
         if self.dimension == '2d':
             axes.plot(0, 0, 'o', markersize=sunSize, color='yellow')
         else:
@@ -163,7 +172,7 @@ class SolarSystemVisualizer:
             axes.legend()
             plt.title(viewDefinition.title, fontsize=viewDefinition.titleFontSize, pad=50)
 
-        figure.savefig(outputPath, dpi=OUTPUT_DPI)
+        figure.savefig(outputPath, dpi=self.dpi)
         plt.close(figure)
 
     def _drawAsteroidBelt(self, plotter: DimensionPlotter, numPoints: int) -> None:
@@ -211,7 +220,9 @@ class SolarSystemVisualizer:
             positionX = radiusAu * np.cos(azimuthRad)
             positionY = radiusAu * np.sin(azimuthRad)
             positionZ = np.sin(inclinationRad) * np.random.uniform(-0.1, 0.1, numPoints)
-            plotter.scatter(positionX, positionY, positionZ, color=self.themeColors['beltColor'], s=markerSize)
+            plotter.scatter(
+                positionX, positionY, positionZ, color=self.themeColors['beltColor'], s=markerSize
+            )
 
     def _drawHildas(self, plotter: DimensionPlotter, numPoints: int) -> None:
         constants = self.constants
@@ -226,9 +237,7 @@ class SolarSystemVisualizer:
 
         totalPoints = len(hildaX)
         clusterIndices = [0, totalPoints // 3, 2 * totalPoints // 3]
-        clusterCenters = [
-            (hildaX[index], hildaY[index], hildaZ[index]) for index in clusterIndices
-        ]
+        clusterCenters = [(hildaX[index], hildaY[index], hildaZ[index]) for index in clusterIndices]
         bandX, bandY, bandZ = self.hildaGenerator.connectingBands(
             clusterCenters, numPoints, spreadRadiusAu=0.5, bowFactor=-1.75
         )
@@ -242,7 +251,9 @@ class SolarSystemVisualizer:
             numPoints,
         )
         markerSize = 1 if self.dimension == '3d' else 5
-        plotter.scatter(positionX, positionY, positionZ, color=self.themeColors['beltColor'], s=markerSize)
+        plotter.scatter(
+            positionX, positionY, positionZ, color=self.themeColors['beltColor'], s=markerSize
+        )
 
     def _drawOortCloud(self, plotter: DimensionPlotter, numPoints: int) -> None:
         positionX, positionY, positionZ = self.beltGenerator.sphericalShell(
@@ -252,7 +263,9 @@ class SolarSystemVisualizer:
             numPoints // 5 if self.dimension == '3d' else numPoints,
         )
         markerSize = 1 if self.dimension == '3d' else 5
-        plotter.scatter(positionX, positionY, positionZ, color=self.themeColors['beltColor'], s=markerSize)
+        plotter.scatter(
+            positionX, positionY, positionZ, color=self.themeColors['beltColor'], s=markerSize
+        )
 
     def _drawPlanets(
         self, plotter: DimensionPlotter, viewDefinition: ViewDefinition, isInnerView: bool
@@ -346,9 +359,8 @@ class SolarSystemVisualizer:
             )
 
             shouldLabel = (
-                (self.dimension == '2d' and (isInnerView or asteroid.category == 'kuiper'))
-                or (self.dimension == '3d' and (axisSpanAu <= 25 or asteroid.category == 'kuiper'))
-            )
+                self.dimension == '2d' and (isInnerView or asteroid.category == 'kuiper')
+            ) or (self.dimension == '3d' and (axisSpanAu <= 25 or asteroid.category == 'kuiper'))
             if shouldLabel:
                 labelX = float(positionX) + (0.12 if self.dimension == '2d' else 0.0)
                 labelY = float(positionY) + (0.12 if self.dimension == '2d' else 0.0)
@@ -383,13 +395,15 @@ class SolarSystemVisualizer:
         if self.dimension == '2d':
             return
 
-        radiusAu = np.sqrt(positionX ** 2 + positionY ** 2 + positionZ ** 2)
+        radiusAu = np.sqrt(positionX**2 + positionY**2 + positionZ**2)
         if viewDefinition.shortName in ZOOMED_OUT_SHORT_NAMES:
-            inboundDirection = np.array([
-                positionX[0] / radiusAu[0],
-                positionY[0] / radiusAu[0],
-                positionZ[0] / radiusAu[0],
-            ])
+            inboundDirection = np.array(
+                [
+                    positionX[0] / radiusAu[0],
+                    positionY[0] / radiusAu[0],
+                    positionZ[0] / radiusAu[0],
+                ]
+            )
             targetRadiusAu = {
                 'solar_system_with_kuiper_belt': 55,
                 'solar_system_with_oort_cloud': 45000,
@@ -464,9 +478,9 @@ class SolarSystemVisualizer:
             return
 
         starsFrame = self.starCatalog.starsDataFrame
-        starsInView = starsFrame[
-            starsFrame['distanceAu'] <= viewDefinition.axisMaxAu
-        ].dropna(subset=['positionX', 'positionY', 'positionZ'])
+        starsInView = starsFrame[starsFrame['distanceAu'] <= viewDefinition.axisMaxAu].dropna(
+            subset=['positionX', 'positionY', 'positionZ']
+        )
 
         for _, starRow in starsInView.iterrows():
             if 'Vega' in starRow['System']:
@@ -502,7 +516,9 @@ class SolarSystemVisualizer:
                 )
                 self.labeledStarSystems.add(starRow['System'][:10])
 
-    def _oumuamuaTrajectory(self, numPoints: int = 5000) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _oumuamuaTrajectory(
+        self, numPoints: int = 5000
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         return self.orbitCalculator.hyperbolicOrbit3d(
             self.constants.oumuamuaPerihelionAu,
             self.constants.oumuamuaEccentricity,
@@ -512,9 +528,9 @@ class SolarSystemVisualizer:
             numPoints=numPoints,
         )
 
-    def _oumuamuaInboundDirection(self) -> Tuple[float, float, float]:
+    def _oumuamuaInboundDirection(self) -> tuple[float, float, float]:
         positionX, positionY, positionZ = self._oumuamuaTrajectory()
-        radiusAu = np.sqrt(positionX ** 2 + positionY ** 2 + positionZ ** 2)
+        radiusAu = np.sqrt(positionX**2 + positionY**2 + positionZ**2)
         inboundMagnitude = radiusAu[0]
         if inboundMagnitude == 0:
             return 0.0, -1.0, 0.0
@@ -526,10 +542,10 @@ class SolarSystemVisualizer:
 
     def _perpendicularLabelPosition2d(
         self,
-        anchorPosition: Tuple[float, float],
-        directionVector: Tuple[float, float],
+        anchorPosition: tuple[float, float],
+        directionVector: tuple[float, float],
         axisSpanAu: float,
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         perpendicularX = -directionVector[1]
         perpendicularY = directionVector[0]
         if perpendicularX * anchorPosition[0] + perpendicularY * anchorPosition[1] < 0:
@@ -542,7 +558,7 @@ class SolarSystemVisualizer:
 
     def _oumuamuaAnnotation2d(
         self, viewDefinition: ViewDefinition
-    ) -> Tuple[str, Tuple[float, float], Tuple[float, float]]:
+    ) -> tuple[str, tuple[float, float], tuple[float, float]]:
         axisSpanAu = viewDefinition.axisMaxAu - viewDefinition.axisMinAu
         positionX, positionY, _ = self._oumuamuaTrajectory()
 
@@ -562,7 +578,7 @@ class SolarSystemVisualizer:
             )
             return OUMUAMUA_LABEL, anchorPosition, labelPosition
 
-        radiusAu = np.sqrt(positionX ** 2 + positionY ** 2)
+        radiusAu = np.sqrt(positionX**2 + positionY**2)
         visibleMask = (
             (positionX >= viewDefinition.axisMinAu)
             & (positionX <= viewDefinition.axisMaxAu)
@@ -581,7 +597,9 @@ class SolarSystemVisualizer:
         labelPosition = (anchorPosition[0] - labelOffsetAu, anchorPosition[1] - labelOffsetAu)
         return OUMUAMUA_LABEL, anchorPosition, labelPosition
 
-    def _jupiterLagrangeAnnotations2d(self) -> List[Tuple[str, Tuple[float, float], Tuple[float, float]]]:
+    def _jupiterLagrangeAnnotations2d(
+        self,
+    ) -> list[tuple[str, tuple[float, float], tuple[float, float]]]:
         jupiterAngleRad = self._jupiterOrbitalAngleRad()
         semiMajorAxisAu = self.constants.jupiterSemiMajorAxisAu
         lagrangeOffsetRad = np.deg2rad(60)
@@ -601,7 +619,7 @@ class SolarSystemVisualizer:
     def _drawAnnotations2d(self, axes: plt.Axes, viewDefinition: ViewDefinition) -> None:
         constants = self.constants
         viewId = viewDefinition.viewId
-        annotationConfigs: dict[str, List[Tuple[str, Tuple[float, float], Tuple[float, float]]]] = {
+        annotationConfigs: dict[str, list[tuple[str, tuple[float, float], tuple[float, float]]]] = {
             '0_inner_solar_system': [
                 (
                     'Asteroid Belt (2.2-3.2 AU)',
@@ -682,7 +700,7 @@ class SolarSystemVisualizer:
 
     def _oumuamuaVegaSkySeparationDeg(self) -> float:
         positionX, positionY, positionZ = self._oumuamuaTrajectory()
-        radiusAu = np.sqrt(positionX ** 2 + positionY ** 2 + positionZ ** 2)
+        radiusAu = np.sqrt(positionX**2 + positionY**2 + positionZ**2)
         inboundVector = np.array([positionX[0], positionY[0], positionZ[0]]) / radiusAu[0]
         vegaRow = self.starCatalog.vegaRow()
         vegaVector = np.array(
@@ -692,7 +710,7 @@ class SolarSystemVisualizer:
         return float(np.degrees(np.arccos(np.clip(np.dot(inboundVector, vegaVector), -1.0, 1.0))))
 
     def _renderOumuamuaVegaView(self, outputPath: str) -> None:
-        figure, axes = plt.subplots(figsize=FIGURE_SIZE_INCHES)
+        figure, axes = plt.subplots(figsize=self.figureSizeInches)
         vegaRow = self.starCatalog.vegaRow()
         vegaX, vegaY = float(vegaRow['positionX']), float(vegaRow['positionY'])
         vegaDistanceAu = np.hypot(vegaX, vegaY)
@@ -709,12 +727,16 @@ class SolarSystemVisualizer:
             inboundDirection[0] * asymptoteLengthAu,
             inboundDirection[1] * asymptoteLengthAu,
         )
-        axes.plot([0, asymptoteEnd[0]], [0, asymptoteEnd[1]], '--', color=oumuamuaColor, linewidth=2)
+        axes.plot(
+            [0, asymptoteEnd[0]], [0, asymptoteEnd[1]], '--', color=oumuamuaColor, linewidth=2
+        )
         axes.plot([0, vegaX], [0, vegaY], ':', color=self.themeColors['beltColor'], linewidth=1.5)
 
         for _, starRow in self.starCatalog.starsWithinLightYears(25.05).iterrows():
             if starRow['System'].startswith('Vega'):
-                axes.plot(starRow['positionX'], starRow['positionY'], 'o', markersize=40, color='silver')
+                axes.plot(
+                    starRow['positionX'], starRow['positionY'], 'o', markersize=40, color='silver'
+                )
                 axes.text(
                     starRow['positionX'] + 15000,
                     starRow['positionY'],
@@ -748,7 +770,7 @@ class SolarSystemVisualizer:
             ),
         )
         axes.annotate(
-            f"Sky direction near Vega (~{skySeparationDeg:.0f}° away) — not from Vega",
+            f'Sky direction near Vega (~{skySeparationDeg:.0f}° away) — not from Vega',
             xy=(vegaX * 0.55, vegaY * 0.55),
             xytext=(vegaX * 0.35, vegaY * 0.75),
             fontsize=36,
@@ -771,13 +793,23 @@ class SolarSystemVisualizer:
         axes.set_aspect('equal', 'box')
         axes.axis('off')
         plt.title("'Oumuamua and Vega — Interstellar Context (25 light years)", fontsize=72, pad=50)
-        figure.savefig(outputPath, dpi=OUTPUT_DPI)
+        figure.savefig(outputPath, dpi=self.dpi)
         plt.close(figure)
 
 
-
-def renderAll(dimension: Dimension = '2d', starsCsvPath: str = 'data/nearby_stars_30.csv') -> None:
+def renderAll(
+    dimension: Dimension = '2d',
+    starsCsvPath: str = 'data/nearby_stars_30.csv',
+    figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
+    dpi: int = DEFAULT_DPI,
+) -> None:
     for theme in ('light', 'dark'):
-        visualizer = SolarSystemVisualizer(starsCsvPath, dimension=dimension, theme=theme)
+        visualizer = SolarSystemVisualizer(
+            starsCsvPath,
+            dimension=dimension,
+            theme=theme,
+            figureSizeInches=figureSizeInches,
+            dpi=dpi,
+        )
         visualizer.renderAllViews()
     print(f'All {dimension.upper()} visualizations completed!')
