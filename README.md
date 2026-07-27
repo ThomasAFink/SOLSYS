@@ -39,7 +39,10 @@ SOLSYS/
 │   ├── keplers_three_laws.png                     # Kepler laws diagram
 │   └── generate_keplers_laws_figure.py            # Regenerates the diagram
 ├── data/
-│   └── nearby_stars_30.csv                        # Nearby-star catalog (RA/Dec, distances)
+│   ├── nearby_stars_30.csv                        # Nearby-star catalog (RA/Dec, distances, system_id)
+│   ├── systems.csv                                # Star systems (sol, alpha_centauri, …)
+│   ├── stellar_orbits.csv                         # Multi-star orbits vs system barycenter
+│   └── planets.csv                                # Exoplanets linked by host_star_uuid
 │
 ├── animate/                                       # MAIN PRODUCT — GIF animations
 │   ├── __init__.py
@@ -49,6 +52,7 @@ SOLSYS/
 │   └── scenes/
 │       ├── inner_system.py                        # Fixed 2D inner-system scene
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
+│       ├── alpha_centauri.py                      # A–B close-up, wide triple, Proxima planets
 │       └── blender/                               # Future planet close-ups
 │           └── README.md
 │
@@ -68,10 +72,11 @@ SOLSYS/
 │   │   ├── view_registry.py                       # ViewRegistry
 │   │   ├── point_density_config.py                # PointDensityConfig
 │   │   └── catalogs/
-│   │       ├── planet_catalog.py                  # PlanetCatalog, PlanetOrbit
+│   │       ├── planet_catalog.py                  # PlanetCatalog, PlanetOrbit (Sol, hard-coded)
 │   │       ├── moon_catalog.py                    # MoonCatalog, MoonOrbit
 │   │       ├── famous_asteroid_catalog.py         # FamousAsteroidCatalog, FamousAsteroidOrbit
-│   │       └── star_catalog.py                    # StarCatalog
+│   │       ├── star_catalog.py                    # StarCatalog
+│   │       └── system_catalog.py                  # SystemCatalog (multi-star systems)
 │   └── motion/
 │       ├── mean_anomaly.py                        # meanAnomalyAtFrame, planetMeanAnomalyRad
 │       └── animated_asteroid_population.py        # AnimatedAsteroidPopulation, AsteroidPopulationCounts
@@ -79,7 +84,8 @@ SOLSYS/
 └── output/
     ├── animate/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
-    │   └── 3d/                                    # solar_system_{light,dark}.gif
+    │   ├── 3d/                                    # solar_system_{light,dark}.gif
+    │   └── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
@@ -245,9 +251,16 @@ Or render by product:
 ```bash
 .venv/bin/python render.py animate --dimension all
 .venv/bin/python render.py animate --dimension 3d
+.venv/bin/python render.py animate --system alpha_centauri
 .venv/bin/python render.py static --dimension 2d
 .venv/bin/python render.py neighborhood --ly 10
 ```
+
+Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animations render to `output/animate/alpha_centauri/`:
+
+- `alpha_centauri_ab_{light,dark}.gif` — A–B binary close-up (±28 AU)
+- `alpha_centauri_system_{light,dark}.gif` — wide triple with Proxima (~8.7 kau)
+- `proxima_planets_{light,dark}.gif` — confirmed Proxima planets
 
 ## Physics notes
 
@@ -256,8 +269,10 @@ Or render by product:
 - Hildas follow a 3:2 resonance angular rate relative to Jupiter.
 - Jupiter Trojans and Greeks sit near the L4 / L5 Lagrange longitudes.
 - Moon orbits are exaggerated for visibility at solar-system zoom levels.
+- **Coordinate frames (multi-star):** Sol scenes use a heliocentric / Sol-barycentric frame in AU, with +X/+Y/+Z from the equatorial Cartesian mapping in `OrbitCalculator.equatorialToCartesianAu` (RA/Dec → XYZ). Alpha Centauri scenes use a separate **α Cen AB-barycentric** frame in AU, plotted face-on in the binary orbital plane (sky inclination stored in CSV but not applied to the 2D schematic). A future Sol ↔ Centauri cinematic would translate the Centauri barycenter to the Sol-frame position of the system (from `nearby_stars_30.csv`) and rotate from the Centauri orbital plane into Sol XYZ — that transform is **not implemented yet**.
 
 ## Roadmap
 
-- Additional animation scenes under `animate/scenes/`
+- Additional star systems via `SystemCatalog` / `data/systems.csv`
 - Blender-based planet close-ups / flybys in `animate/scenes/blender/`
+- Sol ↔ Centauri cinematic path (implement the documented barycenter-frame transform above)
