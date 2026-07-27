@@ -1,0 +1,3 @@
+system_id,display_name,barycenter_policy,notes
+sol,Solar System,single_star,Home system; belts/Oort stay in AstronomicalConstants for now
+alpha_centauri,Alpha Centauri,ab_mass_weighted,"A+B barycenter; Proxima is a wide companion (same system_id)"
