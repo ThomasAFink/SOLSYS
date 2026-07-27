@@ -130,7 +130,7 @@ class SystemCatalog:
             systemId=str(systemRow['system_id']),
             displayName=str(systemRow['display_name']),
             barycenterPolicy=str(systemRow['barycenter_policy']),
-            notes=str(systemRow.get('notes', '') or ''),
+            notes=self._optionalStr(systemRow.get('notes')),
             stars=stars,
             stellarOrbits=orbits,
             planets=planets,
@@ -145,12 +145,19 @@ class SystemCatalog:
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _optionalStr(value, default: str = '') -> str:
+        if value is None or pd.isna(value):
+            return default
+        text = str(value).strip()
+        return default if text.lower() == 'nan' else text
+
     def _starMemberFromRow(self, row: pd.Series) -> StarMember:
         return StarMember(
             starUuid=str(row['UUID']),
             systemId=str(row['system_id']),
-            displaySystem=str(row.get('System', '') or ''),
-            starName=str(row.get('StarName', '') or ''),
+            displaySystem=self._optionalStr(row.get('System')),
+            starName=self._optionalStr(row.get('StarName')),
             massSolar=self._optionalFloat(row.get('Mass')),
             distanceLy=self._optionalFloat(row.get('Distance (ly)')),
             positionX=self._optionalFloat(row.get('positionX')),
@@ -158,8 +165,7 @@ class SystemCatalog:
             positionZ=self._optionalFloat(row.get('positionZ')),
         )
 
-    @staticmethod
-    def _stellarOrbitFromRow(row: pd.Series) -> StellarOrbit:
+    def _stellarOrbitFromRow(self, row: pd.Series) -> StellarOrbit:
         return StellarOrbit(
             systemId=str(row['system_id']),
             starUuid=str(row['star_uuid']),
@@ -171,11 +177,10 @@ class SystemCatalog:
             longitudeAscendingNodeDeg=float(row['longitude_ascending_node_deg']),
             argumentPeriapsisDeg=float(row['argument_periapsis_deg']),
             meanAnomalyDegEpoch=float(row['mean_anomaly_deg_epoch']),
-            notes=str(row.get('notes', '') or ''),
+            notes=self._optionalStr(row.get('notes')),
         )
 
-    @staticmethod
-    def _planetFromRow(row: pd.Series) -> SystemPlanet:
+    def _planetFromRow(self, row: pd.Series) -> SystemPlanet:
         return SystemPlanet(
             planetId=str(row['planet_id']),
             systemId=str(row['system_id']),
@@ -190,7 +195,7 @@ class SystemCatalog:
             color=str(row['color']),
             diameterKm=float(row['diameter_km']),
             confidence=str(row['confidence']),
-            notes=str(row.get('notes', '') or ''),
+            notes=self._optionalStr(row.get('notes')),
         )
 
 
