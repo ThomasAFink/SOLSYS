@@ -24,6 +24,9 @@ class AstronomicalConstants:
     oumuamuaInclinationDeg: float = 122.74
     oumuamuaLongitudeAscendingNodeDeg: float = 24.60
     oumuamuaArgumentOfPerihelionDeg: float = 241.69
+    # Published Earth flyby (2017-10-14); used for callouts / Earth phasing in the flyby scene.
+    oumuamuaEarthClosestApproachAu: float = 0.1618
+    auToKm: float = 149597870.7
 
     @property
     def plutoPerihelionAu(self) -> float:
