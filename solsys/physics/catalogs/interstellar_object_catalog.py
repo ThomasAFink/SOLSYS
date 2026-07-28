@@ -50,7 +50,7 @@ class InterstellarObjectCatalog:
                 designation=str(row['designation']),
                 displayName=str(row['display_name']),
                 perihelionAu=float(row['perihelion_au']),
-                eccentricity=float(row['eccentricity']),
+                eccentricity=self._validatedEccentricity(objectId, row['eccentricity']),
                 inclinationDeg=float(row['inclination_deg']),
                 longitudeAscendingNodeDeg=float(row['longitude_ascending_node_deg']),
                 argumentOfPerihelionDeg=float(row['argument_of_perihelion_deg']),
@@ -62,6 +62,15 @@ class InterstellarObjectCatalog:
                 highlight=str(row['highlight']),
                 notes='' if pd.isna(row.get('notes')) else str(row['notes']),
             )
+
+    @staticmethod
+    def _validatedEccentricity(objectId: str, value: object) -> float:
+        eccentricity = float(value)
+        if eccentricity <= 1.0:
+            raise ValueError(
+                f'{objectId}: eccentricity must be > 1 for a hyperbolic orbit, got {eccentricity}'
+            )
+        return eccentricity
 
     def listObjectIds(self) -> list[str]:
         return list(self._byId.keys())

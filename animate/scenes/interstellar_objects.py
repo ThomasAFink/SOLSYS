@@ -10,6 +10,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 from solsys.physics import AstronomicalConstants, OrbitCalculator, PlanetCatalog
 from solsys.physics.catalogs.interstellar_object_catalog import (
+    DEFAULT_INTERSTELLAR_OBJECTS_CSV,
     InterstellarObject,
     InterstellarObjectCatalog,
 )
@@ -491,7 +492,7 @@ def renderInterstellarObjectAnimations(
     objectIds: tuple[str, ...] | None = None,
     figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
     dpi: int = DEFAULT_DPI,
-    csvPath: str = 'data/interstellar_objects.csv',
+    csvPath: str = DEFAULT_INTERSTELLAR_OBJECTS_CSV,
 ) -> None:
     catalog = InterstellarObjectCatalog(csvPath)
     selectedIds = objectIds if objectIds is not None else tuple(catalog.listObjectIds())
