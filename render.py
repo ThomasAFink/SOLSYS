@@ -7,7 +7,7 @@ from typing import Literal
 
 from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
-from animate.scenes.oumuamua_earth import renderOumuamuaEarthAnimations
+from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
 
@@ -88,9 +88,20 @@ def buildParser() -> argparse.ArgumentParser:
     )
     animateParser.add_argument(
         '--system',
-        choices=('sol', 'alpha_centauri', 'oumuamua', 'all'),
+        choices=('sol', 'alpha_centauri', 'oumuamua', 'interstellar', 'all'),
         default='sol',
-        help='Which scene set to render (default: sol). oumuamua = Earth flyby GIFs.',
+        help=(
+            'Which scene set to render (default: sol). '
+            'interstellar = 1I/2I/3I GIFs; oumuamua = ʻOumuamua only (alias).'
+        ),
+    )
+    animateParser.add_argument(
+        '--object',
+        default='all',
+        help=(
+            'For --system interstellar: object_id from data/interstellar_objects.csv '
+            '(oumuamua, borisov, atlas, or all). Ignored otherwise.'
+        ),
     )
     animateParser.add_argument(
         '--stars',
@@ -121,9 +132,14 @@ def buildParser() -> argparse.ArgumentParser:
     )
     allParser.add_argument(
         '--system',
-        choices=('sol', 'alpha_centauri', 'oumuamua', 'all'),
+        choices=('sol', 'alpha_centauri', 'oumuamua', 'interstellar', 'all'),
         default='all',
         help='Which scene set(s) to include (default: all)',
+    )
+    allParser.add_argument(
+        '--object',
+        default='all',
+        help='For interstellar scenes: object_id or all (default: all)',
     )
 
     return parser
@@ -163,8 +179,17 @@ def main(argv: list[str] | None = None) -> None:
                 dpi=ANIMATE_DPI_2D,
                 starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
             )
-        if systemChoice in ('oumuamua', 'all'):
-            renderOumuamuaEarthAnimations(
+        if systemChoice == 'oumuamua':
+            renderInterstellarObjectAnimations(
+                objectIds=('oumuamua',),
+                figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+                dpi=ANIMATE_DPI_2D,
+            )
+        elif systemChoice in ('interstellar', 'all'):
+            objectChoice = getattr(args, 'object', 'all')
+            objectIds = None if objectChoice == 'all' else (objectChoice,)
+            renderInterstellarObjectAnimations(
+                objectIds=objectIds,
                 figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
                 dpi=ANIMATE_DPI_2D,
             )
