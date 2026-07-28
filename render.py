@@ -92,7 +92,7 @@ def buildParser() -> argparse.ArgumentParser:
         default='sol',
         help=(
             'Which scene set to render (default: sol). '
-            'interstellar = 1I/2I/3I GIFs; oumuamua = ʻOumuamua only (alias).'
+            'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
     animateParser.add_argument(

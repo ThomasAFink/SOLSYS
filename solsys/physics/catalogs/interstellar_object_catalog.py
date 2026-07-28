@@ -60,7 +60,7 @@ class InterstellarObjectCatalog:
                 maxHeliocentricAu=float(row['max_heliocentric_au']),
                 trueAnomalySpanDeg=float(row['true_anomaly_span_deg']),
                 highlight=str(row['highlight']),
-                notes='' if pd.isna(row.get('notes', '')) else str(row['notes']),
+                notes='' if pd.isna(row.get('notes')) else str(row['notes']),
             )
 
     def listObjectIds(self) -> list[str]:
