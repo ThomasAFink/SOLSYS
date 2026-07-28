@@ -13,6 +13,7 @@ from solsys.physics import (
     AstronomicalConstants,
     BeltPointGenerator,
     FamousAsteroidCatalog,
+    InterstellarObjectCatalog,
     MoonCatalog,
     OrbitCalculator,
     PlanetCatalog,
@@ -84,6 +85,8 @@ class SolarSystemVisualizer:
         self.planetCatalog = PlanetCatalog(self.constants)
         self.moonCatalog = MoonCatalog()
         self.famousAsteroidCatalog = FamousAsteroidCatalog()
+        self.interstellarCatalog = InterstellarObjectCatalog()
+        self.oumuamua = self.interstellarCatalog.load('oumuamua')
         self.orbitCalculator = OrbitCalculator()
         self.beltGenerator = BeltPointGenerator()
         self.hildaGenerator = HildaPointGenerator()
@@ -374,13 +377,13 @@ class SolarSystemVisualizer:
                 )
 
     def _drawOumuamua(self, plotter: DimensionPlotter, viewDefinition: ViewDefinition) -> None:
-        constants = self.constants
+        visitor = self.oumuamua
         positionX, positionY, positionZ = self.orbitCalculator.hyperbolicOrbit3d(
-            constants.oumuamuaPerihelionAu,
-            constants.oumuamuaEccentricity,
-            constants.oumuamuaInclinationDeg,
-            constants.oumuamuaLongitudeAscendingNodeDeg,
-            constants.oumuamuaArgumentOfPerihelionDeg,
+            visitor.perihelionAu,
+            visitor.eccentricity,
+            visitor.inclinationDeg,
+            visitor.longitudeAscendingNodeDeg,
+            visitor.argumentOfPerihelionDeg,
             numPoints=5000,
         )
         plotter.plot(
@@ -519,12 +522,13 @@ class SolarSystemVisualizer:
     def _oumuamuaTrajectory(
         self, numPoints: int = 5000
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        visitor = self.oumuamua
         return self.orbitCalculator.hyperbolicOrbit3d(
-            self.constants.oumuamuaPerihelionAu,
-            self.constants.oumuamuaEccentricity,
-            self.constants.oumuamuaInclinationDeg,
-            self.constants.oumuamuaLongitudeAscendingNodeDeg,
-            self.constants.oumuamuaArgumentOfPerihelionDeg,
+            visitor.perihelionAu,
+            visitor.eccentricity,
+            visitor.inclinationDeg,
+            visitor.longitudeAscendingNodeDeg,
+            visitor.argumentOfPerihelionDeg,
             numPoints=numPoints,
         )
 
