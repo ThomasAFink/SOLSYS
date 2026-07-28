@@ -1,0 +1,4 @@
+object_id,designation,display_name,perihelion_au,eccentricity,inclination_deg,longitude_ascending_node_deg,argument_of_perihelion_deg,earth_closest_approach_au,color_light,color_dark,max_heliocentric_au,true_anomaly_span_deg,highlight,notes
+oumuamua,1I/2017 U1,ʻOumuamua,0.2559,1.2011,122.74,24.60,241.69,0.1618,darkred,#E0E0E0,2.0,125,earth_flyby,JPL hyperbolic elements; Earth CA 2017-10-14
+borisov,2I/2019 Q4,2I/Borisov,2.0066,3.3566,44.05,308.15,209.12,1.093,darkorange,#F0C078,8.0,90,perihelion,JPL#36 / MPC; Earth MOID ~1.09 AU — perihelion-focused scene
+atlas,3I/2025 N1,3I/ATLAS,1.35675,6.1421,175.1134,322.162,128.009,0.366,#8B4513,#E8B898,6.0,85,perihelion,JPL-style elements (2025); Earth MOID ~0.37 AU — perihelion-focused scene

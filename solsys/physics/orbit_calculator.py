@@ -113,11 +113,13 @@ class OrbitCalculator:
     ) -> np.ndarray:
         """Invert M = e sinh F - F, then convert F → true anomaly ν."""
         meanAnomaly = np.asarray(meanAnomalyRad, dtype=float)
-        hyperbolicAnomaly = np.array(meanAnomaly, copy=True, dtype=float)
-        for _ in range(16):
+        # Good starter for large |M|: F ≈ asinh(M/e). Using M itself diverges for high-e.
+        hyperbolicAnomaly = np.arcsinh(meanAnomaly / eccentricity)
+        for _ in range(32):
             residual = eccentricity * np.sinh(hyperbolicAnomaly) - hyperbolicAnomaly - meanAnomaly
             derivative = eccentricity * np.cosh(hyperbolicAnomaly) - 1.0
-            hyperbolicAnomaly = hyperbolicAnomaly - residual / np.maximum(derivative, 1e-12)
+            step = residual / np.maximum(derivative, 1e-12)
+            hyperbolicAnomaly = hyperbolicAnomaly - np.clip(step, -1.0, 1.0)
         sinhF = np.sinh(hyperbolicAnomaly)
         coshF = np.cosh(hyperbolicAnomaly)
         sinNu = (np.sqrt(eccentricity**2 - 1.0) * sinhF) / (eccentricity * coshF - 1.0)
