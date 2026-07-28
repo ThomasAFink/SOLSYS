@@ -6,7 +6,7 @@
 
 The **main product** is animation: light/dark GIFs of the inner system and a staged 3D zoom from the Oort cloud inward. A **side product** renders static multi-zoom JPGs (light/dark) and a light-year neighborhood star map. Shared libraries hold orbit math, catalogs, and asteroid-population motion so both products stay in sync.
 
-Built with `numpy`, `pandas`, and `matplotlib`. Orbital elements include elliptical planet orbits, spherical asteroid/Kuiper/Oort shells, Jupiter Trojans/Greeks, Hilda clusters, moons, named asteroids, and `'Oumuamua`'s hyperbolic trajectory from JPL elements.
+Built with `numpy`, `pandas`, and `matplotlib`. Orbital elements include elliptical planet orbits, spherical asteroid/Kuiper/Oort shells, Jupiter Trojans/Greeks, Hilda clusters, moons, named asteroids, and hyperbolic **interstellar visitors** (1I/ʻOumuamua, 2I/Borisov, 3I/ATLAS) from `data/interstellar_objects.csv`.
 
 ## What's included
 
@@ -42,7 +42,8 @@ SOLSYS/
 │   ├── nearby_stars_30.csv                        # Nearby-star catalog (RA/Dec, distances, system_id)
 │   ├── systems.csv                                # Star systems (sol, alpha_centauri, …)
 │   ├── stellar_orbits.csv                         # Multi-star orbits vs system barycenter
-│   └── planets.csv                                # Exoplanets linked by host_star_uuid
+│   ├── planets.csv                                # Exoplanets linked by host_star_uuid
+│   └── interstellar_objects.csv                   # 1I/2I/3I hyperbolic visitors
 │
 ├── animate/                                       # MAIN PRODUCT — GIF animations
 │   ├── __init__.py
@@ -53,7 +54,7 @@ SOLSYS/
 │       ├── inner_system.py                        # Fixed 2D inner-system scene
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
 │       ├── alpha_centauri.py                      # A–B close-up, wide triple, Proxima planets
-│       ├── oumuamua_earth.py                      # ʻOumuamua–Earth flyby (side + oblique)
+│       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Future planet close-ups
 │           └── README.md
 │
@@ -77,7 +78,8 @@ SOLSYS/
 │   │       ├── moon_catalog.py                    # MoonCatalog, MoonOrbit
 │   │       ├── famous_asteroid_catalog.py         # FamousAsteroidCatalog, FamousAsteroidOrbit
 │   │       ├── star_catalog.py                    # StarCatalog
-│   │       └── system_catalog.py                  # SystemCatalog (multi-star systems)
+│   │       ├── system_catalog.py                  # SystemCatalog (multi-star systems)
+│   │       └── interstellar_object_catalog.py     # InterstellarObjectCatalog (1I/2I/3I)
 │   └── motion/
 │       ├── mean_anomaly.py                        # meanAnomalyAtFrame, planetMeanAnomalyRad
 │       └── animated_asteroid_population.py        # AnimatedAsteroidPopulation, AsteroidPopulationCounts
@@ -87,7 +89,7 @@ SOLSYS/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
     │   ├── 3d/                                    # solar_system_{light,dark}.gif
     │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
-    │   └── oumuamua/                              # flyby (side) + oblique_{light,dark}.gif
+    │   └── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
@@ -254,6 +256,8 @@ Or render by product:
 .venv/bin/python render.py animate --dimension all
 .venv/bin/python render.py animate --dimension 3d
 .venv/bin/python render.py animate --system alpha_centauri
+.venv/bin/python render.py animate --system interstellar
+.venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
 .venv/bin/python render.py static --dimension 2d
 .venv/bin/python render.py neighborhood --ly 10
@@ -265,10 +269,14 @@ Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animati
 - `alpha_centauri_system_{light,dark}.gif` — wide triple with Proxima (~8.7 kau)
 - `proxima_planets_{light,dark}.gif` — confirmed Proxima planets
 
-ʻOumuamua–Earth flyby (issue #2) renders to `output/animate/oumuamua/`:
+ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
+`data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
+`output/animate/interstellar_objects/`:
 
-- `oumuamua_earth_flyby_{light,dark}.gif` — edge-on side view (X–Z)
-- `oumuamua_earth_oblique_{light,dark}.gif` — three-quarter look-down onto the ecliptic
+- `{oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif`
+
+CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|borisov|atlas`.
+`--system oumuamua` remains as an alias for ʻOumuamua only.
 
 ## Physics notes
 
