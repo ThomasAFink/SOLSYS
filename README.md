@@ -89,7 +89,7 @@ SOLSYS/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
     │   ├── 3d/                                    # solar_system_{light,dark}.gif
     │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
-    │   └── interstellar_objects/                  # oumuamua / borisov / atlas_{side,oblique}_*
+    │   └── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
