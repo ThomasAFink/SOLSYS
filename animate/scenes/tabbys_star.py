@@ -48,13 +48,12 @@ class OrbitingDustClump:
     dipDepth: float
 
 
-def resampleFluxToFrames(
-    keplerFlux: np.ndarray,
-    animationFrames: int,
-) -> np.ndarray:
-    sourceX = np.linspace(0.0, 1.0, len(keplerFlux))
-    targetX = np.linspace(0.0, 1.0, animationFrames)
-    return np.interp(targetX, sourceX, keplerFlux)
+def sampleSeriesToFrames(values: np.ndarray, animationFrames: int) -> np.ndarray:
+    """Nearest-neighbor resample so sharp Kepler dips are not averaged away."""
+    if len(values) == animationFrames:
+        return np.asarray(values, dtype=float)
+    indices = np.rint(np.linspace(0, len(values) - 1, animationFrames)).astype(int)
+    return np.asarray(values[indices], dtype=float)
 
 
 def findDipCrossingFrames(
@@ -145,8 +144,8 @@ class TabbysStarAnimator:
         self.animationFrames = ANIMATION_FRAMES
         self.axisLimitAu = AXIS_LIMIT_AU
         self.keplerTimeBkjd, self.keplerFlux = loadKeplerLightCurve(lightcurveCsvPath)
-        self.fluxByFrame = resampleFluxToFrames(self.keplerFlux, self.animationFrames)
-        self.timeByFrame = resampleFluxToFrames(self.keplerTimeBkjd, self.animationFrames)
+        self.fluxByFrame = sampleSeriesToFrames(self.keplerFlux, self.animationFrames)
+        self.timeByFrame = sampleSeriesToFrames(self.keplerTimeBkjd, self.animationFrames)
         dipEvents = findDipCrossingFrames(self.fluxByFrame)
         self.clumps = buildOrbitingClumps(dipEvents)
 
