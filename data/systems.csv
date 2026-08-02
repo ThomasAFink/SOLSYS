@@ -1,4 +1,5 @@
 system_id,display_name,barycenter_policy,notes
 sol,Solar System,single_star,Home system; belts/Oort stay in AstronomicalConstants for now
 alpha_centauri,Alpha Centauri,ab_mass_weighted,"A+B barycenter; Proxima is a wide companion (same system_id)"
+barnards_star,Barnard's Star,single_star,"Nearby M dwarf (~6 ly); four confirmed sub-Earth planets (ESPRESSO / MAROON-X)"
 trappist_1,TRAPPIST-1,single_star,"Ultracool dwarf (~40.7 ly); seven Earth-sized planets in a compact resonant chain"
