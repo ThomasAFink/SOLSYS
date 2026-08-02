@@ -6,3 +6,10 @@ barnards_star_d,barnards_star,1cba6136-bbe1-4ecc-95eb-f5baf03ef45d,Barnard d,0.0
 barnards_star_b,barnards_star,1cba6136-bbe1-4ecc-95eb-f5baf03ef45d,Barnard b,0.02294,0.03,0.0,0.0,90.0,3.1542,#F0A050,9550,confirmed,"GH24 / Basant+2025; a≈0.0229 AU; schematic ~0.75 R⊕"
 barnards_star_c,barnards_star,1cba6136-bbe1-4ecc-95eb-f5baf03ef45d,Barnard c,0.02638,0.03,0.0,0.0,180.0,4.124,#6BBF8A,8900,confirmed,"Basant+2025; a from Kepler with M★=0.144; schematic ~0.70 R⊕"
 barnards_star_e,barnards_star,1cba6136-bbe1-4ecc-95eb-f5baf03ef45d,Barnard e,0.03660,0.03,0.0,0.0,270.0,6.739,#5B8FE8,10200,confirmed,"Basant+2025; a from Kepler with M★=0.144; schematic ~0.80 R⊕"
+trappist_1_b,trappist_1,43f77809-f971-44d9-a949-d851fcd53e8f,TRAPPIST-1 b,0.01154,0.00622,0.0,0.0,0.0,1.510826,#E85D4C,14220,confirmed,"Agol+2021; schematic diameter from ~1.12 R⊕"
+trappist_1_c,trappist_1,43f77809-f971-44d9-a949-d851fcd53e8f,TRAPPIST-1 c,0.01580,0.00654,0.0,0.0,51.4,2.421937,#F08A4B,13980,confirmed,"Agol+2021; ω offset for schematic phase spread"
+trappist_1_d,trappist_1,43f77809-f971-44d9-a949-d851fcd53e8f,TRAPPIST-1 d,0.02227,0.00837,0.0,0.0,102.9,4.049219,#F0C14A,10040,confirmed,Agol+2021; schematic diameter from ~0.79 R⊕
+trappist_1_e,trappist_1,43f77809-f971-44d9-a949-d851fcd53e8f,TRAPPIST-1 e,0.02925,0.00510,0.0,0.0,154.3,6.101013,#6BBF6B,11720,confirmed,"HZ; Agol+2021; schematic diameter from ~0.92 R⊕"
+trappist_1_f,trappist_1,43f77809-f971-44d9-a949-d851fcd53e8f,TRAPPIST-1 f,0.03849,0.01007,0.0,0.0,205.7,9.207540,#4A9FE8,13320,confirmed,Agol+2021; schematic diameter from ~1.05 R⊕
+trappist_1_g,trappist_1,43f77809-f971-44d9-a949-d851fcd53e8f,TRAPPIST-1 g,0.04683,0.00208,0.0,0.0,257.1,12.352446,#5B6FE8,14390,confirmed,Agol+2021; schematic diameter from ~1.13 R⊕
+trappist_1_h,trappist_1,43f77809-f971-44d9-a949-d851fcd53e8f,TRAPPIST-1 h,0.06189,0.00567,0.0,0.0,308.6,18.772866,#8B6BB8,9620,confirmed,Agol+2021; schematic diameter from ~0.76 R⊕
