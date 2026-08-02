@@ -9,6 +9,7 @@ from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
 from animate.scenes.barnards_star import renderBarnardsStarAnimations
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
+from animate.scenes.trappist_1 import renderTrappist1Animations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
 
@@ -89,7 +90,15 @@ def buildParser() -> argparse.ArgumentParser:
     )
     animateParser.add_argument(
         '--system',
-        choices=('sol', 'alpha_centauri', 'barnards_star', 'oumuamua', 'interstellar', 'all'),
+        choices=(
+            'sol',
+            'alpha_centauri',
+            'barnards_star',
+            'trappist_1',
+            'oumuamua',
+            'interstellar',
+            'all',
+        ),
         default='sol',
         help=(
             'Which scene set to render (default: sol). '
@@ -133,7 +142,15 @@ def buildParser() -> argparse.ArgumentParser:
     )
     allParser.add_argument(
         '--system',
-        choices=('sol', 'alpha_centauri', 'barnards_star', 'oumuamua', 'interstellar', 'all'),
+        choices=(
+            'sol',
+            'alpha_centauri',
+            'barnards_star',
+            'trappist_1',
+            'oumuamua',
+            'interstellar',
+            'all',
+        ),
         default='all',
         help='Which scene set(s) to include (default: all)',
     )
@@ -144,6 +161,53 @@ def buildParser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+def _renderAnimations(
+    systemChoice: str,
+    dimensions: tuple[Dimension, ...],
+    starsCsvPath: str,
+    objectChoice: str,
+) -> None:
+    if systemChoice in ('sol', 'all'):
+        for dimension in dimensions:
+            animateDpi = ANIMATE_DPI_2D if dimension == '2d' else ANIMATE_DPI_3D
+            renderAllAnimations(
+                dimension,
+                figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+                dpi=animateDpi,
+            )
+    if systemChoice in ('alpha_centauri', 'all'):
+        renderAlphaCentauriAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_2D,
+            starsCsvPath=starsCsvPath,
+        )
+    if systemChoice in ('barnards_star', 'all'):
+        renderBarnardsStarAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_2D,
+            starsCsvPath=starsCsvPath,
+        )
+    if systemChoice in ('trappist_1', 'all'):
+        renderTrappist1Animations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_2D,
+            starsCsvPath=starsCsvPath,
+        )
+    if systemChoice == 'oumuamua':
+        renderInterstellarObjectAnimations(
+            objectIds=('oumuamua',),
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_2D,
+        )
+    elif systemChoice in ('interstellar', 'all'):
+        objectIds = None if objectChoice == 'all' else (objectChoice,)
+        renderInterstellarObjectAnimations(
+            objectIds=objectIds,
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_2D,
+        )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -166,40 +230,12 @@ def main(argv: list[str] | None = None) -> None:
 
     # Main product first when rendering everything.
     if args.command in ('animate', 'all'):
-        if systemChoice in ('sol', 'all'):
-            for dimension in dimensions:
-                animateDpi = ANIMATE_DPI_2D if dimension == '2d' else ANIMATE_DPI_3D
-                renderAllAnimations(
-                    dimension,
-                    figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
-                    dpi=animateDpi,
-                )
-        if systemChoice in ('alpha_centauri', 'all'):
-            renderAlphaCentauriAnimations(
-                figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
-                dpi=ANIMATE_DPI_2D,
-                starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
-            )
-        if systemChoice in ('barnards_star', 'all'):
-            renderBarnardsStarAnimations(
-                figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
-                dpi=ANIMATE_DPI_2D,
-                starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
-            )
-        if systemChoice == 'oumuamua':
-            renderInterstellarObjectAnimations(
-                objectIds=('oumuamua',),
-                figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
-                dpi=ANIMATE_DPI_2D,
-            )
-        elif systemChoice in ('interstellar', 'all'):
-            objectChoice = getattr(args, 'object', 'all')
-            objectIds = None if objectChoice == 'all' else (objectChoice,)
-            renderInterstellarObjectAnimations(
-                objectIds=objectIds,
-                figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
-                dpi=ANIMATE_DPI_2D,
-            )
+        _renderAnimations(
+            systemChoice,
+            dimensions,
+            starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
+            objectChoice=getattr(args, 'object', 'all'),
+        )
 
     if args.command in ('static', 'all'):
         for dimension in dimensions:
