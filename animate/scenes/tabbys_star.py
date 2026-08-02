@@ -48,12 +48,28 @@ class OrbitingDustClump:
     dipDepth: float
 
 
-def sampleSeriesToFrames(values: np.ndarray, animationFrames: int) -> np.ndarray:
-    """Nearest-neighbor resample so sharp Kepler dips are not averaged away."""
+def sampleSeriesToFrames(
+    values: np.ndarray,
+    animationFrames: int,
+    *,
+    reduceMin: bool = False,
+) -> np.ndarray:
+    """Resample a series onto animation frames.
+
+    When reduceMin is True (flux), each frame takes the bin minimum so sharp
+    Kepler dips survive downsampling.
+    """
+    values = np.asarray(values, dtype=float)
     if len(values) == animationFrames:
-        return np.asarray(values, dtype=float)
-    indices = np.rint(np.linspace(0, len(values) - 1, animationFrames)).astype(int)
-    return np.asarray(values[indices], dtype=float)
+        return values
+    edges = np.linspace(0, len(values), animationFrames + 1).astype(int)
+    sampled = np.empty(animationFrames, dtype=float)
+    for frame in range(animationFrames):
+        start = edges[frame]
+        stop = max(start + 1, edges[frame + 1])
+        segment = values[start:stop]
+        sampled[frame] = float(segment.min() if reduceMin else segment[len(segment) // 2])
+    return sampled
 
 
 def findDipCrossingFrames(
@@ -144,7 +160,9 @@ class TabbysStarAnimator:
         self.animationFrames = ANIMATION_FRAMES
         self.axisLimitAu = AXIS_LIMIT_AU
         self.keplerTimeBkjd, self.keplerFlux = loadKeplerLightCurve(lightcurveCsvPath)
-        self.fluxByFrame = sampleSeriesToFrames(self.keplerFlux, self.animationFrames)
+        self.fluxByFrame = sampleSeriesToFrames(
+            self.keplerFlux, self.animationFrames, reduceMin=True
+        )
         self.timeByFrame = sampleSeriesToFrames(self.keplerTimeBkjd, self.animationFrames)
         dipEvents = findDipCrossingFrames(self.fluxByFrame)
         self.clumps = buildOrbitingClumps(dipEvents)
