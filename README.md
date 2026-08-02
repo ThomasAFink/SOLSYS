@@ -290,7 +290,7 @@ TRAPPIST-1 (issue #7) is a single-host ultracool dwarf (~40.7 ly) with seven con
 
 Tabby's Star (issue #17 / Boyajian's Star / KIC 8462852) has no confirmed planets. The scene visualizes the leading **uneven circumstellar dust / debris** explanation for its irregular Kepler dips (not a megastructure). Animations render to `output/animate/tabbys_star/`:
 
-- `tabbys_star_dust_{light,dark}.gif` — real downsampled Kepler light curve (`data/tabbys_star_lightcurve.csv`, BKJD ~1100–1600); LOS dust grows/shrinks with observed dips (no free-roaming blobs)
+- `tabbys_star_dust_{light,dark}.gif` — real Kepler LC (`data/tabbys_star_lightcurve.csv`); orbiting dust clumps of different sizes cross the LOS at observed dip times
 
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to

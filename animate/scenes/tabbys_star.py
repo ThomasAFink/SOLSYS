@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -18,10 +19,12 @@ ANIMATION_FPS = 20
 ANIMATION_FRAMES = 480
 AXIS_LIMIT_AU = 6.5
 STAR_COLOR = '#F5E6A3'
-DUST_COLOR = '#C9B892'
 DEFAULT_LIGHTCURVE_CSV = 'data/tabbys_star_lightcurve.csv'
-# Scale observed dips (~0–0.20) onto occulting-cloud strength.
+MIN_DIP_DEPTH = 0.012
+MIN_DIP_SEPARATION_FRAMES = 18
+MAX_ORBITING_CLUMPS = 8
 REFERENCE_DIP_DEPTH = 0.20
+LOS_ANGLE_RAD = 0.0  # +X axis toward Earth
 
 
 def loadKeplerLightCurve(
@@ -34,8 +37,93 @@ def loadKeplerLightCurve(
     )
 
 
+@dataclass(frozen=True)
+class OrbitingDustClump:
+    """One debris clump on a circular orbit; crosses the LOS at crossingFrame."""
+
+    crossingFrame: int
+    orbitRadiusAu: float
+    sizeAu: float
+    color: str
+    dipDepth: float
+
+
+def resampleFluxToFrames(
+    keplerFlux: np.ndarray,
+    animationFrames: int,
+) -> np.ndarray:
+    sourceX = np.linspace(0.0, 1.0, len(keplerFlux))
+    targetX = np.linspace(0.0, 1.0, animationFrames)
+    return np.interp(targetX, sourceX, keplerFlux)
+
+
+def findDipCrossingFrames(
+    fluxByFrame: np.ndarray,
+    minDipDepth: float = MIN_DIP_DEPTH,
+    minSeparationFrames: int = MIN_DIP_SEPARATION_FRAMES,
+    maxClumps: int = MAX_ORBITING_CLUMPS,
+) -> list[tuple[int, float]]:
+    """Return (frame, dip_depth) for significant local minima, deepest first then time-ordered."""
+    flux = np.asarray(fluxByFrame, dtype=float)
+    if len(flux) < 3:
+        return []
+
+    candidateFrames: list[int] = []
+    for index in range(1, len(flux) - 1):
+        if flux[index] <= flux[index - 1] and flux[index] <= flux[index + 1]:
+            depth = 1.0 - float(flux[index])
+            if depth >= minDipDepth:
+                candidateFrames.append(index)
+
+    # Keep deepest in each local cluster.
+    selected: list[tuple[int, float]] = []
+    for frame in sorted(candidateFrames, key=lambda item: 1.0 - flux[item], reverse=True):
+        depth = 1.0 - float(flux[frame])
+        if any(abs(frame - keptFrame) < minSeparationFrames for keptFrame, _ in selected):
+            continue
+        selected.append((frame, depth))
+        if len(selected) >= maxClumps:
+            break
+
+    selected.sort(key=lambda item: item[0])
+    return selected
+
+
+def buildOrbitingClumps(
+    dipEvents: list[tuple[int, float]],
+) -> tuple[OrbitingDustClump, ...]:
+    if not dipEvents:
+        return ()
+
+    colors = (
+        '#D2C09A',
+        '#C4B59A',
+        '#B8A888',
+        '#A89878',
+        '#E0D2B0',
+        '#C9B892',
+        '#B0A07A',
+        '#D8CBA8',
+    )
+    radii = np.linspace(2.0, 5.0, len(dipEvents))
+    clumps: list[OrbitingDustClump] = []
+    for index, ((crossingFrame, dipDepth), radius) in enumerate(zip(dipEvents, radii, strict=True)):
+        strength = float(np.clip(dipDepth / REFERENCE_DIP_DEPTH, 0.15, 1.0))
+        sizeAu = 0.22 + 1.05 * strength
+        clumps.append(
+            OrbitingDustClump(
+                crossingFrame=crossingFrame,
+                orbitRadiusAu=float(radius),
+                sizeAu=sizeAu,
+                color=colors[index % len(colors)],
+                dipDepth=dipDepth,
+            )
+        )
+    return tuple(clumps)
+
+
 class TabbysStarAnimator:
-    """F-star + LOS dust sized to the Kepler light curve (no free-roaming blobs)."""
+    """F-star + orbiting dust clumps that cross the Earth LOS on Kepler dip frames."""
 
     def __init__(
         self,
@@ -57,6 +145,10 @@ class TabbysStarAnimator:
         self.animationFrames = ANIMATION_FRAMES
         self.axisLimitAu = AXIS_LIMIT_AU
         self.keplerTimeBkjd, self.keplerFlux = loadKeplerLightCurve(lightcurveCsvPath)
+        self.fluxByFrame = resampleFluxToFrames(self.keplerFlux, self.animationFrames)
+        self.timeByFrame = resampleFluxToFrames(self.keplerTimeBkjd, self.animationFrames)
+        dipEvents = findDipCrossingFrames(self.fluxByFrame)
+        self.clumps = buildOrbitingClumps(dipEvents)
 
         plt.style.use(style)
         self.isDark = style == 'dark_background'
@@ -66,65 +158,20 @@ class TabbysStarAnimator:
 
         self.figure, self.axes = plt.subplots(figsize=figureSizeInches, dpi=dpi)
 
-    def _lightcurveIndex(self, frame: int) -> int:
-        if self.animationFrames <= 1:
-            return 0
-        scale = (len(self.keplerFlux) - 1) / (self.animationFrames - 1)
-        return int(round(frame * scale))
+    def _clumpAngleRad(self, clump: OrbitingDustClump, frame: int) -> float:
+        # One full orbit per GIF; angle 0 (+X / LOS) exactly at the assigned dip frame.
+        return LOS_ANGLE_RAD + 2.0 * np.pi * (frame - clump.crossingFrame) / self.animationFrames
 
-    def _keplerFluxAtFrame(self, frame: int) -> float:
-        return float(self.keplerFlux[self._lightcurveIndex(frame)])
-
-    def _dipStrength(self, flux: float) -> float:
-        depth = max(0.0, 1.0 - float(flux))
-        return float(np.clip(depth / REFERENCE_DIP_DEPTH, 0.0, 1.0))
-
-    def _drawGuideRing(self) -> None:
-        angles = np.linspace(0.0, 2.0 * np.pi, 240)
-        for radius in (2.0, 3.2, 4.5):
-            self.axes.plot(
-                radius * np.cos(angles),
-                radius * np.sin(angles),
-                color=self.guideColor,
-                linewidth=0.6,
-                alpha=0.2,
-            )
-
-    def _drawOccultingDust(self, strength: float) -> None:
-        if strength < 0.02:
-            return
-        # Stable LOS placement; only size/alpha change with the Kepler dip.
-        mainX = 2.8
-        mainSize = 0.20 + 1.35 * strength
-        mainAlpha = 0.15 + 0.65 * strength
-        self.axes.add_patch(
-            Ellipse(
-                (mainX, 0.0),
-                width=mainSize * 2.6,
-                height=mainSize * 1.2,
-                angle=0.0,
-                facecolor=DUST_COLOR,
-                edgecolor=self.dustEdgeColor,
-                linewidth=1.0,
-                alpha=mainAlpha,
-                zorder=4,
-            )
+    def _clumpPosition(self, clump: OrbitingDustClump, frame: int) -> tuple[float, float, float]:
+        angle = self._clumpAngleRad(clump, frame)
+        return (
+            float(clump.orbitRadiusAu * np.cos(angle)),
+            float(clump.orbitRadiusAu * np.sin(angle)),
+            float(angle),
         )
-        if strength > 0.35:
-            frag = (strength - 0.35) / 0.65
-            self.axes.add_patch(
-                Ellipse(
-                    (mainX + 1.15, 0.12 * frag),
-                    width=(0.20 + 0.70 * frag) * 2.1,
-                    height=(0.20 + 0.70 * frag) * 1.0,
-                    angle=8.0,
-                    facecolor=DUST_COLOR,
-                    edgecolor=self.dustEdgeColor,
-                    linewidth=0.8,
-                    alpha=0.12 + 0.45 * frag,
-                    zorder=4,
-                )
-            )
+
+    def _onLineOfSight(self, positionX: float, positionY: float, sizeAu: float) -> bool:
+        return positionX > 0.0 and abs(positionY) <= max(0.35, sizeAu * 0.75)
 
     def update(self, frame: int):
         self.axes.clear()
@@ -133,14 +180,22 @@ class TabbysStarAnimator:
         self.axes.set_xlim(-self.axisLimitAu, self.axisLimitAu)
         self.axes.set_ylim(-self.axisLimitAu, self.axisLimitAu)
         self.axes.set_title(
-            "Tabby's Star — Kepler dips explained as LOS dust",
+            "Tabby's Star — orbiting dust crosses LOS on Kepler dips",
             color=self.labelColor,
             pad=16,
         )
 
-        self._drawGuideRing()
+        # Orbit guides for each clump radius.
+        angles = np.linspace(0.0, 2.0 * np.pi, 240)
+        for clump in self.clumps:
+            self.axes.plot(
+                clump.orbitRadiusAu * np.cos(angles),
+                clump.orbitRadiusAu * np.sin(angles),
+                color=self.guideColor,
+                linewidth=0.55,
+                alpha=0.22,
+            )
 
-        # Line of sight from Earth (Kepler) toward the star.
         self.axes.plot(
             [0.35, self.axisLimitAu * 0.95],
             [0.0, 0.0],
@@ -158,8 +213,7 @@ class TabbysStarAnimator:
             alpha=0.75,
         )
 
-        flux = self._keplerFluxAtFrame(frame)
-        strength = self._dipStrength(flux)
+        flux = float(self.fluxByFrame[frame])
         starAlpha = 0.35 + 0.65 * np.clip(flux, 0.0, 1.0)
         starSize = 180 + 220 * np.clip(flux, 0.0, 1.0)
         self.axes.scatter(
@@ -181,9 +235,25 @@ class TabbysStarAnimator:
             zorder=6,
         )
 
-        self._drawOccultingDust(strength)
+        for clump in self.clumps:
+            positionX, positionY, angle = self._clumpPosition(clump, frame)
+            onLos = self._onLineOfSight(positionX, positionY, clump.sizeAu)
+            alpha = 0.62 if onLos else 0.34
+            self.axes.add_patch(
+                Ellipse(
+                    (positionX, positionY),
+                    width=clump.sizeAu * 2.3,
+                    height=clump.sizeAu * 1.15,
+                    angle=np.degrees(angle),
+                    facecolor=clump.color,
+                    edgecolor=self.dustEdgeColor if onLos else 'none',
+                    linewidth=1.2 if onLos else 0.0,
+                    alpha=alpha,
+                    zorder=4,
+                )
+            )
 
-        cursorTime = float(self.keplerTimeBkjd[self._lightcurveIndex(frame)])
+        cursorTime = float(self.timeByFrame[frame])
         dipPercent = max(0.0, (1.0 - flux) * 100.0)
         self.axes.text(
             -self.axisLimitAu * 0.95,
@@ -196,7 +266,7 @@ class TabbysStarAnimator:
         self.axes.text(
             -self.axisLimitAu * 0.95,
             -self.axisLimitAu * 0.92,
-            'LOS dust grows with observed dips · schematic geometry · system_id=tabbys_star',
+            f'{len(self.clumps)} orbiting clumps · larger = deeper dips · cross LOS at dip times',
             color=self.labelColor,
             fontsize=7,
             alpha=0.65,
@@ -206,6 +276,14 @@ class TabbysStarAnimator:
         curveColor = '#7EB6FF' if self.isDark else '#204080'
         inset.plot(self.keplerTimeBkjd, self.keplerFlux, color=curveColor, linewidth=0.9)
         inset.axvline(cursorTime, color=self.labelColor, linewidth=0.9, alpha=0.8)
+        # Mark scheduled crossing times on the inset.
+        for clump in self.clumps:
+            inset.axvline(
+                float(self.timeByFrame[clump.crossingFrame]),
+                color=clump.color,
+                linewidth=0.7,
+                alpha=0.55,
+            )
         inset.set_ylim(0.75, 1.03)
         inset.set_xlim(float(self.keplerTimeBkjd[0]), float(self.keplerTimeBkjd[-1]))
         inset.set_xticks([])
