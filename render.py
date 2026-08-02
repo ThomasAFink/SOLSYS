@@ -7,6 +7,7 @@ from typing import Literal
 
 from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
+from animate.scenes.barnards_star import renderBarnardsStarAnimations
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
@@ -88,7 +89,7 @@ def buildParser() -> argparse.ArgumentParser:
     )
     animateParser.add_argument(
         '--system',
-        choices=('sol', 'alpha_centauri', 'oumuamua', 'interstellar', 'all'),
+        choices=('sol', 'alpha_centauri', 'barnards_star', 'oumuamua', 'interstellar', 'all'),
         default='sol',
         help=(
             'Which scene set to render (default: sol). '
@@ -132,7 +133,7 @@ def buildParser() -> argparse.ArgumentParser:
     )
     allParser.add_argument(
         '--system',
-        choices=('sol', 'alpha_centauri', 'oumuamua', 'interstellar', 'all'),
+        choices=('sol', 'alpha_centauri', 'barnards_star', 'oumuamua', 'interstellar', 'all'),
         default='all',
         help='Which scene set(s) to include (default: all)',
     )
@@ -175,6 +176,12 @@ def main(argv: list[str] | None = None) -> None:
                 )
         if systemChoice in ('alpha_centauri', 'all'):
             renderAlphaCentauriAnimations(
+                figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+                dpi=ANIMATE_DPI_2D,
+                starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
+            )
+        if systemChoice in ('barnards_star', 'all'):
+            renderBarnardsStarAnimations(
                 figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
                 dpi=ANIMATE_DPI_2D,
                 starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
