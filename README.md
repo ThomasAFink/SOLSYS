@@ -70,10 +70,14 @@ SOLSYS/
 │   ├── dimension_plotter.py                       # DimensionPlotter
 │   └── hilda_point_generator.py                   # HildaPointGenerator
 │
+├── tests/                                         # Unit tests (stdlib unittest)
+│   └── test_frame_transform.py                    # Sol ↔ α Cen frame transform
+│
 ├── solsys/                                        # Shared libraries (no plotting)
 │   ├── physics/
 │   │   ├── astronomical_constants.py              # AstronomicalConstants
 │   │   ├── orbit_calculator.py                    # OrbitCalculator
+│   │   ├── frame_transform.py                     # Sol ↔ α Cen AB barycenter frame transform
 │   │   ├── belt_point_generator.py                # BeltPointGenerator
 │   │   ├── view_definition.py                     # ViewDefinition
 │   │   ├── view_registry.py                       # ViewRegistry
@@ -249,6 +253,7 @@ Manual checks:
 .venv/bin/ruff format animate static solsys render.py
 .venv/bin/ruff check animate static solsys render.py
 .venv/bin/radon cc animate static solsys render.py -s -a
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
 Render everything (~several minutes for animations):
@@ -308,10 +313,10 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 - Hildas follow a 3:2 resonance angular rate relative to Jupiter.
 - Jupiter Trojans and Greeks sit near the L4 / L5 Lagrange longitudes.
 - Moon orbits are exaggerated for visibility at solar-system zoom levels.
-- **Coordinate frames (multi-star):** Sol scenes use a heliocentric / Sol-barycentric frame in AU, with +X/+Y/+Z from the equatorial Cartesian mapping in `OrbitCalculator.equatorialToCartesianAu` (RA/Dec → XYZ). Alpha Centauri scenes use a separate **α Cen AB-barycentric** frame in AU, plotted face-on in the binary orbital plane (sky inclination stored in CSV but not applied to the 2D schematic). A future Sol ↔ Centauri cinematic would translate the Centauri barycenter to the Sol-frame position of the system (from `nearby_stars_30.csv`) and rotate from the Centauri orbital plane into Sol XYZ — that transform is **not implemented yet**.
+- **Coordinate frames (multi-star):** Sol scenes use a heliocentric / Sol-barycentric frame in AU, with +X/+Y/+Z from the equatorial Cartesian mapping in `OrbitCalculator.equatorialToCartesianAu` (RA/Dec → XYZ). Alpha Centauri scenes use a separate **α Cen AB-barycentric** frame in AU, plotted face-on in the binary orbital plane (sky inclination stored in CSV but not applied to the 2D schematic). `SolCentauriFrameTransform` in `solsys/physics/frame_transform.py` maps between those frames: mass-weighted AB barycenter origin from `nearby_stars_30.csv`, and rotation from the Centauri orbital plane into Sol XYZ using the A/B `(i, Ω)` convention shared with `OrbitCalculator.ellipticalPosition` (`toSol` / `toCentauri`). The Sol ↔ Centauri cinematic path (#10) will consume this API.
 
 ## Roadmap
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
 - Blender-based planet close-ups / flybys in `animate/scenes/blender/`
-- Sol ↔ Centauri cinematic path (implement the documented barycenter-frame transform above)
+- Sol ↔ Centauri cinematic path (uses `SolCentauriFrameTransform`)
