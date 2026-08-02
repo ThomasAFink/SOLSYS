@@ -53,7 +53,8 @@ SOLSYS/
 │   └── scenes/
 │       ├── inner_system.py                        # Fixed 2D inner-system scene
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
-│       ├── alpha_centauri.py                      # A–B close-up, wide triple, Proxima planets
+│       ├── exoplanet_system.py                    # Shared single-host exoplanet top-down animator
+│       ├── alpha_centauri.py                      # A–B close-up, wide triple; Proxima via exoplanet_system
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Future planet close-ups
 │           └── README.md
@@ -267,7 +268,7 @@ Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animati
 
 - `alpha_centauri_ab_{light,dark}.gif` — A–B binary close-up (±28 AU)
 - `alpha_centauri_system_{light,dark}.gif` — wide triple with Proxima (~8.7 kau)
-- `proxima_planets_{light,dark}.gif` — confirmed Proxima planets
+- `proxima_planets_{light,dark}.gif` — confirmed Proxima planets (via shared `exoplanet_system` animator)
 
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
@@ -289,6 +290,6 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 ## Roadmap
 
-- Additional star systems via `SystemCatalog` / `data/systems.csv`
+- Additional star systems via `SystemCatalog` / `data/systems.csv` (use `animate/scenes/exoplanet_system.py` for single-host planet views)
 - Blender-based planet close-ups / flybys in `animate/scenes/blender/`
 - Sol ↔ Centauri cinematic path (implement the documented barycenter-frame transform above)
