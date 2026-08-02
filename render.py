@@ -9,6 +9,7 @@ from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
 from animate.scenes.barnards_star import renderBarnardsStarAnimations
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
+from animate.scenes.tabbys_star import renderTabbysStarAnimations
 from animate.scenes.trappist_1 import renderTrappist1Animations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
@@ -95,6 +96,7 @@ def buildParser() -> argparse.ArgumentParser:
             'alpha_centauri',
             'barnards_star',
             'trappist_1',
+            'tabbys_star',
             'oumuamua',
             'interstellar',
             'all',
@@ -147,6 +149,7 @@ def buildParser() -> argparse.ArgumentParser:
             'alpha_centauri',
             'barnards_star',
             'trappist_1',
+            'tabbys_star',
             'oumuamua',
             'interstellar',
             'all',
@@ -191,6 +194,12 @@ def _renderAnimations(
         )
     if systemChoice in ('trappist_1', 'all'):
         renderTrappist1Animations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_2D,
+            starsCsvPath=starsCsvPath,
+        )
+    if systemChoice in ('tabbys_star', 'all'):
+        renderTabbysStarAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_2D,
             starsCsvPath=starsCsvPath,
