@@ -40,7 +40,7 @@ SOLSYS/
 │   └── generate_keplers_laws_figure.py            # Regenerates the diagram
 ├── data/
 │   ├── nearby_stars_30.csv                        # Star catalog (RA/Dec, distances, system_id; includes hosts beyond 30 ly)
-│   ├── systems.csv                                # Star systems (sol, alpha_centauri, barnards_star, trappist_1, …)
+│   ├── systems.csv                                # Star systems (sol, alpha_centauri, barnards_star, trappist_1, tabbys_star, …)
 │   ├── stellar_orbits.csv                         # Multi-star orbits vs system barycenter
 │   ├── planets.csv                                # Exoplanets linked by host_star_uuid
 │   └── interstellar_objects.csv                   # 1I/2I/3I hyperbolic visitors
@@ -57,6 +57,7 @@ SOLSYS/
 │       ├── alpha_centauri.py                      # A–B close-up, wide triple; Proxima via exoplanet_system
 │       ├── barnards_star.py                       # Barnard's Star planets via exoplanet_system
 │       ├── trappist_1.py                          # TRAPPIST-1 planets via exoplanet_system
+│       ├── tabbys_star.py                         # Tabby's Star dust-cloud dimming schematic
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Future planet close-ups
 │           └── README.md
@@ -94,6 +95,7 @@ SOLSYS/
 │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
 │   ├── barnards_star/                         # barnards_star_planets_{light,dark}.gif
 │   ├── trappist_1/                            # trappist_1_planets_{light,dark}.gif
+│   ├── tabbys_star/                           # tabbys_star_dust_{light,dark}.gif
 │   └── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
@@ -263,6 +265,7 @@ Or render by product:
 .venv/bin/python render.py animate --system alpha_centauri
 .venv/bin/python render.py animate --system barnards_star
 .venv/bin/python render.py animate --system trappist_1
+.venv/bin/python render.py animate --system tabbys_star
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
@@ -284,6 +287,10 @@ TRAPPIST-1 (issue #7) is a single-host ultracool dwarf (~40.7 ly) with seven con
 
 - `trappist_1_planets_{light,dark}.gif` — compact resonant chain (b–h)
 
+Tabby's Star (issue #17 / Boyajian's Star / KIC 8462852) has no confirmed planets. The scene visualizes the leading **uneven circumstellar dust / debris** explanation for its irregular Kepler dips (not a megastructure). Animations render to `output/animate/tabbys_star/`:
+
+- `tabbys_star_dust_{light,dark}.gif` — eccentric dust clumps crossing the Earth line of sight + schematic light curve
+
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
 `output/animate/interstellar_objects/`:
@@ -304,6 +311,6 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 ## Roadmap
 
-- Additional star systems via `SystemCatalog` / `data/systems.csv` (use `animate/scenes/exoplanet_system.py` for single-host planet views)
+- Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
 - Blender-based planet close-ups / flybys in `animate/scenes/blender/`
 - Sol ↔ Centauri cinematic path (implement the documented barycenter-frame transform above)
