@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -11,20 +10,18 @@ import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Ellipse
-from solsys.physics import OrbitCalculator
 from solsys.physics.catalogs.system_catalog import SystemCatalog
-
-from .exoplanet_system import bodyPositionInOrbitalPlane, orbitPathInOrbitalPlane
 
 DEFAULT_FIGURE_SIZE_INCHES = (12.0, 12.0)
 DEFAULT_DPI = 100
 ANIMATION_FPS = 20
 ANIMATION_FRAMES = 480
-ANIMATION_SPEED = 1.8
-AXIS_LIMIT_AU = 7.5
+AXIS_LIMIT_AU = 6.5
 STAR_COLOR = '#F5E6A3'
-LOS_HALF_WIDTH_AU = 0.22
+DUST_COLOR = '#C9B892'
 DEFAULT_LIGHTCURVE_CSV = 'data/tabbys_star_lightcurve.csv'
+# Scale observed dips (~0–0.20) onto occulting-cloud strength.
+REFERENCE_DIP_DEPTH = 0.20
 
 
 def loadKeplerLightCurve(
@@ -37,35 +34,8 @@ def loadKeplerLightCurve(
     )
 
 
-@dataclass(frozen=True)
-class DustClump:
-    """Schematic eccentric dust / debris clump (not a planet)."""
-
-    name: str
-    semiMajorAxisAu: float
-    eccentricity: float
-    periodDays: float
-    argumentPeriapsisDeg: float
-    meanAnomalyDegEpoch: float
-    opticalDepth: float
-    sizeAu: float
-    color: str
-
-
-# Background debris only — kept off the Earth LOS. Occulting dust is driven by Kepler flux.
-BACKGROUND_CLUMPS = (
-    DustClump('clump A', 2.4, 0.62, 900.0, 10.0, 20.0, 0.38, 0.38, '#C4B59A'),
-    DustClump('clump B', 3.6, 0.72, 1600.0, 200.0, 140.0, 0.55, 0.52, '#B8A888'),
-    DustClump('clump C', 4.8, 0.48, 2400.0, 95.0, 260.0, 0.22, 0.45, '#A89878'),
-    DustClump('clump D', 5.6, 0.58, 3100.0, 310.0, 40.0, 0.30, 0.60, '#D0C4A8'),
-)
-OCCULTING_DUST_COLOR = '#D2C09A'
-# Kepler dips of ~0.2 map to full-strength occulting cloud.
-REFERENCE_DIP_DEPTH = 0.20
-
-
 class TabbysStarAnimator:
-    """Face-on schematic: F-star + dust timed to the Kepler light curve."""
+    """F-star + LOS dust sized to the Kepler light curve (no free-roaming blobs)."""
 
     def __init__(
         self,
@@ -84,32 +54,17 @@ class TabbysStarAnimator:
 
         self.figureSizeInches = figureSizeInches
         self.dpi = dpi
-        self.orbitCalculator = OrbitCalculator()
         self.animationFrames = ANIMATION_FRAMES
-        self.animationSpeed = ANIMATION_SPEED
         self.axisLimitAu = AXIS_LIMIT_AU
-        self.backgroundClumps = BACKGROUND_CLUMPS
         self.keplerTimeBkjd, self.keplerFlux = loadKeplerLightCurve(lightcurveCsvPath)
 
         plt.style.use(style)
         self.isDark = style == 'dark_background'
         self.labelColor = '#F0F0F0' if self.isDark else '#202020'
-        self.orbitColor = '#888888' if self.isDark else '#606060'
+        self.guideColor = '#777777' if self.isDark else '#888888'
         self.dustEdgeColor = '#E8DCC0' if self.isDark else '#6A5A40'
 
         self.figure, self.axes = plt.subplots(figsize=figureSizeInches, dpi=dpi)
-
-    def _clumpPosition(self, clump: DustClump, frame: int) -> tuple[float, float]:
-        return bodyPositionInOrbitalPlane(
-            self.orbitCalculator,
-            clump.semiMajorAxisAu,
-            clump.eccentricity,
-            clump.periodDays,
-            clump.argumentPeriapsisDeg,
-            clump.meanAnomalyDegEpoch,
-            frame,
-            self.animationSpeed,
-        )
 
     def _lightcurveIndex(self, frame: int) -> int:
         if self.animationFrames <= 1:
@@ -120,53 +75,53 @@ class TabbysStarAnimator:
     def _keplerFluxAtFrame(self, frame: int) -> float:
         return float(self.keplerFlux[self._lightcurveIndex(frame)])
 
-    def _backgroundPosition(self, clump: DustClump, frame: int) -> tuple[float, float]:
-        """Decorative debris stays off the Earth-facing LOS so only flux-tied dust occults."""
-        positionX, positionY = self._clumpPosition(clump, frame)
-        if positionX > 0.0 and abs(positionY) < 0.9:
-            positionX = -abs(positionX)
-            positionY = abs(positionY) + 0.9
-        return positionX, positionY
-
-    def _drawOccultingDust(self, flux: float) -> None:
-        """Place LOS dust whose size/opacity track the Kepler dip depth."""
+    def _dipStrength(self, flux: float) -> float:
         depth = max(0.0, 1.0 - float(flux))
-        if depth < 0.004:
+        return float(np.clip(depth / REFERENCE_DIP_DEPTH, 0.0, 1.0))
+
+    def _drawGuideRing(self) -> None:
+        angles = np.linspace(0.0, 2.0 * np.pi, 240)
+        for radius in (2.0, 3.2, 4.5):
+            self.axes.plot(
+                radius * np.cos(angles),
+                radius * np.sin(angles),
+                color=self.guideColor,
+                linewidth=0.6,
+                alpha=0.2,
+            )
+
+    def _drawOccultingDust(self, strength: float) -> None:
+        if strength < 0.02:
             return
-        strength = float(np.clip(depth / REFERENCE_DIP_DEPTH, 0.0, 1.0))
-        # Main occulting cloud on the LOS; deeper dips → larger / more opaque / closer-in.
-        mainX = 3.4 - 1.2 * strength
-        mainSize = 0.28 + 1.15 * strength
-        mainAlpha = 0.22 + 0.58 * strength
+        # Stable LOS placement; only size/alpha change with the Kepler dip.
+        mainX = 2.8
+        mainSize = 0.20 + 1.35 * strength
+        mainAlpha = 0.15 + 0.65 * strength
         self.axes.add_patch(
             Ellipse(
                 (mainX, 0.0),
-                width=mainSize * 2.4,
-                height=mainSize * 1.15,
+                width=mainSize * 2.6,
+                height=mainSize * 1.2,
                 angle=0.0,
-                facecolor=OCCULTING_DUST_COLOR,
+                facecolor=DUST_COLOR,
                 edgecolor=self.dustEdgeColor,
-                linewidth=1.1,
+                linewidth=1.0,
                 alpha=mainAlpha,
                 zorder=4,
             )
         )
-        # Uneven secondary fragment during stronger dips.
-        if strength > 0.25:
-            fragStrength = (strength - 0.25) / 0.75
-            fragX = mainX + 1.1
-            fragY = 0.18 * fragStrength
-            fragSize = 0.18 + 0.55 * fragStrength
+        if strength > 0.35:
+            frag = (strength - 0.35) / 0.65
             self.axes.add_patch(
                 Ellipse(
-                    (fragX, fragY),
-                    width=fragSize * 2.0,
-                    height=fragSize * 1.0,
-                    angle=12.0,
-                    facecolor=OCCULTING_DUST_COLOR,
+                    (mainX + 1.15, 0.12 * frag),
+                    width=(0.20 + 0.70 * frag) * 2.1,
+                    height=(0.20 + 0.70 * frag) * 1.0,
+                    angle=8.0,
+                    facecolor=DUST_COLOR,
                     edgecolor=self.dustEdgeColor,
                     linewidth=0.8,
-                    alpha=0.18 + 0.40 * fragStrength,
+                    alpha=0.12 + 0.45 * frag,
                     zorder=4,
                 )
             )
@@ -178,24 +133,16 @@ class TabbysStarAnimator:
         self.axes.set_xlim(-self.axisLimitAu, self.axisLimitAu)
         self.axes.set_ylim(-self.axisLimitAu, self.axisLimitAu)
         self.axes.set_title(
-            "Tabby's Star — dust dimming + Kepler light curve",
+            "Tabby's Star — Kepler dips explained as LOS dust",
             color=self.labelColor,
             pad=16,
         )
 
-        # Faint guide orbits for the background debris paths.
-        for clump in self.backgroundClumps:
-            pathX, pathY = orbitPathInOrbitalPlane(
-                self.orbitCalculator,
-                clump.semiMajorAxisAu,
-                clump.eccentricity,
-                clump.argumentPeriapsisDeg,
-            )
-            self.axes.plot(pathX, pathY, color=self.orbitColor, linewidth=0.6, alpha=0.22)
+        self._drawGuideRing()
 
         # Line of sight from Earth (Kepler) toward the star.
         self.axes.plot(
-            [0.4, self.axisLimitAu * 0.95],
+            [0.35, self.axisLimitAu * 0.95],
             [0.0, 0.0],
             color=self.labelColor,
             linestyle='--',
@@ -203,8 +150,8 @@ class TabbysStarAnimator:
             alpha=0.55,
         )
         self.axes.text(
-            self.axisLimitAu * 0.42,
-            self.axisLimitAu * 0.06,
+            self.axisLimitAu * 0.40,
+            self.axisLimitAu * 0.07,
             'line of sight → Earth (Kepler)',
             color=self.labelColor,
             fontsize=8,
@@ -212,6 +159,7 @@ class TabbysStarAnimator:
         )
 
         flux = self._keplerFluxAtFrame(frame)
+        strength = self._dipStrength(flux)
         starAlpha = 0.35 + 0.65 * np.clip(flux, 0.0, 1.0)
         starSize = 180 + 220 * np.clip(flux, 0.0, 1.0)
         self.axes.scatter(
@@ -225,36 +173,22 @@ class TabbysStarAnimator:
             linewidths=0.6,
         )
         self.axes.text(
-            0.25,
-            0.35,
+            0.28,
+            0.40,
             "Tabby's Star\n(F3V)",
             color=self.labelColor,
             fontsize=9,
             zorder=6,
         )
 
-        for clump in self.backgroundClumps:
-            positionX, positionY = self._backgroundPosition(clump, frame)
-            self.axes.add_patch(
-                Ellipse(
-                    (positionX, positionY),
-                    width=clump.sizeAu * 2.0,
-                    height=clump.sizeAu * 1.1,
-                    angle=np.degrees(np.arctan2(positionY, positionX)),
-                    facecolor=clump.color,
-                    edgecolor='none',
-                    alpha=0.22,
-                    zorder=3,
-                )
-            )
-        self._drawOccultingDust(flux)
+        self._drawOccultingDust(strength)
 
         cursorTime = float(self.keplerTimeBkjd[self._lightcurveIndex(frame)])
         dipPercent = max(0.0, (1.0 - flux) * 100.0)
         self.axes.text(
             -self.axisLimitAu * 0.95,
             -self.axisLimitAu * 0.78,
-            f'Kepler flux {flux:.2f} ({dipPercent:.0f}% dip) at BKJD {cursorTime:.0f}  ·  LOS dust synced to dips',
+            f'Kepler flux {flux:.2f} ({dipPercent:.0f}% dip) at BKJD {cursorTime:.0f}',
             color=self.labelColor,
             fontsize=8,
             alpha=0.8,
@@ -262,21 +196,16 @@ class TabbysStarAnimator:
         self.axes.text(
             -self.axisLimitAu * 0.95,
             -self.axisLimitAu * 0.92,
-            "Boyajian's Star / KIC 8462852 · ~1470 ly · system_id=tabbys_star",
+            'LOS dust grows with observed dips · schematic geometry · system_id=tabbys_star',
             color=self.labelColor,
             fontsize=7,
             alpha=0.65,
         )
 
-        inset = self.axes.inset_axes([0.08, 0.12, 0.36, 0.20])
+        inset = self.axes.inset_axes([0.08, 0.12, 0.38, 0.22])
         curveColor = '#7EB6FF' if self.isDark else '#204080'
-        inset.plot(
-            self.keplerTimeBkjd,
-            self.keplerFlux,
-            color=curveColor,
-            linewidth=0.8,
-        )
-        inset.axvline(cursorTime, color=self.labelColor, linewidth=0.8, alpha=0.75)
+        inset.plot(self.keplerTimeBkjd, self.keplerFlux, color=curveColor, linewidth=0.9)
+        inset.axvline(cursorTime, color=self.labelColor, linewidth=0.9, alpha=0.8)
         inset.set_ylim(0.75, 1.03)
         inset.set_xlim(float(self.keplerTimeBkjd[0]), float(self.keplerTimeBkjd[-1]))
         inset.set_xticks([])
