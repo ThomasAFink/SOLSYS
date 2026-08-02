@@ -20,6 +20,11 @@ from solsys.physics.catalogs.system_catalog import (
     SystemCatalog,
     SystemPlanet,
 )
+from solsys.physics.frame_transform import (
+    SolCentauriFrameTransform,
+    abBarycenterSolPositionAu,
+    orbitalPlaneToSolRotation,
+)
 from solsys.physics.orbit_calculator import OrbitCalculator
 from solsys.physics.point_density_config import PointDensityConfig
 from solsys.physics.view_definition import ViewDefinition
@@ -38,6 +43,7 @@ __all__ = [
     'PlanetCatalog',
     'PlanetOrbit',
     'PointDensityConfig',
+    'SolCentauriFrameTransform',
     'StarCatalog',
     'StarMember',
     'StarSystem',
@@ -46,4 +52,6 @@ __all__ = [
     'SystemPlanet',
     'ViewDefinition',
     'ViewRegistry',
+    'abBarycenterSolPositionAu',
+    'orbitalPlaneToSolRotation',
 ]
