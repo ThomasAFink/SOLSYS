@@ -43,7 +43,8 @@ SOLSYS/
 │   ├── systems.csv                                # Star systems (sol, alpha_centauri, barnards_star, trappist_1, tabbys_star, …)
 │   ├── stellar_orbits.csv                         # Multi-star orbits vs system barycenter
 │   ├── planets.csv                                # Exoplanets linked by host_star_uuid
-│   └── interstellar_objects.csv                   # 1I/2I/3I hyperbolic visitors
+│   ├── interstellar_objects.csv                   # 1I/2I/3I hyperbolic visitors
+│   └── tabbys_star_lightcurve.csv                 # Downsampled Kepler LC for Tabby's Star inset
 │
 ├── animate/                                       # MAIN PRODUCT — GIF animations
 │   ├── __init__.py
@@ -289,7 +290,7 @@ TRAPPIST-1 (issue #7) is a single-host ultracool dwarf (~40.7 ly) with seven con
 
 Tabby's Star (issue #17 / Boyajian's Star / KIC 8462852) has no confirmed planets. The scene visualizes the leading **uneven circumstellar dust / debris** explanation for its irregular Kepler dips (not a megastructure). Animations render to `output/animate/tabbys_star/`:
 
-- `tabbys_star_dust_{light,dark}.gif` — eccentric dust clumps crossing the Earth line of sight + schematic light curve
+- `tabbys_star_dust_{light,dark}.gif` — eccentric dust clumps + real downsampled Kepler light curve (`data/tabbys_star_lightcurve.csv`, BKJD ~1100–1600 including the D1500 dip complex)
 
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to

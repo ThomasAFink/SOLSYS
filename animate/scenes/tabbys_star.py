@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Ellipse
 from solsys.physics import OrbitCalculator
@@ -22,6 +24,17 @@ ANIMATION_SPEED = 1.8
 AXIS_LIMIT_AU = 7.5
 STAR_COLOR = '#F5E6A3'
 LOS_HALF_WIDTH_AU = 0.22
+DEFAULT_LIGHTCURVE_CSV = 'data/tabbys_star_lightcurve.csv'
+
+
+def loadKeplerLightCurve(
+    csvPath: str | Path = DEFAULT_LIGHTCURVE_CSV,
+) -> tuple[np.ndarray, np.ndarray]:
+    frame = pd.read_csv(csvPath, comment='#')
+    return (
+        np.asarray(frame['bkjd_day'], dtype=float),
+        np.asarray(frame['relative_flux'], dtype=float),
+    )
 
 
 @dataclass(frozen=True)
@@ -57,6 +70,7 @@ class TabbysStarAnimator:
         figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
         dpi: int = DEFAULT_DPI,
         starsCsvPath: str = 'data/nearby_stars_30.csv',
+        lightcurveCsvPath: str = DEFAULT_LIGHTCURVE_CSV,
     ):
         catalog = SystemCatalog(starsCsvPath=starsCsvPath)
         self.system = catalog.load('tabbys_star')
@@ -72,6 +86,7 @@ class TabbysStarAnimator:
         self.animationSpeed = ANIMATION_SPEED
         self.axisLimitAu = AXIS_LIMIT_AU
         self.clumps = DUST_CLUMPS
+        self.keplerTimeBkjd, self.keplerFlux = loadKeplerLightCurve(lightcurveCsvPath)
 
         plt.style.use(style)
         self.isDark = style == 'dark_background'
@@ -80,10 +95,6 @@ class TabbysStarAnimator:
         self.dustEdgeColor = '#E8DCC0' if self.isDark else '#6A5A40'
 
         self.figure, self.axes = plt.subplots(figsize=figureSizeInches, dpi=dpi)
-        self.fluxHistory = np.array(
-            [self._relativeFlux(frame) for frame in range(self.animationFrames)],
-            dtype=float,
-        )
 
     def _clumpPosition(self, clump: DustClump, frame: int) -> tuple[float, float]:
         return bodyPositionInOrbitalPlane(
@@ -97,22 +108,14 @@ class TabbysStarAnimator:
             self.animationSpeed,
         )
 
-    def _opticalDepthOnLineOfSight(self, frame: int) -> float:
-        """Earth looks in from +X; material at x>0 near the x-axis dims the star."""
-        total = 0.0
-        for clump in self.clumps:
-            positionX, positionY = self._clumpPosition(clump, frame)
-            if positionX <= 0.0:
-                continue
-            if abs(positionY) > max(LOS_HALF_WIDTH_AU, clump.sizeAu * 0.85):
-                continue
-            # Stronger when closer to the star along the ray.
-            distanceWeight = 1.0 / (1.0 + 0.15 * positionX)
-            total += clump.opticalDepth * distanceWeight
-        return float(total)
+    def _lightcurveIndex(self, frame: int) -> int:
+        if self.animationFrames <= 1:
+            return 0
+        scale = (len(self.keplerFlux) - 1) / (self.animationFrames - 1)
+        return int(round(frame * scale))
 
-    def _relativeFlux(self, frame: int) -> float:
-        return float(np.exp(-self._opticalDepthOnLineOfSight(frame)))
+    def _keplerFluxAtFrame(self, frame: int) -> float:
+        return float(self.keplerFlux[self._lightcurveIndex(frame)])
 
     def update(self, frame: int):
         self.axes.clear()
@@ -121,7 +124,7 @@ class TabbysStarAnimator:
         self.axes.set_xlim(-self.axisLimitAu, self.axisLimitAu)
         self.axes.set_ylim(-self.axisLimitAu, self.axisLimitAu)
         self.axes.set_title(
-            "Tabby's Star — uneven dust dimming (schematic)",
+            "Tabby's Star — dust dimming + Kepler light curve",
             color=self.labelColor,
             pad=16,
         )
@@ -154,9 +157,9 @@ class TabbysStarAnimator:
             alpha=0.75,
         )
 
-        flux = self._relativeFlux(frame)
-        starAlpha = 0.35 + 0.65 * flux
-        starSize = 180 + 220 * flux
+        flux = self._keplerFluxAtFrame(frame)
+        starAlpha = 0.35 + 0.65 * np.clip(flux, 0.0, 1.0)
+        starSize = 180 + 220 * np.clip(flux, 0.0, 1.0)
         self.axes.scatter(
             [0],
             [0],
@@ -194,10 +197,11 @@ class TabbysStarAnimator:
             )
             self.axes.add_patch(patch)
 
+        cursorTime = float(self.keplerTimeBkjd[self._lightcurveIndex(frame)])
         self.axes.text(
             -self.axisLimitAu * 0.95,
             -self.axisLimitAu * 0.78,
-            f'relative flux {flux:.2f}  ·  dust / debris (not planets)',
+            f'Kepler flux {flux:.2f} at BKJD {cursorTime:.0f}  ·  dust schematic (not planets)',
             color=self.labelColor,
             fontsize=8,
             alpha=0.8,
@@ -211,20 +215,26 @@ class TabbysStarAnimator:
             alpha=0.65,
         )
 
-        inset = self.axes.inset_axes([0.08, 0.12, 0.34, 0.18])
+        inset = self.axes.inset_axes([0.08, 0.12, 0.36, 0.20])
+        curveColor = '#7EB6FF' if self.isDark else '#204080'
         inset.plot(
-            np.arange(self.animationFrames),
-            self.fluxHistory,
-            color='#7EB6FF' if self.isDark else '#204080',
-            linewidth=1.0,
+            self.keplerTimeBkjd,
+            self.keplerFlux,
+            color=curveColor,
+            linewidth=0.8,
         )
-        inset.axvline(frame, color=self.labelColor, linewidth=0.8, alpha=0.7)
-        inset.set_ylim(0.55, 1.05)
-        inset.set_xlim(0, self.animationFrames - 1)
+        inset.axvline(cursorTime, color=self.labelColor, linewidth=0.8, alpha=0.75)
+        inset.set_ylim(0.75, 1.03)
+        inset.set_xlim(float(self.keplerTimeBkjd[0]), float(self.keplerTimeBkjd[-1]))
         inset.set_xticks([])
-        inset.set_yticks([0.6, 0.8, 1.0])
+        inset.set_yticks([0.8, 0.9, 1.0])
         inset.tick_params(colors=self.labelColor, labelsize=6)
-        inset.set_title('schematic light curve', color=self.labelColor, fontsize=7, pad=2)
+        inset.set_title(
+            'Kepler light curve (downsampled)',
+            color=self.labelColor,
+            fontsize=7,
+            pad=2,
+        )
         for spine in inset.spines.values():
             spine.set_color(self.labelColor)
             spine.set_alpha(0.5)
