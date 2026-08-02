@@ -40,7 +40,7 @@ SOLSYS/
 │   └── generate_keplers_laws_figure.py            # Regenerates the diagram
 ├── data/
 │   ├── nearby_stars_30.csv                        # Nearby-star catalog (RA/Dec, distances, system_id)
-│   ├── systems.csv                                # Star systems (sol, alpha_centauri, …)
+│   ├── systems.csv                                # Star systems (sol, alpha_centauri, barnards_star, …)
 │   ├── stellar_orbits.csv                         # Multi-star orbits vs system barycenter
 │   ├── planets.csv                                # Exoplanets linked by host_star_uuid
 │   └── interstellar_objects.csv                   # 1I/2I/3I hyperbolic visitors
@@ -55,6 +55,7 @@ SOLSYS/
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
 │       ├── exoplanet_system.py                    # Shared single-host exoplanet top-down animator
 │       ├── alpha_centauri.py                      # A–B close-up, wide triple; Proxima via exoplanet_system
+│       ├── barnards_star.py                       # Barnard's Star planets via exoplanet_system
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Future planet close-ups
 │           └── README.md
@@ -89,8 +90,9 @@ SOLSYS/
     ├── animate/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
     │   ├── 3d/                                    # solar_system_{light,dark}.gif
-    │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
-    │   └── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
+│   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
+│   ├── barnards_star/                         # barnards_star_planets_{light,dark}.gif
+│   └── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
@@ -257,6 +259,7 @@ Or render by product:
 .venv/bin/python render.py animate --dimension all
 .venv/bin/python render.py animate --dimension 3d
 .venv/bin/python render.py animate --system alpha_centauri
+.venv/bin/python render.py animate --system barnards_star
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
@@ -269,6 +272,10 @@ Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animati
 - `alpha_centauri_ab_{light,dark}.gif` — A–B binary close-up (±28 AU)
 - `alpha_centauri_system_{light,dark}.gif` — wide triple with Proxima (~8.7 kau)
 - `proxima_planets_{light,dark}.gif` — confirmed Proxima planets (via shared `exoplanet_system` animator)
+
+Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
+
+- `barnards_star_planets_{light,dark}.gif` — compact planets d, b, c, e
 
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
