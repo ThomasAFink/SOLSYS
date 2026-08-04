@@ -37,18 +37,19 @@ VISIBILITY_FADE_SPAN_AU = 4.0
 
 ASTEROID_RENDER_STYLES = {
     'light': {
-        'beltColor': '#707070',
-        'clusterColor': '#808080',
-        'kuiperColor': '#757575',
-        'oortColor': '#A0A0A0',
-        'beltSize': 0.5,
-        'clusterSize': 0.5,
-        'kuiperSize': 0.375,
-        'oortSize': 0.25,
-        'beltAlpha': 0.55,
-        'clusterAlpha': 0.5,
-        'kuiperAlpha': 0.45,
-        'oortAlpha': 0.25,
+        # Near-black dust so belts stay readable on the light background.
+        'beltColor': '#1A1A1A',
+        'clusterColor': '#222222',
+        'kuiperColor': '#1E1E1E',
+        'oortColor': '#2A2A2A',
+        'beltSize': 0.75,
+        'clusterSize': 0.7,
+        'kuiperSize': 0.55,
+        'oortSize': 0.35,
+        'beltAlpha': 0.72,
+        'clusterAlpha': 0.68,
+        'kuiperAlpha': 0.65,
+        'oortAlpha': 0.35,
     },
     'dark': {
         'beltColor': '#D8D8D8',
