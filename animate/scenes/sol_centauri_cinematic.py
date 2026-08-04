@@ -1119,7 +1119,7 @@ class SolCentauriCinematicAnimator:
                 )
             if oortAlpha > 0.02:
                 oortBoost = 8.0 if halfWidthAu < 5000.0 else (5.0 if halfWidthAu < 30000.0 else 3.0)
-                oortColor = '#A8B4C4' if self.isDark else '#5A6578'
+                oortColor = '#A8B4C4' if self.isDark else style['oortColor']
                 # Camera-annulus cull empties the fixed Oort shell once half-width ≫ 10⁵ AU
                 # (inner annulus edge overruns the cloud). Drop it on wide neighborhood shots.
                 useAnnulus = halfWidthAu < OORT_WORLD_OUTER_AU / POPULATION_ANNULUS_INNER_FRAC
