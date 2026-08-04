@@ -1,0 +1,22 @@
+# Dependabot keeps GitHub Actions and Python pins current.
+# Packages managed today:
+# - .github/workflows/* (Actions)
+# - requirements.txt (runtime)
+# - requirements-dev.txt (tooling)
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(SOLSYS)
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore(SOLSYS)
