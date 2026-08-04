@@ -203,7 +203,7 @@ class CinematicTransformTests(unittest.TestCase):
         right = innerBeltRenderParams(peak + 1e-6, style)
         self.assertIsNotNone(left)
         self.assertIsNotNone(right)
-        for leftValue, rightValue in zip(left, right):
+        for leftValue, rightValue in zip(left, right, strict=True):
             self.assertAlmostEqual(leftValue, rightValue, places=4)
 
     def test_inner_belts_appear_when_camera_reaches_belt(self) -> None:
@@ -227,7 +227,7 @@ class CinematicTransformTests(unittest.TestCase):
         self.assertEqual(spectralClassColor('G2V', fallback='#fff'), '#FFE7A0')
         self.assertEqual(spectralClassColor('M5.5Ve', fallback='#fff'), '#FFB06B')
         self.assertEqual(spectralClassColor('A1V', fallback='#fff'), '#CAD7FF')
-        self.assertAlmostEqual(parseApparentMagnitude('−1.46'), -1.46)
+        self.assertAlmostEqual(parseApparentMagnitude('\N{MINUS SIGN}1.46'), -1.46)
         self.assertAlmostEqual(parseApparentMagnitude('10.7 J'), 10.7)
 
     def test_field_stars_use_true_positions_in_neighborhood(self) -> None:

@@ -107,7 +107,7 @@ def buildParser() -> argparse.ArgumentParser:
         default='sol',
         help=(
             'Which scene set to render (default: sol). '
-            'sol_centauri = Sol→α Cen cinematic; '
+            'sol_centauri = Sol-to-Alpha Centauri cinematic; '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
