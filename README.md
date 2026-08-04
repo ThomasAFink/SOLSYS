@@ -56,6 +56,7 @@ SOLSYS/
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
 │       ├── exoplanet_system.py                    # Shared single-host exoplanet top-down animator
 │       ├── alpha_centauri.py                      # A–B close-up, wide triple; Proxima via exoplanet_system
+│       ├── sol_centauri_cinematic.py              # Sol → α Cen AB cinematic (uses frame transform)
 │       ├── barnards_star.py                       # Barnard's Star planets via exoplanet_system
 │       ├── trappist_1.py                          # TRAPPIST-1 planets via exoplanet_system
 │       ├── tabbys_star.py                         # Tabby's Star dust-cloud dimming schematic
@@ -71,7 +72,8 @@ SOLSYS/
 │   └── hilda_point_generator.py                   # HildaPointGenerator
 │
 ├── tests/                                         # Unit tests (stdlib unittest)
-│   └── test_frame_transform.py                    # Sol ↔ α Cen frame transform
+│   ├── test_frame_transform.py                    # Sol ↔ α Cen frame transform
+│   └── test_sol_centauri_cinematic.py             # Sol → α Cen cinematic helpers
 │
 ├── solsys/                                        # Shared libraries (no plotting)
 │   ├── physics/
@@ -98,6 +100,7 @@ SOLSYS/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
     │   ├── 3d/                                    # solar_system_{light,dark}.gif
 │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
+│   ├── sol_centauri/                          # sol_centauri_cinematic_{light,dark}.gif
 │   ├── barnards_star/                         # barnards_star_planets_{light,dark}.gif
 │   ├── trappist_1/                            # trappist_1_planets_{light,dark}.gif
 │   ├── tabbys_star/                           # tabbys_star_dust_{light,dark}.gif
@@ -137,6 +140,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Zoom 3D light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/animate/3d/solar_system_light.gif?raw=true) | ![Zoom 3D dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/animate/3d/solar_system_dark.gif?raw=true) |
+
+**Sol → Alpha Centauri cinematic**
+
+| Light | Dark |
+|-------|------|
+| ![Sol Centauri light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/sol_centauri_cinematic_light.gif?raw=true) | ![Sol Centauri dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/sol_centauri_cinematic_dark.gif?raw=true) |
 
 ### Static zoom views (side)
 
@@ -269,6 +278,7 @@ Or render by product:
 .venv/bin/python render.py animate --dimension all
 .venv/bin/python render.py animate --dimension 3d
 .venv/bin/python render.py animate --system alpha_centauri
+.venv/bin/python render.py animate --system sol_centauri
 .venv/bin/python render.py animate --system barnards_star
 .venv/bin/python render.py animate --system trappist_1
 .venv/bin/python render.py animate --system tabbys_star
@@ -284,6 +294,10 @@ Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animati
 - `alpha_centauri_ab_{light,dark}.gif` — A–B binary close-up (±28 AU)
 - `alpha_centauri_system_{light,dark}.gif` — wide triple with Proxima (~8.7 kau)
 - `proxima_planets_{light,dark}.gif` — confirmed Proxima planets (via shared `exoplanet_system` animator)
+
+Sol → Alpha Centauri cinematic (issue #10) flies from our solar system to the A–B close-up, zooms back out, then finishes on Proxima and its planets — all in Sol XYZ via `SolCentauriFrameTransform`. Animations render to `output/animate/sol_centauri/`:
+
+- `sol_centauri_cinematic_{light,dark}.gif` — Sol → AB → wide → Proxima planets
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 
@@ -313,10 +327,9 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 - Hildas follow a 3:2 resonance angular rate relative to Jupiter.
 - Jupiter Trojans and Greeks sit near the L4 / L5 Lagrange longitudes.
 - Moon orbits are exaggerated for visibility at solar-system zoom levels.
-- **Coordinate frames (multi-star):** Sol scenes use a heliocentric / Sol-barycentric frame in AU, with +X/+Y/+Z from the equatorial Cartesian mapping in `OrbitCalculator.equatorialToCartesianAu` (RA/Dec → XYZ). Alpha Centauri scenes use a separate **α Cen AB-barycentric** frame in AU, plotted face-on in the binary orbital plane (sky inclination stored in CSV but not applied to the 2D schematic). `SolCentauriFrameTransform` in `solsys/physics/frame_transform.py` maps between those frames: mass-weighted AB barycenter origin from `nearby_stars_30.csv`, and rotation from the Centauri orbital plane into Sol XYZ using the A/B `(i, Ω)` convention shared with `OrbitCalculator.ellipticalPosition` (`toSol` / `toCentauri`). The Sol ↔ Centauri cinematic path (#10) will consume this API.
+- **Coordinate frames (multi-star):** Sol scenes use a heliocentric / Sol-barycentric frame in AU, with +X/+Y/+Z from the equatorial Cartesian mapping in `OrbitCalculator.equatorialToCartesianAu` (RA/Dec → XYZ). Alpha Centauri scenes use a separate **α Cen AB-barycentric** frame in AU, plotted face-on in the binary orbital plane (sky inclination stored in CSV but not applied to the 2D schematic). `SolCentauriFrameTransform` in `solsys/physics/frame_transform.py` maps between those frames: mass-weighted AB barycenter origin from `nearby_stars_30.csv`, and rotation from the Centauri orbital plane into Sol XYZ using the A/B `(i, Ω)` convention shared with `OrbitCalculator.ellipticalPosition` (`toSol` / `toCentauri`). The Sol → Centauri cinematic (`animate/scenes/sol_centauri_cinematic.py`, `--system sol_centauri`) consumes this API to place A/B in Sol XYZ while the camera travels from the neighborhood into the binary.
 
 ## Roadmap
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
 - Blender-based planet close-ups / flybys in `animate/scenes/blender/`
-- Sol ↔ Centauri cinematic path (uses `SolCentauriFrameTransform`)
