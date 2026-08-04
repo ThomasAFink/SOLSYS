@@ -1,6 +1,6 @@
 # Advanced CodeQL for Python (adapted from multi-language advanced setups).
 # Official actions, SHA-pinned; Python-only for this repo.
-name: CodeQL Advanced
+name: 🛡️ CodeQL Advanced
 
 on:
   push:
