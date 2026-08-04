@@ -9,6 +9,7 @@ from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
 from animate.scenes.barnards_star import renderBarnardsStarAnimations
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
+from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
 from animate.scenes.tabbys_star import renderTabbysStarAnimations
 from animate.scenes.trappist_1 import renderTrappist1Animations
 from static import renderAll as renderStatic
@@ -21,6 +22,7 @@ Dimension = Literal['2d', '3d']
 ANIMATE_FIGURE_SIZE_INCHES = (12.0, 12.0)
 ANIMATE_DPI_2D = 100  # original size
 ANIMATE_DPI_3D = 50  # half of prior 100 for README
+ANIMATE_DPI_CINEMATIC = 100  # Sol→Centauri path needs sharper labels
 
 STATIC_FIGURE_SIZE_INCHES = (39.0, 39.0)
 STATIC_DPI = 150  # was 300
@@ -94,6 +96,7 @@ def buildParser() -> argparse.ArgumentParser:
         choices=(
             'sol',
             'alpha_centauri',
+            'sol_centauri',
             'barnards_star',
             'trappist_1',
             'tabbys_star',
@@ -104,6 +107,7 @@ def buildParser() -> argparse.ArgumentParser:
         default='sol',
         help=(
             'Which scene set to render (default: sol). '
+            'sol_centauri = Sol→α Cen cinematic; '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -147,6 +151,7 @@ def buildParser() -> argparse.ArgumentParser:
         choices=(
             'sol',
             'alpha_centauri',
+            'sol_centauri',
             'barnards_star',
             'trappist_1',
             'tabbys_star',
@@ -184,6 +189,12 @@ def _renderAnimations(
         renderAlphaCentauriAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_2D,
+            starsCsvPath=starsCsvPath,
+        )
+    if systemChoice in ('sol_centauri', 'all'):
+        renderSolCentauriCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_CINEMATIC,
             starsCsvPath=starsCsvPath,
         )
     if systemChoice in ('barnards_star', 'all'):

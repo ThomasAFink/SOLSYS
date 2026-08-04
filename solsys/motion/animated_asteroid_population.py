@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
 
 import numpy as np
 
 from solsys.motion.mean_anomaly import meanAnomalyAtFrame
-from solsys.physics.belt_point_generator import BeltPointGenerator
 from solsys.physics.astronomical_constants import AstronomicalConstants
+from solsys.physics.belt_point_generator import BeltPointGenerator
 from solsys.physics.orbit_calculator import OrbitCalculator
-
 
 LAGRANGE_OFFSET_RAD = np.pi / 3
 BELT_SHELL_THICKNESS_AU = 0.05
@@ -59,8 +57,8 @@ class AnimatedAsteroidPopulation:
     @staticmethod
     def _cartesianToSpherical(
         positionX: np.ndarray, positionY: np.ndarray, positionZ: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        radiusAu = np.sqrt(positionX ** 2 + positionY ** 2 + positionZ ** 2)
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        radiusAu = np.sqrt(positionX**2 + positionY**2 + positionZ**2)
         azimuthRad = np.arctan2(positionY, positionX)
         polarAngleRad = np.arccos(np.clip(positionZ / np.maximum(radiusAu, 1e-9), -1.0, 1.0))
         return radiusAu, azimuthRad, polarAngleRad
@@ -68,7 +66,7 @@ class AnimatedAsteroidPopulation:
     @staticmethod
     def _sphericalToCartesian(
         radiusAu: np.ndarray, azimuthRad: np.ndarray, polarAngleRad: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         positionX = radiusAu * np.sin(polarAngleRad) * np.cos(azimuthRad)
         positionY = radiusAu * np.sin(polarAngleRad) * np.sin(azimuthRad)
         positionZ = radiusAu * np.cos(polarAngleRad)
@@ -132,19 +130,35 @@ class AnimatedAsteroidPopulation:
         self.beltOscillationFrequency = np.random.uniform(0.01, 0.03, numPoints)
         self.beltRadialVariationAu = np.random.uniform(0.05, 0.15, numPoints)
 
+    @staticmethod
+    def _arcAnglesAround(
+        centerAnglesRad: list[float],
+        numPoints: int,
+        halfArcRad: float,
+    ) -> np.ndarray:
+        """Fill long arcs around each center so groups wrap the orbit with clear gaps."""
+        pointsPerArc = max(numPoints // max(len(centerAnglesRad), 1), 1)
+        angles: list[float] = []
+        for centerRad in centerAnglesRad:
+            # Triangle-ish density: denser near the arc center, still spanning the full arc.
+            offsets = np.random.uniform(-1.0, 1.0, pointsPerArc)
+            offsets = np.sign(offsets) * (np.abs(offsets) ** 1.35) * halfArcRad
+            angles.extend((centerRad + offsets) % (2.0 * np.pi))
+        return np.asarray(angles, dtype=float)
+
     def _initHildas(self, numPoints: int) -> None:
+        # Three Hilda groups ~120° apart: long arcs around the ring, gaps between them.
         clusterAnglesRad = [0.0, 2 * np.pi / 3, 4 * np.pi / 3]
-        pointsPerCluster = max(numPoints // 3, 1)
-        hildaAngles: list[float] = []
-        for clusterAngleRad in clusterAnglesRad:
-            hildaAngles.extend(np.random.normal(clusterAngleRad, 0.3, pointsPerCluster))
-        self.hildaMeanAnomalyRad = np.array(hildaAngles)
+        self.hildaMeanAnomalyRad = self._arcAnglesAround(
+            clusterAnglesRad, numPoints, halfArcRad=np.radians(42.0)
+        )
         innerRadiusAu = self.constants.asteroidBeltOuterAu + 0.25
         outerRadiusAu = self.constants.jupiterSemiMajorAxisAu - 0.25
         self.hildaSemiMajorAxisAu = np.random.uniform(
             innerRadiusAu, outerRadiusAu, len(self.hildaMeanAnomalyRad)
         )
-        inclinationSpreadDeg = 20.0 if self.useSphericalShell3d else 10.0
+        # Match the volumetric feel of the spherical-shell main belt / Kuiper.
+        inclinationSpreadDeg = 28.0 if self.useSphericalShell3d else 12.0
         self.hildaInclinationDeg = np.random.uniform(
             -inclinationSpreadDeg, inclinationSpreadDeg, len(self.hildaMeanAnomalyRad)
         )
@@ -152,28 +166,50 @@ class AnimatedAsteroidPopulation:
         self.hildaPhaseRad = np.random.uniform(0, 2 * np.pi, len(self.hildaMeanAnomalyRad))
 
     def _initJupiterLagrangeClouds(self, numPoints: int) -> None:
-        self.trojanMeanAnomalyOffsetRad = np.random.normal(LAGRANGE_OFFSET_RAD, 0.2, numPoints)
-        self.greekMeanAnomalyOffsetRad = np.random.normal(-LAGRANGE_OFFSET_RAD, 0.2, numPoints)
-        radialSpreadAu = 0.5
+        # L4/L5 clouds as long arcs on Jupiter's orbit — wrap most of the circle, keep
+        # empty gaps around Jupiter (0°) and the far side between the two swarms.
+        self.trojanMeanAnomalyOffsetRad = self._arcAnglesAround(
+            [LAGRANGE_OFFSET_RAD], numPoints, halfArcRad=np.radians(48.0)
+        )
+        self.greekMeanAnomalyOffsetRad = self._arcAnglesAround(
+            [-LAGRANGE_OFFSET_RAD], numPoints, halfArcRad=np.radians(48.0)
+        )
+        # Unwrap greek offsets back near -60° (modulo can park them near +300°).
+        self.greekMeanAnomalyOffsetRad = (
+            (self.greekMeanAnomalyOffsetRad + np.pi) % (2.0 * np.pi)
+        ) - np.pi
+        radialSpreadAu = 0.55
         jupiterSemiMajorAxisAu = self.constants.jupiterSemiMajorAxisAu
+        trojanCount = len(self.trojanMeanAnomalyOffsetRad)
+        greekCount = len(self.greekMeanAnomalyOffsetRad)
         self.trojanSemiMajorAxisAu = np.random.uniform(
             jupiterSemiMajorAxisAu - radialSpreadAu,
             jupiterSemiMajorAxisAu + radialSpreadAu,
-            numPoints,
+            trojanCount,
         )
         self.greekSemiMajorAxisAu = np.random.uniform(
             jupiterSemiMajorAxisAu - radialSpreadAu,
             jupiterSemiMajorAxisAu + radialSpreadAu,
-            numPoints,
+            greekCount,
         )
-        self.trojanInclinationDeg = np.random.uniform(-8.0, 8.0, numPoints)
-        self.greekInclinationDeg = np.random.uniform(-8.0, 8.0, numPoints)
-        self.trojanLibrationAmplitude = np.random.uniform(0.05, 0.15, numPoints)
-        self.greekLibrationAmplitude = np.random.uniform(0.05, 0.15, numPoints)
-        self.trojanPhaseRad = np.random.uniform(0, 2 * np.pi, numPoints)
-        self.greekPhaseRad = np.random.uniform(0, 2 * np.pi, numPoints)
-        self.trojanVerticalOffsetAu = np.random.uniform(-0.2, 0.2, numPoints)
-        self.greekVerticalOffsetAu = np.random.uniform(-0.2, 0.2, numPoints)
+        inclinationSpreadDeg = 22.0 if self.useSphericalShell3d else 8.0
+        verticalSpreadAu = 0.45 if self.useSphericalShell3d else 0.2
+        self.trojanInclinationDeg = np.random.uniform(
+            -inclinationSpreadDeg, inclinationSpreadDeg, trojanCount
+        )
+        self.greekInclinationDeg = np.random.uniform(
+            -inclinationSpreadDeg, inclinationSpreadDeg, greekCount
+        )
+        self.trojanLibrationAmplitude = np.random.uniform(0.05, 0.15, trojanCount)
+        self.greekLibrationAmplitude = np.random.uniform(0.05, 0.15, greekCount)
+        self.trojanPhaseRad = np.random.uniform(0, 2 * np.pi, trojanCount)
+        self.greekPhaseRad = np.random.uniform(0, 2 * np.pi, greekCount)
+        self.trojanVerticalOffsetAu = np.random.uniform(
+            -verticalSpreadAu, verticalSpreadAu, trojanCount
+        )
+        self.greekVerticalOffsetAu = np.random.uniform(
+            -verticalSpreadAu, verticalSpreadAu, greekCount
+        )
 
     def _initKuiperBelt(self, numPoints: int) -> None:
         constants = self.constants
@@ -206,7 +242,7 @@ class AnimatedAsteroidPopulation:
         frame: int,
         animationSpeed: float,
         angularVelocityScale: float = 1.0,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         angularVelocityRad = (
             OrbitCalculator.keplerianAngularVelocityRad(radiusAu) * angularVelocityScale
         )
@@ -215,7 +251,7 @@ class AnimatedAsteroidPopulation:
 
     def _asteroidBeltShellPositions(
         self, frame: int, animationSpeed: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         return self._shellPositionsFromSpherical(
             self.beltShellRadiusAu,
             self.beltShellInitialAzimuthRad,
@@ -226,7 +262,7 @@ class AnimatedAsteroidPopulation:
 
     def _kuiperBeltShellPositions(
         self, frame: int, animationSpeed: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         return self._shellPositionsFromSpherical(
             self.kuiperShellRadiusAu,
             self.kuiperShellInitialAzimuthRad,
@@ -237,7 +273,7 @@ class AnimatedAsteroidPopulation:
 
     def _oortCloudShellPositions(
         self, frame: int, animationSpeed: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         return self._shellPositionsFromSpherical(
             self.oortShellRadiusAu,
             self.oortShellInitialAzimuthRad,
@@ -249,10 +285,10 @@ class AnimatedAsteroidPopulation:
 
     def asteroidBeltPositions(
         self, frame: int, animationSpeed: float, ecliptic2d: bool = False
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         if self.useSphericalShell3d and not ecliptic2d:
             return self._asteroidBeltShellPositions(frame, animationSpeed)
-        orbitalPeriodDays = self.beltSemiMajorAxisAu ** 1.5 * 365.25
+        orbitalPeriodDays = self.beltSemiMajorAxisAu**1.5 * 365.25
         meanAnomalyRad = meanAnomalyAtFrame(
             self.beltMeanAnomalyRad, orbitalPeriodDays, frame, animationSpeed
         )
@@ -280,14 +316,16 @@ class AnimatedAsteroidPopulation:
         )
 
     def hildaPositions(
-        self, frame: int, jupiterMeanAnomalyRad: float, animationSpeed: float, ecliptic2d: bool = False
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        self,
+        frame: int,
+        jupiterMeanAnomalyRad: float,
+        animationSpeed: float,
+        ecliptic2d: bool = False,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         del animationSpeed
         # 3:2 resonance: three Hilda orbits per two Jupiter orbits → angular rate 3/2
         meanAnomalyRad = self.hildaMeanAnomalyRad + jupiterMeanAnomalyRad * (3 / 2)
-        oscillationAu = self.hildaOscillationAmplitude * np.sin(
-            frame * 0.1 + self.hildaPhaseRad
-        )
+        oscillationAu = self.hildaOscillationAmplitude * np.sin(frame * 0.1 + self.hildaPhaseRad)
         radiusAu = self.hildaSemiMajorAxisAu + oscillationAu
         if ecliptic2d:
             return self.orbitCalculator.eclipticPosition2d(
@@ -302,13 +340,9 @@ class AnimatedAsteroidPopulation:
 
     def trojanPositions(
         self, frame: int, jupiterMeanAnomalyRad: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        librationRad = self.trojanLibrationAmplitude * np.sin(
-            frame * 0.05 + self.trojanPhaseRad
-        )
-        meanAnomalyRad = (
-            self.trojanMeanAnomalyOffsetRad + jupiterMeanAnomalyRad + librationRad
-        )
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        librationRad = self.trojanLibrationAmplitude * np.sin(frame * 0.05 + self.trojanPhaseRad)
+        meanAnomalyRad = self.trojanMeanAnomalyOffsetRad + jupiterMeanAnomalyRad + librationRad
         positionX, positionY, positionZ = self.orbitCalculator.ellipticalPosition(
             self.trojanSemiMajorAxisAu,
             np.zeros_like(self.trojanSemiMajorAxisAu),
@@ -320,13 +354,11 @@ class AnimatedAsteroidPopulation:
 
     def greekPositions(
         self, frame: int, jupiterMeanAnomalyRad: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         librationRad = self.greekLibrationAmplitude * np.sin(
             frame * 0.05 + self.greekPhaseRad + np.pi
         )
-        meanAnomalyRad = (
-            self.greekMeanAnomalyOffsetRad + jupiterMeanAnomalyRad + librationRad
-        )
+        meanAnomalyRad = self.greekMeanAnomalyOffsetRad + jupiterMeanAnomalyRad + librationRad
         positionX, positionY, positionZ = self.orbitCalculator.ellipticalPosition(
             self.greekSemiMajorAxisAu,
             np.zeros_like(self.greekSemiMajorAxisAu),
@@ -338,10 +370,10 @@ class AnimatedAsteroidPopulation:
 
     def kuiperBeltPositions(
         self, frame: int, animationSpeed: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         if self.useSphericalShell3d:
             return self._kuiperBeltShellPositions(frame, animationSpeed)
-        orbitalPeriodDays = self.kuiperSemiMajorAxisAu ** 1.5 * 365.25
+        orbitalPeriodDays = self.kuiperSemiMajorAxisAu**1.5 * 365.25
         meanAnomalyRad = meanAnomalyAtFrame(
             self.kuiperMeanAnomalyRad, orbitalPeriodDays, frame, animationSpeed
         )
@@ -358,7 +390,7 @@ class AnimatedAsteroidPopulation:
 
     def oortCloudPositions(
         self, frame: int, animationSpeed: float
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         if self.useSphericalShell3d:
             return self._oortCloudShellPositions(frame, animationSpeed)
         angularVelocity = OrbitCalculator.keplerianAngularVelocityRad(self.oortRadiusAu) * 0.0005
@@ -368,4 +400,3 @@ class AnimatedAsteroidPopulation:
         positionY = self.oortRadiusAu * np.sin(self.oortPolarAngleRad) * np.sin(azimuthRad)
         positionZ = self.oortRadiusAu * np.cos(self.oortPolarAngleRad)
         return positionX, positionY, positionZ
-
