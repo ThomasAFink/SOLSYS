@@ -110,15 +110,15 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
         kind='planet',
         catalogNames=('Earth',),
         textures=_mapsForBodyId('earth'),
-        # Oceans read a bit glossier once a color map is present.
-        roughness=0.48,
-        specular=0.35,
+        # Matte-leaning: oceans stay readable without mirror glare in EEVEE.
+        roughness=0.58,
+        specular=0.18,
         atmosphere=BodyAtmosphere(
             enabled=True,
-            scale=1.045,
-            colorRgba=(0.45, 0.72, 1.0, 1.0),
-            strength=1.25,
-            fresnelBlend=0.16,
+            scale=1.038,
+            colorRgba=(0.40, 0.68, 1.0, 1.0),
+            strength=0.85,
+            fresnelBlend=0.14,
         ),
     ),
     # Future examples (no files yet → colorRgba fallback until packs exist):

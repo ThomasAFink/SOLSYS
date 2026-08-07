@@ -665,28 +665,29 @@
       "bodyRotationDeg": 140.0
     }
   ],
-  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_earth_dark_ojb3m1f8/frames",
+  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_earth_dark_zv2susjm/frames",
   "resolution": 640,
   "fps": 18,
   "appearance": {
     "bodyId": "earth",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/earth/color.png"
+      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/earth/color.png",
+      "clouds": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/earth/clouds.png"
     },
-    "roughness": 0.48,
-    "specular": 0.35,
+    "roughness": 0.58,
+    "specular": 0.18,
     "atmosphere": {
       "enabled": true,
-      "scale": 1.045,
+      "scale": 1.038,
       "colorRgba": [
-        0.45,
-        0.72,
+        0.4,
+        0.68,
         1.0,
         1.0
       ],
-      "strength": 1.25,
-      "fresnelBlend": 0.16
+      "strength": 0.85,
+      "fresnelBlend": 0.14
     }
   }
 }

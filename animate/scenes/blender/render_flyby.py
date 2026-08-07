@@ -101,6 +101,58 @@ def _loadImageTexture(bpy: Any, nodeTree: Any, imagePath: Path, *, label: str) -
     return textureNode
 
 
+def _mixCloudLayer(
+    bpy: Any,
+    nodeTree: Any,
+    surfaceColorSocket: Any,
+    cloudsPath: Path,
+) -> Any:
+    """Mix optional cloud coverage over a surface color socket.
+
+    Keep coverage modest so continents/oceans stay readable (not a snowball).
+    """
+    cloudsNode = _loadImageTexture(bpy, nodeTree, cloudsPath, label='clouds')
+    if cloudsNode is None:
+        return surfaceColorSocket
+    cloudsNode.location = (-620, -40)
+    # Prefer alpha when present; otherwise use luminance of the color map.
+    rawFac = (
+        cloudsNode.outputs['Alpha']
+        if 'Alpha' in cloudsNode.outputs
+        else cloudsNode.outputs['Color']
+    )
+    # Extra global attenuation in-shader (texture alpha already thinned).
+    scale = nodeTree.nodes.new('ShaderNodeMath')
+    scale.operation = 'MULTIPLY'
+    scale.location = (-460, 40)
+    scale.inputs[1].default_value = 0.75
+    nodeTree.links.new(rawFac, scale.inputs[0])
+    facSocket = scale.outputs['Value']
+
+    cloudTint = nodeTree.nodes.new('ShaderNodeRGB')
+    cloudTint.location = (-480, -160)
+    # Soft warm-white; pure chalk white reads as ice/snow in EEVEE.
+    cloudTint.outputs[0].default_value = (0.86, 0.88, 0.90, 1.0)
+    # Blender 4+/5: ShaderNodeMix (RGBA). Older: MixRGB.
+    mix = nodeTree.nodes.new('ShaderNodeMix')
+    if hasattr(mix, 'data_type'):
+        mix.data_type = 'RGBA'
+        mix.blend_type = 'MIX'
+        mix.location = (-300, 160)
+        nodeTree.links.new(facSocket, mix.inputs['Factor'])
+        nodeTree.links.new(surfaceColorSocket, mix.inputs['A'])
+        nodeTree.links.new(cloudTint.outputs[0], mix.inputs['B'])
+        return mix.outputs['Result']
+    nodeTree.nodes.remove(mix)
+    mixRgb = nodeTree.nodes.new('ShaderNodeMixRGB')
+    mixRgb.blend_type = 'MIX'
+    mixRgb.location = (-300, 160)
+    nodeTree.links.new(facSocket, mixRgb.inputs['Fac'])
+    nodeTree.links.new(surfaceColorSocket, mixRgb.inputs['Color1'])
+    nodeTree.links.new(cloudTint.outputs[0], mixRgb.inputs['Color2'])
+    return mixRgb.outputs['Color']
+
+
 def _applyBodyMaterial(
     bpy: Any,
     material: Any,
@@ -116,8 +168,12 @@ def _applyBodyMaterial(
     if principled is None:
         return
 
-    roughness = float((appearance or {}).get('roughness', 0.42 if theme == 'light' else 0.55))
-    specular = float((appearance or {}).get('specular', 0.35 if theme == 'light' else 0.22))
+    roughness = float((appearance or {}).get('roughness', 0.55))
+    specular = float((appearance or {}).get('specular', 0.22))
+    if theme == 'light':
+        # Keep matte enough to avoid ocean glare, but not so dull the day side dies.
+        roughness = max(roughness, 0.60)
+        specular = min(specular, 0.12)
     principled.inputs['Base Color'].default_value = color
     if 'Roughness' in principled.inputs:
         principled.inputs['Roughness'].default_value = roughness
@@ -134,8 +190,18 @@ def _applyBodyMaterial(
     colorNode = _loadImageTexture(bpy, nodeTree, Path(colorPath), label='color')
     if colorNode is None:
         return
-    colorNode.location = (-400, 200)
-    nodeTree.links.new(colorNode.outputs['Color'], principled.inputs['Base Color'])
+    colorNode.location = (-820, 200)
+    # Slight saturation lift so oceans/vegetation don't wash out under clouds + fill.
+    hueSat = nodeTree.nodes.new('ShaderNodeHueSaturation')
+    hueSat.location = (-620, 200)
+    hueSat.inputs['Saturation'].default_value = 1.22 if theme == 'light' else 1.18
+    hueSat.inputs['Value'].default_value = 1.28 if theme == 'light' else 0.98
+    nodeTree.links.new(colorNode.outputs['Color'], hueSat.inputs['Color'])
+    surfaceColorSocket = hueSat.outputs['Color']
+    cloudsPath = textures.get('clouds')
+    if cloudsPath:
+        surfaceColorSocket = _mixCloudLayer(bpy, nodeTree, surfaceColorSocket, Path(cloudsPath))
+    nodeTree.links.new(surfaceColorSocket, principled.inputs['Base Color'])
 
     specularPath = textures.get('specular')
     if specularPath and 'Roughness' in principled.inputs:
@@ -189,7 +255,7 @@ def _buildAtmosphereMaterial(
         float(color[2]),
         1.0,
     )
-    themeScale = 1.15 if theme == 'dark' else 0.85
+    themeScale = 1.15 if theme == 'dark' else 0.55
     emission.inputs['Strength'].default_value = max(0.05, strength * themeScale)
 
     links.new(layerWeight.outputs['Fresnel'], power.inputs[0])
@@ -242,28 +308,50 @@ def _addAtmosphereShell(
 
 
 def _configureWorld(bpy: Any, theme: str) -> None:
+    """Theme backdrop + sparse ambient fill (not a second lamp).
+
+    Light theme: camera sees a pale backdrop, but lighting uses a dim world so
+    the night side still reads. Dark theme: near-black world with tiny fill.
+    """
     world = bpy.data.worlds.new('FlybyWorld')
     bpy.context.scene.world = world
-    if theme == 'light':
-        color = (0.92, 0.93, 0.95)
-        # Soft ambient fill (no second lamp) so the night side isn't a hard wedge.
-        strength = 0.55
-    else:
-        color = (0.02, 0.025, 0.035)
-        strength = 0.18
-    # Prefer nodes when available; fall back to solid world color.
     nodeTree = getattr(world, 'node_tree', None)
     if nodeTree is None:
-        world.color = color
+        world.color = (0.9, 0.92, 0.95) if theme == 'light' else (0.02, 0.025, 0.035)
         return
-    background = nodeTree.nodes.get('Background')
-    if background is None:
-        background = nodeTree.nodes.new('ShaderNodeBackground')
-        output = nodeTree.nodes.get('World Output')
-        if output is not None:
-            nodeTree.links.new(background.outputs['Background'], output.inputs['Surface'])
-    background.inputs['Color'].default_value = (*color, 1.0)
-    background.inputs['Strength'].default_value = strength
+
+    nodes = nodeTree.nodes
+    links = nodeTree.links
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputWorld')
+    output.location = (360, 0)
+
+    if theme == 'light':
+        # Camera ray → pale backdrop. Other rays → dim fill (real night side).
+        cameraBg = nodes.new('ShaderNodeBackground')
+        cameraBg.location = (40, 80)
+        cameraBg.inputs['Color'].default_value = (0.90, 0.92, 0.95, 1.0)
+        cameraBg.inputs['Strength'].default_value = 1.0
+        lightBg = nodes.new('ShaderNodeBackground')
+        lightBg.location = (40, -80)
+        lightBg.inputs['Color'].default_value = (0.62, 0.68, 0.78, 1.0)
+        # Enough fill to read continents on the night side without flattening day/night.
+        lightBg.inputs['Strength'].default_value = 0.14
+        lightPath = nodes.new('ShaderNodeLightPath')
+        lightPath.location = (-220, 0)
+        mix = nodes.new('ShaderNodeMixShader')
+        mix.location = (220, 0)
+        links.new(lightPath.outputs['Is Camera Ray'], mix.inputs['Fac'])
+        links.new(lightBg.outputs['Background'], mix.inputs[1])
+        links.new(cameraBg.outputs['Background'], mix.inputs[2])
+        links.new(mix.outputs['Shader'], output.inputs['Surface'])
+        return
+
+    background = nodes.new('ShaderNodeBackground')
+    background.location = (40, 0)
+    background.inputs['Color'].default_value = (0.02, 0.025, 0.035, 1.0)
+    background.inputs['Strength'].default_value = 0.12
+    links.new(background.outputs['Background'], output.inputs['Surface'])
 
 
 def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
@@ -343,10 +431,19 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
     # Single distant sun aimed at the body. No area fill — that was carving the
     # pointy false "terminator". Ambient lift comes from the world background.
     lightData = bpy.data.lights.new(f'{name}KeySun', type='SUN')
-    lightData.energy = 2.8 if theme == 'dark' else 2.1
-    lightData.angle = math.radians(5.0)  # slightly soft limb, still one light
+    if theme == 'dark':
+        lightData.energy = 2.8
+        lightData.angle = math.radians(5.0)
+        # Bias the sun off camera-forward so a clear night crescent stays in frame.
+        sunLocation = (radius * 14.0, -radius * 8.0, radius * 6.0)
+    else:
+        # Punchy day side on a pale backdrop; specular stays matte in the material.
+        lightData.energy = 4.2
+        lightData.angle = math.radians(3.0)
+        # More camera-facing key so the lit hemisphere dominates the frame.
+        sunLocation = (radius * 10.0, -radius * 3.5, radius * 9.0)
     light = bpy.data.objects.new(f'{name}KeySun', lightData)
-    light.location = (radius * 12.0, -radius * 5.0, radius * 8.0)
+    light.location = sunLocation
     scene.collection.objects.link(light)
     sunTrack = light.constraints.new(type='TRACK_TO')
     sunTrack.target = planet
@@ -369,6 +466,15 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
     scene.render.filepath = str(outputDirectory / 'frame_')
     scene.render.use_file_extension = True
     scene.render.film_transparent = False
+    # Light theme was reading muddy under Filmic — lift exposure for day-side punch.
+    viewSettings = getattr(scene, 'view_settings', None)
+    if viewSettings is not None:
+        if theme == 'light':
+            viewSettings.exposure = 0.55
+            viewSettings.gamma = 1.05
+        else:
+            viewSettings.exposure = 0.0
+            viewSettings.gamma = 1.0
 
     bpy.ops.render.render(animation=True)
 
