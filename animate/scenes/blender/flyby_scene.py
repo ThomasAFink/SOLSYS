@@ -12,8 +12,8 @@ from typing import Literal
 from PIL import Image
 
 from animate.scenes.blender.body_appearance import appearanceForCatalogName
-from animate.scenes.blender.body_scene import buildPlanetBodyScene
-from animate.scenes.blender.export_body import DEFAULT_OUTPUT_DIRECTORY, exportPlanetBodyScene
+from animate.scenes.blender.body_scene import buildBodyScene
+from animate.scenes.blender.export_body import DEFAULT_OUTPUT_DIRECTORY, exportBodyScene
 from animate.scenes.blender.flyby_camera import buildFlybyCameraPath
 from animate.scenes.blender.render_flyby import JOB_SCHEMA_ID
 
@@ -27,21 +27,21 @@ DEFAULT_FLYBY_FPS = 18
 
 
 def preparePlanetFlybyExport(
-    planetName: str = 'Earth',
+    bodyName: str = 'Earth',
     *,
     frameCount: int = 120,
     outputDirectory: Path | str = DEFAULT_OUTPUT_DIRECTORY,
 ) -> Path:
     """Export catalog body-scene JSON used as flyby input metadata."""
-    return exportPlanetBodyScene(
-        planetName,
+    return exportBodyScene(
+        bodyName,
         frameCount=frameCount,
         outputDirectory=outputDirectory,
     )
 
 
 def buildFlybyJob(
-    planetName: str = 'Earth',
+    bodyName: str = 'Earth',
     *,
     theme: Theme = 'dark',
     frameCount: int = DEFAULT_FLYBY_FRAMES,
@@ -49,10 +49,10 @@ def buildFlybyJob(
     fps: int = DEFAULT_FLYBY_FPS,
     framesDirectory: Path | str,
 ) -> dict:
-    """Build a Blender flyby job dict from PlanetCatalog + camera path."""
+    """Build a Blender flyby job dict from PlanetCatalog/MoonCatalog + camera path."""
     if theme not in ('light', 'dark'):
         raise ValueError(f'theme must be light or dark, got {theme!r}')
-    bodyScene = buildPlanetBodyScene(planetName, frameCount=max(frameCount, 2))
+    bodyScene = buildBodyScene(bodyName, frameCount=max(frameCount, 2))
     cameraPath = buildFlybyCameraPath(bodyScene.body.displayRadiusAu, frameCount=frameCount)
     appearance = appearanceForCatalogName(bodyScene.body.name)
     job: dict = {
@@ -138,7 +138,7 @@ def _runBlenderFlybyJob(jobPath: Path) -> None:
 
 
 def renderPlanetFlyby(
-    planetName: str = 'Earth',
+    bodyName: str = 'Earth',
     *,
     theme: Theme | Literal['all'] = 'all',
     frameCount: int = DEFAULT_FLYBY_FRAMES,
@@ -146,7 +146,7 @@ def renderPlanetFlyby(
     fps: int = DEFAULT_FLYBY_FPS,
     outputDirectory: Path | str = DEFAULT_OUTPUT_DIRECTORY,
 ) -> tuple[Path, ...]:
-    """Render light/dark planet flyby GIFs via Blender; returns written GIF paths."""
+    """Render light/dark body flyby GIFs via Blender; returns written GIF paths."""
     themes: tuple[Theme, ...]
     if theme == 'all':
         themes = ('light', 'dark')
@@ -158,15 +158,15 @@ def renderPlanetFlyby(
     outputRoot = Path(outputDirectory)
     outputRoot.mkdir(parents=True, exist_ok=True)
     # Keep catalog export in the product tree so the #11 pipeline stays exercised.
-    preparePlanetFlybyExport(planetName, outputDirectory=outputRoot)
+    preparePlanetFlybyExport(bodyName, outputDirectory=outputRoot)
 
     written: list[Path] = []
-    stem = planetName.lower().replace(' ', '_')
+    stem = bodyName.lower().replace(' ', '_')
     for themeName in themes:
         with tempfile.TemporaryDirectory(prefix=f'solsys_flyby_{stem}_{themeName}_') as temporary:
             framesDirectory = Path(temporary) / 'frames'
             job = buildFlybyJob(
-                planetName,
+                bodyName,
                 theme=themeName,
                 frameCount=frameCount,
                 resolution=resolution,

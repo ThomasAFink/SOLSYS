@@ -4,9 +4,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from animate.scenes.blender.body_scene import BodyScene, buildPlanetBodyScene
+from animate.scenes.blender.body_scene import BodyScene, buildBodyScene, buildPlanetBodyScene
 
 DEFAULT_OUTPUT_DIRECTORY = Path('output/animate/blender')
+
+
+def exportBodyScene(
+    bodyName: str = 'Earth',
+    *,
+    frameCount: int = 120,
+    outputDirectory: Path | str = DEFAULT_OUTPUT_DIRECTORY,
+) -> Path:
+    """Export one catalog planet or moon to JSON for Blender ingest."""
+    scene = buildBodyScene(bodyName, frameCount=frameCount)
+    return writeBodyScene(scene, outputDirectory=outputDirectory)
 
 
 def exportPlanetBodyScene(

@@ -17,10 +17,12 @@ from animate.scenes.blender.body_appearance import (
 from animate.scenes.blender.body_scene import (
     SCHEMA_ID,
     BodyScene,
+    buildBodyScene,
+    buildMoonBodyScene,
     buildPlanetBodyScene,
     loadBodyScene,
 )
-from animate.scenes.blender.export_body import exportPlanetBodyScene
+from animate.scenes.blender.export_body import exportBodyScene, exportPlanetBodyScene
 from animate.scenes.blender.flyby_camera import buildFlybyCameraPath, flybyCameraLocation
 from animate.scenes.blender.flyby_scene import (
     assembleGifFromPngs,
@@ -52,6 +54,21 @@ class BodySceneBuildTests(unittest.TestCase):
     def test_unknown_planet_raises(self) -> None:
         with self.assertRaises(ValueError):
             buildPlanetBodyScene('Nibiru')
+
+    def test_build_moon_scene(self) -> None:
+        scene = buildMoonBodyScene('Moon', frameCount=16)
+        self.assertEqual(scene.body.name, 'Moon')
+        self.assertEqual(scene.body.kind, 'moon')
+        self.assertEqual(scene.body.systemId, 'sol')
+        self.assertEqual(len(scene.keyframes), 16)
+        self.assertGreater(scene.body.displayRadiusAu, 0.0)
+        viaDispatch = buildBodyScene('Moon', frameCount=8)
+        self.assertEqual(viaDispatch.body.kind, 'moon')
+        self.assertEqual(len(viaDispatch.keyframes), 8)
+
+    def test_unknown_body_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            buildBodyScene('Nibiru')
 
     def test_round_trip_json(self) -> None:
         scene = buildPlanetBodyScene('Jupiter', frameCount=8)
@@ -112,6 +129,22 @@ class BodyAppearanceTests(unittest.TestCase):
         self.assertTrue((TEXTURE_BODIES_ROOT / 'earth' / 'color.png').is_file())
         self.assertTrue((TEXTURE_BODIES_ROOT / 'earth' / 'clouds.png').is_file())
 
+    def test_moon_pack_resolves_color_map_without_atmosphere(self) -> None:
+        appearance = appearanceForCatalogName('Moon')
+        self.assertIsNotNone(appearance)
+        assert appearance is not None
+        self.assertEqual(appearance.bodyId, 'moon')
+        self.assertEqual(appearance.kind, 'moon')
+        maps = appearance.textures.existingMaps()
+        self.assertIn('color', maps)
+        self.assertNotIn('clouds', maps)
+        self.assertFalse(appearance.atmosphere.enabled)
+        jobAppearance = appearance.toJobDict()
+        self.assertNotIn('atmosphere', jobAppearance)
+        self.assertIn('color', jobAppearance['textures'])
+        self.assertIn('Moon', registeredCatalogNames())
+        self.assertTrue((TEXTURE_BODIES_ROOT / 'moon' / 'color.png').is_file())
+
     def test_unknown_catalog_name_has_no_pack(self) -> None:
         self.assertIsNone(appearanceForCatalogName('Nibiru'))
 
@@ -164,6 +197,22 @@ class FlybyPipelineTests(unittest.TestCase):
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertIn('dry-run', completed.stdout.lower())
+
+    def test_build_moon_flyby_job(self) -> None:
+        with tempfile.TemporaryDirectory() as temporaryDirectory:
+            path = exportBodyScene('Moon', frameCount=6, outputDirectory=temporaryDirectory)
+            self.assertEqual(path.name, 'moon_body_scene.json')
+            job = buildFlybyJob(
+                'Moon',
+                theme='light',
+                frameCount=6,
+                framesDirectory=Path(temporaryDirectory) / 'frames',
+            )
+            self.assertEqual(job['body']['name'], 'Moon')
+            self.assertEqual(job['body']['kind'], 'moon')
+            self.assertEqual(job['appearance']['bodyId'], 'moon')
+            self.assertIn('color', job['appearance']['textures'])
+            self.assertNotIn('atmosphere', job['appearance'])
 
     def test_assemble_gif_from_pngs(self) -> None:
         with tempfile.TemporaryDirectory() as temporaryDirectory:
