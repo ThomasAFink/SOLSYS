@@ -12,7 +12,7 @@ from typing import Literal
 from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
 from animate.scenes.barnards_star import renderBarnardsStarAnimations
-from animate.scenes.blender.export_body import exportPlanetBodyScene
+from animate.scenes.blender.export_body import exportBodyScene
 from animate.scenes.blender.flyby_scene import renderPlanetFlyby
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
@@ -178,12 +178,12 @@ def buildParser() -> argparse.ArgumentParser:
 
     blenderParser = subparsers.add_parser(
         'blender',
-        help='Export Sol planet catalog state or render Blender planet flybys',
+        help='Export Sol planet/moon catalog state or render Blender close-up flybys',
     )
     blenderParser.add_argument(
         '--body',
         default='Earth',
-        help='PlanetCatalog name to export / flyby (default: Earth)',
+        help='PlanetCatalog or MoonCatalog name to export / flyby (default: Earth)',
     )
     blenderParser.add_argument(
         '--frames',
@@ -325,7 +325,7 @@ def main(argv: list[str] | None = None) -> None:
                 print(f'Flyby ready → {gifPath}')
             return
 
-        scenePath = exportPlanetBodyScene(
+        scenePath = exportBodyScene(
             args.body,
             frameCount=args.frames,
             outputDirectory=args.output_dir,
