@@ -242,6 +242,8 @@ After install, commits are gated by:
 - **pre-commit** — Ruff format + lint on `animate/`, `static/`, `solsys/`, `render.py`
 - **commit-msg** — enforces the commit message rules below
 
+CI mirrors the Ruff gate on push/PR to `main` via the `✨ Ruff` workflow (`.github/workflows/ruff.yml`), alongside `🪐 Tests` and `🛡️ CodeQL`.
+
 ### Commit message rules
 
 First line must match:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 from solsys.physics.astronomical_constants import AstronomicalConstants
 
@@ -19,14 +18,12 @@ class PlanetOrbit:
     orbitalPeriodDays: float
 
 
-
-
 class PlanetCatalog:
     def __init__(self, constants: AstronomicalConstants):
         self.constants = constants
-        self.planets: Dict[str, PlanetOrbit] = self._buildCatalog()
+        self.planets: dict[str, PlanetOrbit] = self._buildCatalog()
 
-    def _buildCatalog(self) -> Dict[str, PlanetOrbit]:
+    def _buildCatalog(self) -> dict[str, PlanetOrbit]:
         constants = self.constants
         return {
             'Mercury': PlanetOrbit('Mercury', 0.387, 0.205, 7.0, 'gray', 4879, 88),
@@ -47,5 +44,3 @@ class PlanetCatalog:
                 90560,
             ),
         }
-
-
