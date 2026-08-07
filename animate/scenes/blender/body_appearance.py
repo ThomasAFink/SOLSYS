@@ -36,6 +36,26 @@ class BodyTextureMaps:
 
 
 @dataclass(frozen=True)
+class BodyAtmosphere:
+    """Optional limb-haze shell (planets/moons with air; off for asteroids)."""
+
+    enabled: bool = False
+    scale: float = 1.04
+    colorRgba: tuple[float, float, float, float] = (0.45, 0.72, 1.0, 1.0)
+    strength: float = 1.1
+    fresnelBlend: float = 0.18
+
+    def toJobDict(self) -> dict:
+        return {
+            'enabled': self.enabled,
+            'scale': self.scale,
+            'colorRgba': list(self.colorRgba),
+            'strength': self.strength,
+            'fresnelBlend': self.fresnelBlend,
+        }
+
+
+@dataclass(frozen=True)
 class BodyAppearance:
     """Visual pack for one body id, linked to one or more catalog names."""
 
@@ -45,16 +65,20 @@ class BodyAppearance:
     textures: BodyTextureMaps
     roughness: float = 0.55
     specular: float = 0.25
+    atmosphere: BodyAtmosphere = BodyAtmosphere()
 
     def toJobDict(self) -> dict:
         maps = {key: str(path) for key, path in self.textures.existingMaps().items()}
-        return {
+        payload = {
             'bodyId': self.bodyId,
             'kind': self.kind,
             'textures': maps,
             'roughness': self.roughness,
             'specular': self.specular,
         }
+        if self.atmosphere.enabled:
+            payload['atmosphere'] = self.atmosphere.toJobDict()
+        return payload
 
 
 def _packDir(bodyId: str) -> Path:
@@ -89,11 +113,17 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
         # Oceans read a bit glossier once a color map is present.
         roughness=0.48,
         specular=0.35,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.045,
+            colorRgba=(0.45, 0.72, 1.0, 1.0),
+            strength=1.25,
+            fresnelBlend=0.16,
+        ),
     ),
     # Future examples (no files yet → colorRgba fallback until packs exist):
-    # BodyAppearance('moon', 'moon', ('Moon',), _mapsForBodyId('moon'), roughness=0.85, specular=0.05),
-    # BodyAppearance('jupiter', 'planet', ('Jupiter',), _mapsForBodyId('jupiter')),
-    # BodyAppearance('ceres', 'asteroid', ('Ceres',), _mapsForBodyId('ceres'), roughness=0.9, specular=0.05),
+    # BodyAppearance(..., atmosphere=BodyAtmosphere(enabled=True))  # thin-air moons
+    # BodyAppearance('ceres', 'asteroid', ..., atmosphere=BodyAtmosphere(enabled=False))
 )
 
 
@@ -108,6 +138,7 @@ def _catalogIndex() -> dict[str, BodyAppearance]:
             textures=_mapsForBodyId(appearance.bodyId),
             roughness=appearance.roughness,
             specular=appearance.specular,
+            atmosphere=appearance.atmosphere,
         )
         for catalogName in appearance.catalogNames:
             index[catalogName] = resolved
