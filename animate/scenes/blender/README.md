@@ -43,7 +43,7 @@ Outputs:
 - `output/animate/blender/earth_body_scene.json` (catalog export still written)
 - `output/animate/blender/earth_flyby_{light,dark}_job.json` (last close-up jobs)
 
-Earth uses NASA Blue Marble color under `data/textures/bodies/earth/` (see `data/textures/README.md`) plus a shared fresnel **atmosphere** shell from `BodyAtmosphere`. Future Moon / Jupiter / asteroid packs drop into the same folder layout and register in `body_appearance.py` (atmosphere optional per body).
+Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth/` (see `data/textures/README.md`) plus a shared fresnel **atmosphere** shell from `BodyAtmosphere`. Future Moon / Jupiter / asteroid packs drop into the same folder layout and register in `body_appearance.py` (clouds/atmosphere optional per body).
 
 ### Debug ingest (orbit view, not the flyby)
 
