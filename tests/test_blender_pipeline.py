@@ -1,4 +1,4 @@
-"""Unit tests for the Blender close-up pipeline scaffold."""
+"""Unit tests for the Blender close-up / flyby pipeline."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from PIL import Image
+
 from animate.scenes.blender.body_scene import (
     SCHEMA_ID,
     BodyScene,
@@ -16,15 +18,19 @@ from animate.scenes.blender.body_scene import (
     loadBodyScene,
 )
 from animate.scenes.blender.export_body import exportPlanetBodyScene
+from animate.scenes.blender.flyby_camera import buildFlybyCameraPath, flybyCameraLocation
 from animate.scenes.blender.flyby_scene import (
-    FLYBY_EXTENSION_POINT,
+    assembleGifFromPngs,
+    buildFlybyJob,
     preparePlanetFlybyExport,
-    renderPlanetFlyby,
+    writeFlybyJob,
 )
 from animate.scenes.blender.load_body import loadPayload, summarizePayload
+from animate.scenes.blender.render_flyby import JOB_SCHEMA_ID, loadJob
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOAD_BODY_SCRIPT = REPO_ROOT / 'animate' / 'scenes' / 'blender' / 'load_body.py'
+RENDER_FLYBY_SCRIPT = REPO_ROOT / 'animate' / 'scenes' / 'blender' / 'render_flyby.py'
 
 
 class BodySceneBuildTests(unittest.TestCase):
@@ -36,7 +42,6 @@ class BodySceneBuildTests(unittest.TestCase):
         self.assertEqual(len(scene.keyframes), 24)
         self.assertGreater(scene.body.displayRadiusAu, 0.0)
         self.assertGreater(scene.cameraHintDistanceAu, 0.0)
-        # First keyframe should sit near 1 AU for a low-eccentricity Earth orbit.
         radius = sum(component**2 for component in scene.keyframes[0].positionAu) ** 0.5
         self.assertAlmostEqual(radius, 1.0, delta=0.05)
 
@@ -79,20 +84,60 @@ class ExportAndLoadTests(unittest.TestCase):
             self.assertIn('dry-run', completed.stdout.lower())
 
 
-class FlybyExtensionTests(unittest.TestCase):
+class FlybyPipelineTests(unittest.TestCase):
     def test_prepare_export(self) -> None:
         with tempfile.TemporaryDirectory() as temporaryDirectory:
             path = preparePlanetFlybyExport('Mars', frameCount=6, outputDirectory=temporaryDirectory)
             self.assertTrue(path.is_file())
             self.assertEqual(path.name, 'mars_body_scene.json')
 
-    def test_render_flyby_is_extension_point(self) -> None:
+    def test_camera_path_moves_around_body(self) -> None:
+        path = buildFlybyCameraPath(0.03, frameCount=12)
+        self.assertEqual(len(path), 12)
+        first = path[0].cameraAu
+        last = path[-1].cameraAu
+        self.assertNotAlmostEqual(first[0], last[0], places=4)
+        self.assertGreater(path[-1].bodyRotationDeg, path[0].bodyRotationDeg)
+        distance = sum(component**2 for component in flybyCameraLocation(0, 12, 0.03)) ** 0.5
+        self.assertAlmostEqual(distance, 0.03 * 4.4, delta=1e-9)
+
+    def test_build_and_validate_flyby_job(self) -> None:
         with tempfile.TemporaryDirectory() as temporaryDirectory:
-            with self.assertRaises(NotImplementedError) as context:
-                renderPlanetFlyby('Earth', outputDirectory=temporaryDirectory)
-            message = str(context.exception)
-            self.assertIn(FLYBY_EXTENSION_POINT, message)
-            self.assertIn('earth_body_scene.json', message)
+            framesDirectory = Path(temporaryDirectory) / 'frames'
+            job = buildFlybyJob(
+                'Earth',
+                theme='dark',
+                frameCount=8,
+                framesDirectory=framesDirectory,
+            )
+            self.assertEqual(job['schema'], JOB_SCHEMA_ID)
+            self.assertEqual(job['theme'], 'dark')
+            self.assertEqual(len(job['frames']), 8)
+            jobPath = writeFlybyJob(job, Path(temporaryDirectory) / 'earth_flyby_dark_job.json')
+            loaded = loadJob(jobPath)
+            self.assertEqual(loaded['body']['name'], 'Earth')
+
+            completed = subprocess.run(
+                [sys.executable, str(RENDER_FLYBY_SCRIPT), str(jobPath)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn('dry-run', completed.stdout.lower())
+
+    def test_assemble_gif_from_pngs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporaryDirectory:
+            root = Path(temporaryDirectory)
+            framePaths: list[Path] = []
+            for index in range(3):
+                path = root / f'frame_{index:04d}.png'
+                Image.new('RGB', (32, 32), color=(index * 40, 80, 160)).save(path)
+                framePaths.append(path)
+            gifPath = assembleGifFromPngs(framePaths, root / 'earth_flyby_dark.gif', fps=10)
+            self.assertTrue(gifPath.is_file())
+            with Image.open(gifPath) as gif:
+                self.assertEqual(gif.n_frames, 3)
 
 
 if __name__ == '__main__':
