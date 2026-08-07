@@ -135,12 +135,19 @@ def applyPayloadInBlender(payload: dict[str, Any]) -> str:
     return f'Blender scene built for {name} ({len(keyframes)} location keyframes)'
 
 
+def _saveBlendBesideJson(bpy: Any, jsonPath: Path) -> Path:
+    blendPath = jsonPath.with_suffix('.blend').resolve()
+    blendPath.parent.mkdir(parents=True, exist_ok=True)
+    bpy.ops.wm.save_as_mainfile(filepath=str(blendPath))
+    return blendPath
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _argvAfterDoubleDash(list(argv if argv is not None else sys.argv))
     if not args:
         print(
             'Usage: load_body.py <body_scene.json>\n'
-            '   or: blender --background --python load_body.py -- <body_scene.json>',
+            '   or: blender --python load_body.py -- <body_scene.json>',
             file=sys.stderr,
         )
         return 2
@@ -151,15 +158,23 @@ def main(argv: list[str] | None = None) -> int:
     print(summary)
 
     try:
-        import bpy  # type: ignore[import-not-found]  # noqa: F401
+        import bpy  # type: ignore[import-not-found]
     except ImportError:
         print('bpy not available — dry-run validation only (export JSON is ready for Blender).')
         return 0
 
     message = applyPayloadInBlender(payload)
     print(message)
+    blendPath = _saveBlendBesideJson(bpy, path)
+    print(f'Saved {blendPath}')
+    print('Leave this Blender window open — select Earth, View → Frame Selected, scrub timeline.')
     return 0
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    exitCode = main()
+    # SystemExit terminates the Blender GUI process. Only exit for host dry-runs.
+    try:
+        import bpy  # type: ignore[import-not-found]  # noqa: F401
+    except ImportError:
+        raise SystemExit(exitCode) from None
