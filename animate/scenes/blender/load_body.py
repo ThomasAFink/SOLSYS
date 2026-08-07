@@ -4,12 +4,13 @@ Runs two ways:
 
 1. Host dry-run (no bpy)::
 
-       python animate/scenes/blender/load_body.py output/animate/blender/earth_body_scene.json
+       python animate/scenes/blender/load_body.py \\
+           output/animate/blender/planets/earth/earth_body_scene.json
 
 2. Inside Blender::
 
        blender --background --python animate/scenes/blender/load_body.py -- \\
-           output/animate/blender/earth_body_scene.json
+           output/animate/blender/planets/earth/earth_body_scene.json
 
 Keep this module stdlib-only so Blender's bundled Python can import it.
 """

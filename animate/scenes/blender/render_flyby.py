@@ -4,7 +4,7 @@ Host writes a flyby-job JSON; this script (stdlib + bpy) builds a body-centered
 close-up and writes PNG frames::
 
     blender --background --python animate/scenes/blender/render_flyby.py -- \\
-        output/animate/blender/earth_flyby_dark_job.json
+        output/animate/blender/planets/earth/earth_flyby_dark_job.json
 """
 
 from __future__ import annotations
