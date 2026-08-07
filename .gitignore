@@ -2,3 +2,4 @@ __pycache__/
 .matplotlib/
 .venv/
 .DS_Store
+*.blend1

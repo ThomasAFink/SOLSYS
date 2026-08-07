@@ -14,6 +14,7 @@ from animate.scenes.blender.export_body import DEFAULT_OUTPUT_DIRECTORY, exportP
 from animate.scenes.blender.flyby_scene import (
     FLYBY_EXTENSION_POINT,
     preparePlanetFlybyExport,
+    renderPlanetFlyby,
 )
 
 __all__ = [
@@ -27,4 +28,5 @@ __all__ = [
     'exportPlanetBodyScene',
     'loadBodyScene',
     'preparePlanetFlybyExport',
+    'renderPlanetFlyby',
 ]
