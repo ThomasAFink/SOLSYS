@@ -9,8 +9,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from PIL import Image
-
+from animate.scenes.blender.body_appearance import (
+    TEXTURE_BODIES_ROOT,
+    appearanceForCatalogName,
+    registeredCatalogNames,
+)
 from animate.scenes.blender.body_scene import (
     SCHEMA_ID,
     BodyScene,
@@ -27,6 +30,7 @@ from animate.scenes.blender.flyby_scene import (
 )
 from animate.scenes.blender.load_body import loadPayload, summarizePayload
 from animate.scenes.blender.render_flyby import JOB_SCHEMA_ID, loadJob
+from PIL import Image
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOAD_BODY_SCRIPT = REPO_ROOT / 'animate' / 'scenes' / 'blender' / 'load_body.py'
@@ -84,10 +88,30 @@ class ExportAndLoadTests(unittest.TestCase):
             self.assertIn('dry-run', completed.stdout.lower())
 
 
+class BodyAppearanceTests(unittest.TestCase):
+    def test_earth_pack_resolves_color_map(self) -> None:
+        appearance = appearanceForCatalogName('Earth')
+        self.assertIsNotNone(appearance)
+        assert appearance is not None
+        self.assertEqual(appearance.bodyId, 'earth')
+        self.assertEqual(appearance.kind, 'planet')
+        maps = appearance.textures.existingMaps()
+        self.assertIn('color', maps)
+        self.assertTrue(maps['color'].is_file())
+        self.assertTrue(str(maps['color']).endswith('earth/color.png'))
+        self.assertIn('Earth', registeredCatalogNames())
+        self.assertTrue((TEXTURE_BODIES_ROOT / 'earth' / 'color.png').is_file())
+
+    def test_unknown_catalog_name_has_no_pack(self) -> None:
+        self.assertIsNone(appearanceForCatalogName('Nibiru'))
+
+
 class FlybyPipelineTests(unittest.TestCase):
     def test_prepare_export(self) -> None:
         with tempfile.TemporaryDirectory() as temporaryDirectory:
-            path = preparePlanetFlybyExport('Mars', frameCount=6, outputDirectory=temporaryDirectory)
+            path = preparePlanetFlybyExport(
+                'Mars', frameCount=6, outputDirectory=temporaryDirectory
+            )
             self.assertTrue(path.is_file())
             self.assertEqual(path.name, 'mars_body_scene.json')
 
@@ -113,6 +137,9 @@ class FlybyPipelineTests(unittest.TestCase):
             self.assertEqual(job['schema'], JOB_SCHEMA_ID)
             self.assertEqual(job['theme'], 'dark')
             self.assertEqual(len(job['frames']), 8)
+            self.assertIn('appearance', job)
+            self.assertEqual(job['appearance']['bodyId'], 'earth')
+            self.assertIn('color', job['appearance']['textures'])
             jobPath = writeFlybyJob(job, Path(temporaryDirectory) / 'earth_flyby_dark_job.json')
             loaded = loadJob(jobPath)
             self.assertEqual(loaded['body']['name'], 'Earth')
