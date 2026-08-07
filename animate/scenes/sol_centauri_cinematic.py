@@ -27,6 +27,7 @@ from solsys.physics.catalogs.system_catalog import (
 )
 
 from animate.animation_styles import ASTEROID_RENDER_STYLES
+from animate.blender_body_sprites import BlenderBodySpriteAtlas
 from animate.scenes.exoplanet_system import bodyPositionInOrbitalPlane, orbitPathInOrbitalPlane
 
 DEFAULT_FIGURE_SIZE_INCHES = (12.0, 12.0)
@@ -392,6 +393,8 @@ class SolCentauriCinematicAnimator:
         figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
         dpi: int = DEFAULT_DPI,
         starsCsvPath: str = 'data/nearby_stars_30.csv',
+        *,
+        useBlenderBodies: bool = False,
     ):
         if system.systemId != 'alpha_centauri':
             raise ValueError(f'Expected alpha_centauri, got {system.systemId!r}')
@@ -400,6 +403,7 @@ class SolCentauriCinematicAnimator:
         self.figureSizeInches = figureSizeInches
         self.dpi = dpi
         self.animationFrames = ANIMATION_FRAMES
+        self.useBlenderBodies = useBlenderBodies
         self.constants = AstronomicalConstants()
         self.orbitCalculator = OrbitCalculator()
         self.planetCatalog = PlanetCatalog(self.constants)
@@ -474,6 +478,15 @@ class SolCentauriCinematicAnimator:
         self._viewHalfWidthAu = self.solEarthHalfWidthAu
         self.figure = plt.figure(figsize=figureSizeInches, dpi=dpi, layout='none')
         self.axes = self.figure.add_axes((0.0, 0.0, 1.0, 1.0), projection='3d')
+        self.blenderSprites: BlenderBodySpriteAtlas | None = None
+        if self.useBlenderBodies:
+            themeName = 'dark' if self.isDark else 'light'
+            self.blenderSprites = BlenderBodySpriteAtlas(themeName)
+            print(
+                'Blender body sprites: '
+                f'Earth={"on" if self.blenderSprites.hasEarth else "missing"} '
+                f'Moon={"on" if self.blenderSprites.hasMoon else "missing"}'
+            )
 
     def _requireOrbit(self, role: str) -> StellarOrbit:
         for orbit in self.system.stellarOrbits:
@@ -930,15 +943,27 @@ class SolCentauriCinematicAnimator:
             return
         earthOpen = halfWidthAu <= SOL_EARTH_HALF_AU * 1.5
         plutoOuter = name == 'Pluto' and halfWidthAu >= 20.0
-        self.axes.scatter(
-            [position[0]],
-            [position[1]],
-            [position[2]],
-            color=planet.color,
-            s=self._solPlanetMarkerSize(name, halfWidthAu),
-            depthshade=True,
-            zorder=6 if plutoOuter else 5,
-        )
+        drewBlenderEarth = False
+        if name == 'Earth' and self.useBlenderBodies and self.blenderSprites is not None:
+            sprite = self.blenderSprites.earthFrame(frame)
+            if sprite is not None:
+                drewBlenderEarth = self._drawBlenderBodyBillboard(
+                    position,
+                    sprite,
+                    halfWidthAu=halfWidthAu,
+                    openCloseup=earthOpen,
+                    bodyScale=1.0,
+                )
+        if not drewBlenderEarth:
+            self.axes.scatter(
+                [position[0]],
+                [position[1]],
+                [position[2]],
+                color=planet.color,
+                s=self._solPlanetMarkerSize(name, halfWidthAu),
+                depthshade=True,
+                zorder=6 if plutoOuter else 5,
+            )
         if name in LABELED_SOL_PLANETS or (
             halfWidthAu < SOL_INNER_HALF_AU and name in ('Mercury', 'Venus', 'Mars')
         ):
@@ -990,17 +1015,29 @@ class SolCentauriCinematicAnimator:
             moonScale,
         )
         moonPosition = np.array([float(moonX), float(moonY), float(moonZ)], dtype=float)
-        self.axes.scatter(
-            [moonPosition[0]],
-            [moonPosition[1]],
-            [moonPosition[2]],
-            color=moon.color,
-            s=self.moonCatalog.markerSize3d(
-                moon, 600 if moonOpen else (900 if moon.name == 'Moon' else 1400)
-            ),
-            depthshade=True,
-            zorder=6,
-        )
+        drewBlenderMoon = False
+        if moon.name == 'Moon' and self.useBlenderBodies and self.blenderSprites is not None:
+            sprite = self.blenderSprites.moonFrame(frame)
+            if sprite is not None:
+                drewBlenderMoon = self._drawBlenderBodyBillboard(
+                    moonPosition,
+                    sprite,
+                    halfWidthAu=halfWidthAu,
+                    openCloseup=moonOpen,
+                    bodyScale=0.35,
+                )
+        if not drewBlenderMoon:
+            self.axes.scatter(
+                [moonPosition[0]],
+                [moonPosition[1]],
+                [moonPosition[2]],
+                color=moon.color,
+                s=self.moonCatalog.markerSize3d(
+                    moon, 600 if moonOpen else (900 if moon.name == 'Moon' else 1400)
+                ),
+                depthshade=True,
+                zorder=6,
+            )
         if moon.name == 'Moon' or halfWidthAu < 4.0:
             self._label3d(
                 moonPosition,
@@ -1008,6 +1045,86 @@ class SolCentauriCinematicAnimator:
                 color=self.labelColor,
                 fontsize=11 if moonOpen else (9 if moon.name == 'Moon' else 7),
             )
+
+    def _blenderBillboardRadiusAu(
+        self,
+        halfWidthAu: float,
+        *,
+        openCloseup: bool,
+        bodyScale: float,
+    ) -> float | None:
+        """World-space radius for a readable sprite; None → keep the scatter dot."""
+        if openCloseup:
+            return halfWidthAu * 0.46 * bodyScale
+        # Still show a textured speck while Sol is in-frame; beyond that, dots only.
+        if halfWidthAu > 80.0:
+            return None
+        return max(halfWidthAu * 0.018 * bodyScale, 0.0015 * bodyScale)
+
+    def _drawBlenderBodyBillboard(
+        self,
+        center: np.ndarray,
+        rgba: np.ndarray,
+        *,
+        halfWidthAu: float,
+        openCloseup: bool,
+        bodyScale: float,
+    ) -> bool:
+        """Camera-facing textured quad from a Blender sprite (drawn during update)."""
+        radiusAu = self._blenderBillboardRadiusAu(
+            halfWidthAu, openCloseup=openCloseup, bodyScale=bodyScale
+        )
+        if radiusAu is None:
+            return False
+
+        elev = np.deg2rad(float(getattr(self.axes, 'elev', SOL_ELEVATION_DEG)))
+        azim = np.deg2rad(float(getattr(self.axes, 'azim', self.solAzimuthDeg)))
+        right = np.array([-np.sin(azim), np.cos(azim), 0.0], dtype=float)
+        rightNorm = float(np.linalg.norm(right))
+        if rightNorm < 1e-9:
+            right = np.array([1.0, 0.0, 0.0], dtype=float)
+        else:
+            right /= rightNorm
+        up = np.array(
+            [
+                -np.sin(elev) * np.cos(azim),
+                -np.sin(elev) * np.sin(azim),
+                np.cos(elev),
+            ],
+            dtype=float,
+        )
+        upNorm = float(np.linalg.norm(up))
+        if upNorm < 1e-9:
+            up = np.array([0.0, 0.0, 1.0], dtype=float)
+        else:
+            up /= upNorm
+
+        # Keep surfaces cheap — N×N facecolors on an (N+1) grid.
+        sprite = rgba
+        maxSamples = 48 if openCloseup else 24
+        if sprite.shape[0] > maxSamples:
+            indices = np.linspace(0, sprite.shape[0] - 1, maxSamples).astype(int)
+            sprite = sprite[np.ix_(indices, indices)]
+        samples = sprite.shape[0]
+        grid = np.linspace(-1.0, 1.0, samples + 1)
+        uu, vv = np.meshgrid(grid, grid)
+        center = np.asarray(center, dtype=float)
+        xs = center[0] + radiusAu * (uu * right[0] + vv * up[0])
+        ys = center[1] + radiusAu * (uu * right[1] + vv * up[1])
+        zs = center[2] + radiusAu * (uu * right[2] + vv * up[2])
+        self.axes.plot_surface(
+            xs,
+            ys,
+            zs,
+            rstride=1,
+            cstride=1,
+            facecolors=sprite,
+            linewidth=0,
+            antialiased=False,
+            shade=False,
+            zorder=7,
+        )
+        return True
 
     def _drawSolAsteroidPopulations(self, frame: int, halfWidthAu: float) -> None:
         """Asteroid belt, Hildas, Trojans/Greeks, Kuiper, and Oort — same families as sol 3D."""
@@ -1679,11 +1796,14 @@ def renderSolCentauriCinematicAnimations(
     figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
     dpi: int = DEFAULT_DPI,
     starsCsvPath: str = 'data/nearby_stars_30.csv',
+    *,
+    useBlenderBodies: bool = False,
 ) -> None:
     catalog = SystemCatalog(starsCsvPath=starsCsvPath)
     system = catalog.load('alpha_centauri')
+    stem = 'sol_centauri_cinematic_blender' if useBlenderBodies else 'sol_centauri_cinematic'
     for themeName, styleName in (('light', 'default'), ('dark', 'dark_background')):
-        outputPath = f'{OUTPUT_DIRECTORY}/sol_centauri_cinematic_{themeName}.gif'
+        outputPath = f'{OUTPUT_DIRECTORY}/{stem}_{themeName}.gif'
         print(f'Rendering {outputPath}...')
         animator = SolCentauriCinematicAnimator(
             system,
@@ -1691,6 +1811,7 @@ def renderSolCentauriCinematicAnimations(
             figureSizeInches=figureSizeInches,
             dpi=dpi,
             starsCsvPath=starsCsvPath,
+            useBlenderBodies=useBlenderBodies,
         )
         animator.saveGif(outputPath)
     print('Sol ↔ Centauri cinematic animations completed!')
