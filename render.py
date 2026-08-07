@@ -13,6 +13,7 @@ from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
 from animate.scenes.barnards_star import renderBarnardsStarAnimations
 from animate.scenes.blender.export_body import exportPlanetBodyScene
+from animate.scenes.blender.flyby_scene import renderPlanetFlyby
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
 from animate.scenes.tabbys_star import renderTabbysStarAnimations
@@ -177,28 +178,39 @@ def buildParser() -> argparse.ArgumentParser:
 
     blenderParser = subparsers.add_parser(
         'blender',
-        help='Export Sol planet catalog state for Blender close-ups (scaffold for flybys)',
+        help='Export Sol planet catalog state or render Blender planet flybys',
     )
     blenderParser.add_argument(
         '--body',
         default='Earth',
-        help='PlanetCatalog name to export (default: Earth)',
+        help='PlanetCatalog name to export / flyby (default: Earth)',
     )
     blenderParser.add_argument(
         '--frames',
         type=int,
         default=120,
-        help='Number of orbit keyframes to sample (default: 120)',
+        help='Orbit keyframes for export, or flyby frames when --flyby (default: 120 / 72)',
     )
     blenderParser.add_argument(
         '--output-dir',
         default='output/animate/blender',
-        help='Directory for body-scene JSON (default: output/animate/blender)',
+        help='Directory for body-scene JSON / flyby GIFs (default: output/animate/blender)',
     )
     blenderParser.add_argument(
         '--load',
         action='store_true',
         help='After export, run Blender to ingest the JSON (requires blender on PATH)',
+    )
+    blenderParser.add_argument(
+        '--flyby',
+        action='store_true',
+        help='Render polished light/dark flyby GIFs via Blender (requires blender on PATH)',
+    )
+    blenderParser.add_argument(
+        '--theme',
+        choices=('light', 'dark', 'all'),
+        default='all',
+        help='Flyby theme when using --flyby (default: all)',
     )
 
     return parser
@@ -301,6 +313,18 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == 'blender':
+        if args.flyby:
+            flybyFrames = 72 if args.frames == 120 else args.frames
+            gifPaths = renderPlanetFlyby(
+                args.body,
+                theme=args.theme,
+                frameCount=flybyFrames,
+                outputDirectory=args.output_dir,
+            )
+            for gifPath in gifPaths:
+                print(f'Flyby ready → {gifPath}')
+            return
+
         scenePath = exportPlanetBodyScene(
             args.body,
             frameCount=args.frames,
@@ -315,7 +339,8 @@ def main(argv: list[str] | None = None) -> None:
                 f'  {sys.executable} {BLENDER_LOAD_SCRIPT} {scenePath}\n'
                 'or ingest with\n'
                 f'  blender --background --python {BLENDER_LOAD_SCRIPT} -- {scenePath}\n'
-                'Flyby renders: animate.scenes.blender.flyby_scene.renderPlanetFlyby (#12).'
+                'or render flybys with\n'
+                f'  {sys.executable} render.py blender --body {args.body} --flyby'
             )
         return
 

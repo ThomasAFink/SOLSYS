@@ -66,7 +66,9 @@ SOLSYS/
 │           ├── body_scene.py                      # Versioned body-scene schema + PlanetCatalog build
 │           ├── export_body.py                     # Write output/animate/blender/*_body_scene.json
 │           ├── load_body.py                       # Blender ingest (stdlib + optional bpy)
-│           └── flyby_scene.py                     # Extension point for first flyby (#12)
+│           ├── flyby_camera.py                    # Body-centered flyby camera path
+│           ├── flyby_scene.py                     # Host flyby orchestration + GIF assembly (#12)
+│           └── render_flyby.py                    # Blender EEVEE PNG flyby renderer
 │
 ├── static/                                        # SIDE PRODUCT — still images
 │   ├── __init__.py
@@ -110,7 +112,7 @@ SOLSYS/
 │   ├── trappist_1/                            # trappist_1_planets_{light,dark}.gif
 │   ├── tabbys_star/                           # tabbys_star_dust_{light,dark}.gif
 │   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
-│   └── blender/                               # *_body_scene.json (Blender ingest; flybys #12)
+│   └── blender/                               # body JSON + earth_flyby_{light,dark}.gif
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
@@ -152,6 +154,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Sol Centauri light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/sol_centauri_cinematic_light.gif?raw=true) | ![Sol Centauri dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/sol_centauri_cinematic_dark.gif?raw=true) |
+
+**Earth Blender flyby**
+
+| Light | Dark |
+|-------|------|
+| ![Earth flyby light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/earth_flyby_light.gif?raw=true) | ![Earth flyby dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/earth_flyby_dark.gif?raw=true) |
 
 ### Static zoom views (side)
 
@@ -294,10 +302,11 @@ Or render by product:
 .venv/bin/python render.py static --dimension 2d
 .venv/bin/python render.py neighborhood --ly 10
 .venv/bin/python render.py blender --body Earth
-.venv/bin/python render.py blender --body Earth --load   # optional; needs blender on PATH
+.venv/bin/python render.py blender --body Earth --load    # optional debug ingest
+.venv/bin/python render.py blender --body Earth --flyby   # light/dark flyby GIFs
 ```
 
-Blender close-ups (issue #11 scaffold): `render.py blender` exports Keplerian keyframes for one `PlanetCatalog` body to `output/animate/blender/<body>_body_scene.json`. Ingest with `animate/scenes/blender/load_body.py` (host dry-run or `blender --python …`). Polished light/dark flybys land in issue #12 via `flyby_scene.renderPlanetFlyby`.
+Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered Earth (or other `PlanetCatalog` body) light/dark flyby via EEVEE (`#12`) to `output/animate/blender/<body>_flyby_{light,dark}.gif`.
 
 Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animations render to `output/animate/alpha_centauri/`:
 
@@ -308,6 +317,10 @@ Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animati
 Sol → Alpha Centauri cinematic (issue #10) flies from our solar system to the A–B close-up, zooms back out, then finishes on Proxima and its planets — all in Sol XYZ via `SolCentauriFrameTransform`. Animations render to `output/animate/sol_centauri/`:
 
 - `sol_centauri_cinematic_{light,dark}.gif` — Sol → AB → wide → Proxima planets
+
+Earth Blender flyby (issue #12) is a body-centered EEVEE close-up of `PlanetCatalog` Earth (light/dark). Render with `render.py blender --body Earth --flyby` to `output/animate/blender/`:
+
+- `earth_flyby_{light,dark}.gif` — shaded sphere, camera arc + spin
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 
@@ -342,4 +355,4 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 ## Roadmap
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
-- First Blender planet flyby (#12) on top of the `animate/scenes/blender/` catalog → JSON → bpy scaffold (#11)
+- More Blender close-ups (moons, textures, additional planets) on the `animate/scenes/blender/` flyby pipeline
