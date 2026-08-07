@@ -67,7 +67,7 @@ SOLSYS/
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
 │           ├── body_scene.py                      # Versioned body-scene schema + PlanetCatalog build
-│           ├── export_body.py                     # Write output/animate/blender/*_body_scene.json
+│           ├── export_body.py                     # Write blender/{planets,moons}/<body>/*.json
 │           ├── load_body.py                       # Blender ingest (stdlib + optional bpy)
 │           ├── body_appearance.py                 # Shared texture packs (planets/moons/asteroids)
 │           ├── flyby_camera.py                    # Body-centered close-up camera path
@@ -116,7 +116,7 @@ SOLSYS/
 │   ├── trappist_1/                            # trappist_1_planets_{light,dark}.gif
 │   ├── tabbys_star/                           # tabbys_star_dust_{light,dark}.gif
 │   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
-│   └── blender/                               # body JSON + earth_flyby_{light,dark}.gif
+│   └── blender/{planets,moons}/<body>/        # body JSON + *_flyby_{light,dark}.gif
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
@@ -163,13 +163,13 @@ solsys.motion    → moving asteroid fields for animation frames
 
 | Light | Dark |
 |-------|------|
-| ![Earth close-up light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/earth_flyby_light.gif?raw=true) | ![Earth close-up dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/earth_flyby_dark.gif?raw=true) |
+| ![Earth close-up light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/earth/earth_flyby_light.gif?raw=true) | ![Earth close-up dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/earth/earth_flyby_dark.gif?raw=true) |
 
 **Moon Blender close-up**
 
 | Light | Dark |
 |-------|------|
-| ![Moon close-up light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moon_flyby_light.gif?raw=true) | ![Moon close-up dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moon_flyby_dark.gif?raw=true) |
+| ![Moon close-up light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/moon/moon_flyby_light.gif?raw=true) | ![Moon close-up dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/moon/moon_flyby_dark.gif?raw=true) |
 
 ### Static zoom views (side)
 
@@ -319,7 +319,7 @@ Or render by product:
 .venv/bin/python render.py blender --body Earth --flyby   # light/dark close-up GIFs
 ```
 
-Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`) to `output/animate/blender/<body>_flyby_{light,dark}.gif`. Earth and Moon packs live under `data/textures/bodies/`; other moons/asteroids/planets can share the same layout.
+Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`) to `output/animate/blender/{planets,moons}/<body>/` (`*_flyby_{light,dark}.gif`). Texture packs live under `data/textures/bodies/`.
 
 Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animations render to `output/animate/alpha_centauri/`:
 
@@ -331,11 +331,11 @@ Sol → Alpha Centauri cinematic (issue #10) flies from our solar system to the 
 
 - `sol_centauri_cinematic_{light,dark}.gif` — Sol → AB → wide → Proxima planets
 
-Earth Blender close-up (issues #12 / #36) is a body-centered EEVEE view of Earth with NASA Blue Marble texture (light/dark). Render with `render.py blender --body Earth --flyby` to `output/animate/blender/`:
+Earth Blender close-up (issues #12 / #36) is a body-centered EEVEE view of Earth with NASA Blue Marble texture (light/dark). Render with `render.py blender --body Earth --flyby` to `output/animate/blender/planets/earth/`:
 
 - `earth_flyby_{light,dark}.gif` — textured sphere, clouds, thin atmosphere limb, elevated turntable camera + spin
 
-Moon Blender close-up (issue #41) uses the shared pack path with an LRO LROC color map (airless — no atmosphere/clouds):
+Moon Blender close-up (issue #41) uses the shared pack path with an LRO LROC color map (airless — no atmosphere/clouds) under `output/animate/blender/moons/moon/`:
 
 - `moon_flyby_{light,dark}.gif` — textured lunar sphere, elevated turntable camera + spin
 
