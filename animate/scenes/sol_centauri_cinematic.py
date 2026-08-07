@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
+from mpl_toolkits.mplot3d import proj3d
 from solsys.motion import AnimatedAsteroidPopulation, AsteroidPopulationCounts
 from solsys.motion.mean_anomaly import planetMeanAnomalyRad
 from solsys.physics import (
@@ -478,12 +479,19 @@ class SolCentauriCinematicAnimator:
         self._viewHalfWidthAu = self.solEarthHalfWidthAu
         self.figure = plt.figure(figsize=figureSizeInches, dpi=dpi, layout='none')
         self.axes = self.figure.add_axes((0.0, 0.0, 1.0, 1.0), projection='3d')
+        # 2D overlay for crisp texture-pack globes (drawn after the 3D camera is set).
+        self.bodyOverlay = self.figure.add_axes((0.0, 0.0, 1.0, 1.0), facecolor='none', zorder=20)
+        self.bodyOverlay.set_axis_off()
+        self.bodyOverlay.patch.set_alpha(0.0)
+        self.bodyOverlay.set_xlim(0.0, 1.0)
+        self.bodyOverlay.set_ylim(0.0, 1.0)
+        self._pendingBlenderBodies: list[tuple[str, np.ndarray, int, float, bool, float]] = []
         self.blenderSprites: BlenderBodySpriteAtlas | None = None
         if self.useBlenderBodies:
             themeName = 'dark' if self.isDark else 'light'
             self.blenderSprites = BlenderBodySpriteAtlas(themeName)
             print(
-                'Blender body sprites: '
+                'Blender body textures: '
                 f'Earth={"on" if self.blenderSprites.hasEarth else "missing"} '
                 f'Moon={"on" if self.blenderSprites.hasMoon else "missing"}'
             )
@@ -759,6 +767,12 @@ class SolCentauriCinematicAnimator:
 
     def update(self, frame: int):
         self.axes.clear()
+        self.bodyOverlay.clear()
+        self.bodyOverlay.set_axis_off()
+        self.bodyOverlay.patch.set_alpha(0.0)
+        self.bodyOverlay.set_xlim(0.0, 1.0)
+        self.bodyOverlay.set_ylim(0.0, 1.0)
+        self._pendingBlenderBodies = []
         for textArtist in list(self.figure.texts):
             textArtist.remove()
         focus, halfWidthAu = self._cameraState(frame)
@@ -774,6 +788,8 @@ class SolCentauriCinematicAnimator:
         self._drawAlphaCentauri(frame, halfWidthAu, abProgress, linear)
         self._drawProxima(frame, halfWidthAu, linear)
         self._applyAxes(focus, halfWidthAu, abProgress, proximaProgress, linear)
+        # Globes need a finished 3D projection — paint them into this frame now.
+        self._flushBlenderBodyOverlays(halfWidthAu)
         return []
 
     def _inView(self, position: np.ndarray, margin: float = 0.95) -> bool:
@@ -943,18 +959,20 @@ class SolCentauriCinematicAnimator:
             return
         earthOpen = halfWidthAu <= SOL_EARTH_HALF_AU * 1.5
         plutoOuter = name == 'Pluto' and halfWidthAu >= 20.0
-        drewBlenderEarth = False
-        if name == 'Earth' and self.useBlenderBodies and self.blenderSprites is not None:
-            sprite = self.blenderSprites.earthFrame(frame)
-            if sprite is not None:
-                drewBlenderEarth = self._drawBlenderBodyBillboard(
-                    position,
-                    sprite,
-                    halfWidthAu=halfWidthAu,
-                    openCloseup=earthOpen,
-                    bodyScale=1.0,
-                )
-        if not drewBlenderEarth:
+        queuedBlenderEarth = False
+        if (
+            name == 'Earth'
+            and self.useBlenderBodies
+            and self.blenderSprites is not None
+            and self.blenderSprites.hasEarth
+            and self._blenderBillboardRadiusAu(halfWidthAu, openCloseup=earthOpen, bodyScale=1.0)
+            is not None
+        ):
+            self._pendingBlenderBodies.append(
+                ('Earth', position.copy(), frame, halfWidthAu, earthOpen, 1.0)
+            )
+            queuedBlenderEarth = True
+        if not queuedBlenderEarth:
             self.axes.scatter(
                 [position[0]],
                 [position[1]],
@@ -1015,18 +1033,20 @@ class SolCentauriCinematicAnimator:
             moonScale,
         )
         moonPosition = np.array([float(moonX), float(moonY), float(moonZ)], dtype=float)
-        drewBlenderMoon = False
-        if moon.name == 'Moon' and self.useBlenderBodies and self.blenderSprites is not None:
-            sprite = self.blenderSprites.moonFrame(frame)
-            if sprite is not None:
-                drewBlenderMoon = self._drawBlenderBodyBillboard(
-                    moonPosition,
-                    sprite,
-                    halfWidthAu=halfWidthAu,
-                    openCloseup=moonOpen,
-                    bodyScale=0.35,
-                )
-        if not drewBlenderMoon:
+        queuedBlenderMoon = False
+        if (
+            moon.name == 'Moon'
+            and self.useBlenderBodies
+            and self.blenderSprites is not None
+            and self.blenderSprites.hasMoon
+            and self._blenderBillboardRadiusAu(halfWidthAu, openCloseup=moonOpen, bodyScale=0.35)
+            is not None
+        ):
+            self._pendingBlenderBodies.append(
+                ('Moon', moonPosition.copy(), frame, halfWidthAu, moonOpen, 0.35)
+            )
+            queuedBlenderMoon = True
+        if not queuedBlenderMoon:
             self.axes.scatter(
                 [moonPosition[0]],
                 [moonPosition[1]],
@@ -1053,78 +1073,63 @@ class SolCentauriCinematicAnimator:
         openCloseup: bool,
         bodyScale: float,
     ) -> float | None:
-        """World-space radius for a readable sprite; None → keep the scatter dot."""
+        """World-space radius for a readable globe; None → keep the scatter dot."""
         if openCloseup:
-            return halfWidthAu * 0.46 * bodyScale
-        # Still show a textured speck while Sol is in-frame; beyond that, dots only.
+            return halfWidthAu * 0.20 * bodyScale
+        # Readable while Sol is still in-frame; beyond that, dots only.
         if halfWidthAu > 80.0:
             return None
-        return max(halfWidthAu * 0.018 * bodyScale, 0.0015 * bodyScale)
+        return max(halfWidthAu * 0.014 * bodyScale, 0.0012 * bodyScale)
 
-    def _drawBlenderBodyBillboard(
-        self,
-        center: np.ndarray,
-        rgba: np.ndarray,
-        *,
-        halfWidthAu: float,
-        openCloseup: bool,
-        bodyScale: float,
-    ) -> bool:
-        """Camera-facing textured quad from a Blender sprite (drawn during update)."""
-        radiusAu = self._blenderBillboardRadiusAu(
-            halfWidthAu, openCloseup=openCloseup, bodyScale=bodyScale
-        )
-        if radiusAu is None:
-            return False
-
-        elev = np.deg2rad(float(getattr(self.axes, 'elev', SOL_ELEVATION_DEG)))
-        azim = np.deg2rad(float(getattr(self.axes, 'azim', self.solAzimuthDeg)))
-        right = np.array([-np.sin(azim), np.cos(azim), 0.0], dtype=float)
-        rightNorm = float(np.linalg.norm(right))
-        if rightNorm < 1e-9:
-            right = np.array([1.0, 0.0, 0.0], dtype=float)
-        else:
-            right /= rightNorm
-        up = np.array(
-            [
-                -np.sin(elev) * np.cos(azim),
-                -np.sin(elev) * np.sin(azim),
-                np.cos(elev),
-            ],
-            dtype=float,
-        )
-        upNorm = float(np.linalg.norm(up))
-        if upNorm < 1e-9:
-            up = np.array([0.0, 0.0, 1.0], dtype=float)
-        else:
-            up /= upNorm
-
-        # Keep surfaces cheap — N×N facecolors on an (N+1) grid.
-        sprite = rgba
-        maxSamples = 48 if openCloseup else 24
-        if sprite.shape[0] > maxSamples:
-            indices = np.linspace(0, sprite.shape[0] - 1, maxSamples).astype(int)
-            sprite = sprite[np.ix_(indices, indices)]
-        samples = sprite.shape[0]
-        grid = np.linspace(-1.0, 1.0, samples + 1)
-        uu, vv = np.meshgrid(grid, grid)
-        center = np.asarray(center, dtype=float)
-        xs = center[0] + radiusAu * (uu * right[0] + vv * up[0])
-        ys = center[1] + radiusAu * (uu * right[1] + vv * up[1])
-        zs = center[2] + radiusAu * (uu * right[2] + vv * up[2])
-        self.axes.plot_surface(
-            xs,
-            ys,
-            zs,
-            rstride=1,
-            cstride=1,
-            facecolors=sprite,
-            linewidth=0,
-            antialiased=False,
-            shade=False,
-            zorder=7,
-        )
-        return True
+    def _flushBlenderBodyOverlays(self, halfWidthAu: float) -> None:
+        """Project queued bodies and paint texture-pack globes into this frame."""
+        if not self._pendingBlenderBodies or self.blenderSprites is None:
+            return
+        for (
+            catalogName,
+            center,
+            frame,
+            bodyHalfWidth,
+            openCloseup,
+            bodyScale,
+        ) in self._pendingBlenderBodies:
+            radiusAu = self._blenderBillboardRadiusAu(
+                bodyHalfWidth, openCloseup=openCloseup, bodyScale=bodyScale
+            )
+            if radiusAu is None:
+                continue
+            resolution = 384 if openCloseup else 128
+            if catalogName == 'Earth':
+                disk = self.blenderSprites.earthFrame(frame, resolution=resolution)
+            else:
+                disk = self.blenderSprites.moonFrame(frame, resolution=resolution)
+            if disk is None:
+                continue
+            x2, y2, _ = proj3d.proj_transform(
+                float(center[0]),
+                float(center[1]),
+                float(center[2]),
+                self.axes.get_proj(),
+            )
+            display = self.axes.transData.transform((x2, y2))
+            frac = self.figure.transFigure.inverted().transform(display)
+            # Map world radius → figure fraction (axes fills the figure).
+            fracRadius = float(radiusAu / max(2.0 * halfWidthAu, 1e-9))
+            # PillowWriter quantizes better from 8-bit RGBA than float arrays.
+            diskU8 = (np.clip(disk, 0.0, 1.0) * 255.0).astype(np.uint8)
+            self.bodyOverlay.imshow(
+                diskU8,
+                extent=(
+                    frac[0] - fracRadius,
+                    frac[0] + fracRadius,
+                    frac[1] - fracRadius,
+                    frac[1] + fracRadius,
+                ),
+                origin='upper',
+                interpolation='bilinear',
+                zorder=5,
+                clip_on=False,
+            )
 
     def _drawSolAsteroidPopulations(self, frame: int, halfWidthAu: float) -> None:
         """Asteroid belt, Hildas, Trojans/Greeks, Kuiper, and Oort — same families as sol 3D."""

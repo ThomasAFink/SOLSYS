@@ -136,8 +136,8 @@ def buildParser() -> argparse.ArgumentParser:
         '--blender-bodies',
         action='store_true',
         help=(
-            'For --system sol_centauri: replace Earth/Moon scatter dots with Blender '
-            'flyby sprites drawn during the animation (requires prior flyby GIFs)'
+            'For --system sol_centauri: replace Earth/Moon scatter dots with lit '
+            'globes from Blender texture packs (data/textures/bodies/), drawn each frame'
         ),
     )
 

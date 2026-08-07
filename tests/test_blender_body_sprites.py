@@ -1,4 +1,4 @@
-"""Tests for Blender flyby → cinematic body sprites."""
+"""Tests for Blender texture-pack globes in the Sol→Centauri cinematic."""
 
 from __future__ import annotations
 
@@ -6,60 +6,64 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import numpy as np
 from animate.blender_body_sprites import (
     BlenderBodySpriteAtlas,
-    flybyGifPath,
-    frameToCircularRgba,
-    loadBodySpriteFrames,
+    loadBodyGlobePack,
+    renderGlobeDisk,
 )
+from animate.scenes.blender.body_appearance import appearanceForCatalogName
 from animate.scenes.sol_centauri_cinematic import SolCentauriCinematicAnimator
-from PIL import Image
 from solsys.physics.catalogs.system_catalog import SystemCatalog, defaultDataPaths
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-class SpriteHelperTests(unittest.TestCase):
-    def test_flyby_gif_paths(self) -> None:
-        earth = flybyGifPath('planet', 'Earth', 'dark')
-        moon = flybyGifPath('moon', 'Moon', 'light')
-        self.assertTrue(str(earth).endswith('planets/earth/earth_flyby_dark.gif'))
-        self.assertTrue(str(moon).endswith('moons/moon/moon_flyby_light.gif'))
+class GlobeHelperTests(unittest.TestCase):
+    def test_render_globe_disk_shape_and_edge(self) -> None:
+        color = np.zeros((32, 64, 3), dtype=np.float32)
+        color[:, :, 2] = 0.8
+        disk = renderGlobeDisk(
+            color,
+            spinDeg=0.0,
+            sunDirection=np.array([0.0, 0.0, 1.0], dtype=np.float32),
+            resolution=48,
+        )
+        self.assertEqual(disk.shape, (48, 48, 4))
+        self.assertGreater(float(disk[24, 24, 3]), 0.9)
+        self.assertLess(float(disk[0, 0, 3]), 0.05)
 
-    def test_circular_rgba_shape_and_alpha(self) -> None:
-        image = Image.new('RGB', (64, 64), (20, 80, 180))
-        rgba = frameToCircularRgba(image, size=32)
-        self.assertEqual(rgba.shape, (32, 32, 4))
-        self.assertGreater(float(rgba[16, 16, 3]), 0.9)
-        self.assertLess(float(rgba[0, 0, 3]), 0.05)
-
-    def test_load_missing_returns_none(self) -> None:
+    def test_load_missing_pack_returns_none(self) -> None:
         with mock.patch(
-            'animate.blender_body_sprites.flybyGifPath',
-            return_value=REPO_ROOT / 'does_not_exist.gif',
+            'animate.blender_body_sprites.appearanceForCatalogName',
+            return_value=None,
         ):
-            self.assertIsNone(loadBodySpriteFrames('planet', 'Earth', 'dark'))
+            self.assertIsNone(loadBodyGlobePack('Earth'))
 
 
-class SpriteAtlasIntegrationTests(unittest.TestCase):
-    def test_loads_checked_in_earth_moon_flybys(self) -> None:
-        earthPath = flybyGifPath('planet', 'Earth', 'dark')
-        moonPath = flybyGifPath('moon', 'Moon', 'dark')
-        if not earthPath.is_file() or not moonPath.is_file():
-            self.skipTest('Earth/Moon flyby GIFs not present locally')
+class TexturePackIntegrationTests(unittest.TestCase):
+    def test_loads_earth_moon_texture_packs(self) -> None:
+        earthAppearance = appearanceForCatalogName('Earth')
+        moonAppearance = appearanceForCatalogName('Moon')
+        if earthAppearance is None or moonAppearance is None:
+            self.skipTest('Earth/Moon appearance registry missing')
+        if earthAppearance.textures.color is None or not earthAppearance.textures.color.is_file():
+            self.skipTest('Earth color texture not present')
+        if moonAppearance.textures.color is None or not moonAppearance.textures.color.is_file():
+            self.skipTest('Moon color texture not present')
 
-        atlas = BlenderBodySpriteAtlas('dark', maxFrames=4)
+        atlas = BlenderBodySpriteAtlas('dark')
         self.assertTrue(atlas.hasEarth)
         self.assertTrue(atlas.hasMoon)
-        assert atlas.earth is not None
-        self.assertEqual(len(atlas.earth), 4)
-        frame = atlas.earthFrame(0)
-        assert frame is not None
-        self.assertEqual(frame.shape[-1], 4)
-        self.assertIs(atlas.earthFrame(4), atlas.earthFrame(0))
+        frame0 = atlas.earthFrame(0, resolution=64)
+        frame8 = atlas.earthFrame(8, resolution=64)
+        assert frame0 is not None and frame8 is not None
+        self.assertEqual(frame0.shape, (64, 64, 4))
+        # Slow spin should change the disk without jumping to a different camera.
+        self.assertFalse(np.allclose(frame0, frame8))
 
 
-class BlenderBodyBillboardTests(unittest.TestCase):
+class BlenderBodyOverlayTests(unittest.TestCase):
     def setUp(self) -> None:
         paths = defaultDataPaths(REPO_ROOT)
         self.system = SystemCatalog(**paths).load('alpha_centauri')
@@ -86,7 +90,7 @@ class BlenderBodyBillboardTests(unittest.TestCase):
             starsCsvPath=self.starsCsvPath,
             useBlenderBodies=False,
         )
-        closeHalf = 0.01
+        closeHalf = 0.14
         midHalf = 5.0
         close = animator._blenderBillboardRadiusAu(closeHalf, openCloseup=True, bodyScale=1.0)
         mid = animator._blenderBillboardRadiusAu(midHalf, openCloseup=False, bodyScale=1.0)
@@ -95,13 +99,12 @@ class BlenderBodyBillboardTests(unittest.TestCase):
         self.assertIsNotNone(mid)
         self.assertIsNone(far)
         assert close is not None and mid is not None
-        # Close-up uses a large fraction of the half-width; mid zoom is a speck.
         self.assertGreater(close / closeHalf, mid / midHalf)
 
-    def test_draw_update_with_sprites_when_assets_present(self) -> None:
-        earthPath = flybyGifPath('planet', 'Earth', 'light')
-        if not earthPath.is_file():
-            self.skipTest('Earth flyby GIF not present locally')
+    def test_update_paints_overlay_images_when_textures_present(self) -> None:
+        earth = appearanceForCatalogName('Earth')
+        if earth is None or earth.textures.color is None or not earth.textures.color.is_file():
+            self.skipTest('Earth color texture not present')
 
         animator = SolCentauriCinematicAnimator(
             self.system,
@@ -111,14 +114,12 @@ class BlenderBodyBillboardTests(unittest.TestCase):
         self.assertIsNotNone(animator.blenderSprites)
         assert animator.blenderSprites is not None
         self.assertTrue(animator.blenderSprites.hasEarth)
-        # Opening frame is Earth/Moon close-up — billboards should draw here.
         animator.update(0)
-        surfaces = [
+        images = [
             artist
-            for artist in animator.axes.get_children()
-            if artist.__class__.__name__ == 'Poly3DCollection'
+            for artist in animator.bodyOverlay.get_images()
         ]
-        self.assertGreaterEqual(len(surfaces), 1)
+        self.assertGreaterEqual(len(images), 1)
 
 
 if __name__ == '__main__':
