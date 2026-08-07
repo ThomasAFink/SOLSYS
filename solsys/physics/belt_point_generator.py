@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Tuple
-
 import numpy as np
 
 
@@ -11,7 +9,9 @@ class BeltPointGenerator:
     """Random point clouds for asteroid belts and spherical shells."""
 
     @staticmethod
-    def ring2d(innerRadiusAu: float, outerRadiusAu: float, numPoints: int) -> Tuple[np.ndarray, np.ndarray]:
+    def ring2d(
+        innerRadiusAu: float, outerRadiusAu: float, numPoints: int
+    ) -> tuple[np.ndarray, np.ndarray]:
         radiusAu = np.random.uniform(innerRadiusAu, outerRadiusAu, numPoints)
         azimuthRad = np.random.uniform(0, 2 * np.pi, numPoints)
         return radiusAu * np.cos(azimuthRad), radiusAu * np.sin(azimuthRad)
@@ -22,7 +22,7 @@ class BeltPointGenerator:
         outerRadiusAu: float,
         shellThicknessAu: float,
         numPoints: int,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         azimuthRad = np.random.uniform(0, 2 * np.pi, numPoints)
         cosPolarAngle = np.random.uniform(-1, 1, numPoints)
         radiusAu = np.random.uniform(
@@ -44,7 +44,7 @@ class BeltPointGenerator:
         radialSpreadAu: float,
         angularSpreadRad: float,
         numPoints: int,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         clusterCenterAngle = jupiterAngleRad + lagrangeOffsetRad
         radiusAu = np.random.uniform(
             semiMajorAxisAu - radialSpreadAu,
