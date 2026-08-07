@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 import argparse
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 from typing import Literal
 
 from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
 from animate.scenes.barnards_star import renderBarnardsStarAnimations
+from animate.scenes.blender.export_body import exportPlanetBodyScene
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
 from animate.scenes.tabbys_star import renderTabbysStarAnimations
 from animate.scenes.trappist_1 import renderTrappist1Animations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
+
+BLENDER_LOAD_SCRIPT = Path('animate/scenes/blender/load_body.py')
 
 Dimension = Literal['2d', '3d']
 
@@ -168,7 +175,55 @@ def buildParser() -> argparse.ArgumentParser:
         help='For interstellar scenes: object_id or all (default: all)',
     )
 
+    blenderParser = subparsers.add_parser(
+        'blender',
+        help='Export Sol planet catalog state for Blender close-ups (scaffold for flybys)',
+    )
+    blenderParser.add_argument(
+        '--body',
+        default='Earth',
+        help='PlanetCatalog name to export (default: Earth)',
+    )
+    blenderParser.add_argument(
+        '--frames',
+        type=int,
+        default=120,
+        help='Number of orbit keyframes to sample (default: 120)',
+    )
+    blenderParser.add_argument(
+        '--output-dir',
+        default='output/animate/blender',
+        help='Directory for body-scene JSON (default: output/animate/blender)',
+    )
+    blenderParser.add_argument(
+        '--load',
+        action='store_true',
+        help='After export, run Blender to ingest the JSON (requires blender on PATH)',
+    )
+
     return parser
+
+
+def _runBlenderLoad(scenePath: Path) -> None:
+    blenderExecutable = shutil.which('blender')
+    if blenderExecutable is None:
+        raise SystemExit(
+            'blender not found on PATH. Install Blender or omit --load and run:\n'
+            f'  blender --background --python {BLENDER_LOAD_SCRIPT} -- {scenePath}'
+        )
+    completed = subprocess.run(
+        [
+            blenderExecutable,
+            '--background',
+            '--python',
+            str(BLENDER_LOAD_SCRIPT),
+            '--',
+            str(scenePath),
+        ],
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise SystemExit(f'Blender ingest failed with exit code {completed.returncode}')
 
 
 def _renderAnimations(
@@ -243,6 +298,25 @@ def main(argv: list[str] | None = None) -> None:
             figureSizeInches=NEIGHBORHOOD_FIGURE_SIZE_INCHES,
             dpi=NEIGHBORHOOD_DPI,
         )
+        return
+
+    if args.command == 'blender':
+        scenePath = exportPlanetBodyScene(
+            args.body,
+            frameCount=args.frames,
+            outputDirectory=args.output_dir,
+        )
+        print(f'Exported Blender body scene → {scenePath}')
+        if args.load:
+            _runBlenderLoad(scenePath)
+        else:
+            print(
+                'Next: dry-run validate with\n'
+                f'  {sys.executable} {BLENDER_LOAD_SCRIPT} {scenePath}\n'
+                'or ingest with\n'
+                f'  blender --background --python {BLENDER_LOAD_SCRIPT} -- {scenePath}\n'
+                'Flyby renders: animate.scenes.blender.flyby_scene.renderPlanetFlyby (#12).'
+            )
         return
 
     dimensions = _parseDimensions(args.dimension)
