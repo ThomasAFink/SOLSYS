@@ -326,7 +326,7 @@ Sol → Alpha Centauri cinematic (issue #10) flies from our solar system to the 
 
 Earth Blender close-up (issues #12 / #36) is a body-centered EEVEE view of Earth with NASA Blue Marble texture (light/dark). Render with `render.py blender --body Earth --flyby` to `output/animate/blender/`:
 
-- `earth_flyby_{light,dark}.gif` — textured sphere, elevated turntable camera + spin
+- `earth_flyby_{light,dark}.gif` — textured sphere, thin atmosphere limb, elevated turntable camera + spin
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 

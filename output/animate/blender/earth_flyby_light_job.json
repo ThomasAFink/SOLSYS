@@ -665,7 +665,7 @@
       "bodyRotationDeg": 140.0
     }
   ],
-  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_earth_light_hymgr7ag/frames",
+  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_earth_light_lbwqdax2/frames",
   "resolution": 640,
   "fps": 18,
   "appearance": {
@@ -675,6 +675,18 @@
       "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/earth/color.png"
     },
     "roughness": 0.48,
-    "specular": 0.35
+    "specular": 0.35,
+    "atmosphere": {
+      "enabled": true,
+      "scale": 1.045,
+      "colorRgba": [
+        0.45,
+        0.72,
+        1.0,
+        1.0
+      ],
+      "strength": 1.25,
+      "fresnelBlend": 0.16
+    }
   }
 }

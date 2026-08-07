@@ -25,6 +25,8 @@ Optional maps per body (same filename convention when added):
 
 Host code resolves packs via `animate.scenes.blender.body_appearance` (catalog name → `bodyId` → paths). Bodies without a pack keep the flat catalog `colorRgba` fallback.
 
+Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `BodyAtmosphere` (Earth on; asteroids stay off). Optional `clouds.png` can layer later on the same pack.
+
 ## Earth
 
 - **File:** `bodies/earth/color.png` (2048×1024)

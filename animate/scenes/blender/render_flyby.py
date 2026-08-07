@@ -149,6 +149,98 @@ def _applyBodyMaterial(
             nodeTree.links.new(invert.outputs['Color'], principled.inputs['Roughness'])
 
 
+def _buildAtmosphereMaterial(
+    bpy: Any,
+    name: str,
+    *,
+    color: list[float],
+    strength: float,
+    fresnelBlend: float,
+    theme: str,
+) -> Any:
+    """Fresnel limb haze — shared by any body with atmosphere.enabled."""
+    material = bpy.data.materials.new(name=name)
+    nodeTree = material.node_tree
+    if nodeTree is None:
+        return material
+    nodes = nodeTree.nodes
+    links = nodeTree.links
+    nodes.clear()
+
+    output = nodes.new('ShaderNodeOutputMaterial')
+    output.location = (360, 0)
+    mix = nodes.new('ShaderNodeMixShader')
+    mix.location = (160, 0)
+    transparent = nodes.new('ShaderNodeBsdfTransparent')
+    transparent.location = (-40, 80)
+    emission = nodes.new('ShaderNodeEmission')
+    emission.location = (-40, -80)
+    layerWeight = nodes.new('ShaderNodeLayerWeight')
+    layerWeight.location = (-280, 0)
+    layerWeight.inputs['Blend'].default_value = max(0.01, min(fresnelBlend, 0.95))
+    power = nodes.new('ShaderNodeMath')
+    power.location = (-120, 0)
+    power.operation = 'POWER'
+    power.inputs[1].default_value = 2.4
+
+    emission.inputs['Color'].default_value = (
+        float(color[0]),
+        float(color[1]),
+        float(color[2]),
+        1.0,
+    )
+    themeScale = 1.15 if theme == 'dark' else 0.85
+    emission.inputs['Strength'].default_value = max(0.05, strength * themeScale)
+
+    links.new(layerWeight.outputs['Fresnel'], power.inputs[0])
+    links.new(power.outputs['Value'], mix.inputs['Fac'])
+    links.new(transparent.outputs['BSDF'], mix.inputs[1])
+    links.new(emission.outputs['Emission'], mix.inputs[2])
+    links.new(mix.outputs['Shader'], output.inputs['Surface'])
+
+    # EEVEE transparency (Blender 4.2+ / 5.x).
+    if hasattr(material, 'surface_render_method'):
+        material.surface_render_method = 'BLENDED'
+    elif hasattr(material, 'blend_method'):
+        material.blend_method = 'BLEND'
+    if hasattr(material, 'use_backface_culling'):
+        material.use_backface_culling = True
+    return material
+
+
+def _addAtmosphereShell(
+    bpy: Any,
+    planet: Any,
+    *,
+    radius: float,
+    atmosphere: dict[str, Any],
+    theme: str,
+) -> Any | None:
+    if not atmosphere.get('enabled'):
+        return None
+    scale = float(atmosphere.get('scale', 1.04))
+    color = [float(channel) for channel in atmosphere.get('colorRgba', (0.45, 0.72, 1.0, 1.0))]
+    strength = float(atmosphere.get('strength', 1.0))
+    fresnelBlend = float(atmosphere.get('fresnelBlend', 0.18))
+    shell = _createUvSphere(bpy, f'{planet.name}Atmosphere', radius)
+    shell.scale = (scale, scale, scale)
+    shell.parent = planet
+    material = _buildAtmosphereMaterial(
+        bpy,
+        f'{planet.name}AtmosphereMaterial',
+        color=color,
+        strength=strength,
+        fresnelBlend=fresnelBlend,
+        theme=theme,
+    )
+    if shell.data.materials:
+        shell.data.materials[0] = material
+    else:
+        shell.data.materials.append(material)
+    print(f'Atmosphere shell: scale={scale:.3f} strength={strength:.2f}')
+    return shell
+
+
 def _configureWorld(bpy: Any, theme: str) -> None:
     world = bpy.data.worlds.new('FlybyWorld')
     bpy.context.scene.world = world
@@ -191,22 +283,33 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
     planet = _createUvSphere(bpy, name, radius)
     material = bpy.data.materials.new(name=f'{name}FlybyMaterial')
     appearance = job.get('appearance')
-    if isinstance(appearance, dict) and appearance.get('bodyId'):
+    appearanceDict = appearance if isinstance(appearance, dict) else None
+    if appearanceDict and appearanceDict.get('bodyId'):
         print(
-            f'Appearance: bodyId={appearance.get("bodyId")} '
-            f'textures={sorted((appearance.get("textures") or {}).keys())}'
+            f'Appearance: bodyId={appearanceDict.get("bodyId")} '
+            f'textures={sorted((appearanceDict.get("textures") or {}).keys())} '
+            f'atmosphere={bool((appearanceDict.get("atmosphere") or {}).get("enabled"))}'
         )
     _applyBodyMaterial(
         bpy,
         material,
         color=color,
-        appearance=appearance if isinstance(appearance, dict) else None,
+        appearance=appearanceDict,
         theme=theme,
     )
     if planet.data.materials:
         planet.data.materials[0] = material
     else:
         planet.data.materials.append(material)
+
+    if appearanceDict and isinstance(appearanceDict.get('atmosphere'), dict):
+        _addAtmosphereShell(
+            bpy,
+            planet,
+            radius=radius,
+            atmosphere=appearanceDict['atmosphere'],
+            theme=theme,
+        )
 
     scene = bpy.context.scene
     scene.frame_start = int(frames[0]['frame'])
