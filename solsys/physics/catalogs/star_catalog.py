@@ -24,11 +24,13 @@ class StarCatalog:
         starsFrame['rightAscensionDeg'] = coordinates.apply(lambda pair: pair[0])
         starsFrame['declinationDeg'] = coordinates.apply(lambda pair: pair[1])
         cartesianCoords = starsFrame.apply(
-            lambda row: OrbitCalculator.equatorialToCartesianAu(
-                row['rightAscensionDeg'], row['declinationDeg'], row['distanceAu']
-            )
-            if pd.notna(row['rightAscensionDeg']) and pd.notna(row['declinationDeg'])
-            else (np.nan, np.nan, np.nan),
+            lambda row: (
+                OrbitCalculator.equatorialToCartesianAu(
+                    row['rightAscensionDeg'], row['declinationDeg'], row['distanceAu']
+                )
+                if pd.notna(row['rightAscensionDeg']) and pd.notna(row['declinationDeg'])
+                else (np.nan, np.nan, np.nan)
+            ),
             axis=1,
         )
         starsFrame['positionX'] = cartesianCoords.apply(lambda coord: coord[0])

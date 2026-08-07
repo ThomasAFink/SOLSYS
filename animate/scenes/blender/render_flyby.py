@@ -9,6 +9,7 @@ close-up and writes PNG frames::
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import math
 import sys
@@ -16,6 +17,11 @@ from pathlib import Path
 from typing import Any
 
 JOB_SCHEMA_ID = 'solsys.blender_flyby_job/v1'
+
+
+def _bpyAvailable() -> bool:
+    """True when running inside Blender (avoid unused ``import bpy`` for CodeQL)."""
+    return importlib.util.find_spec('bpy') is not None
 
 
 def _argvAfterDoubleDash(argv: list[str]) -> list[str]:
@@ -220,9 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         f'frames={len(job["frames"])} resolution={job["resolution"]}'
     )
 
-    try:
-        import bpy  # type: ignore[import-not-found]  # noqa: F401
-    except ImportError:
+    if not _bpyAvailable():
         print('bpy not available — dry-run validation only.')
         return 0
 
@@ -233,10 +237,8 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == '__main__':
     exitCode = main()
-    try:
-        import bpy  # type: ignore[import-not-found]  # noqa: F401
-    except ImportError:
-        raise SystemExit(exitCode) from None
+    if not _bpyAvailable():
+        raise SystemExit(exitCode)
     # Background mode exits on its own after the script; GUI should not SystemExit.
     if '--background' in sys.argv or '-b' in sys.argv:
         raise SystemExit(exitCode)
