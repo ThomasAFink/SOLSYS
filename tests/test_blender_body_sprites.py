@@ -84,14 +84,14 @@ class BlenderBodyOverlayTests(unittest.TestCase):
         self.assertFalse(animator.useBlenderBodies)
         self.assertIsNone(animator.blenderSprites)
 
-    def test_billboard_radius_closeup_and_far(self) -> None:
+    def test_billboard_radius_is_world_fixed_then_drops(self) -> None:
         animator = SolCentauriCinematicAnimator(
             self.system,
             starsCsvPath=self.starsCsvPath,
             useBlenderBodies=False,
         )
         closeHalf = 0.14
-        midHalf = 5.0
+        midHalf = 1.5
         close = animator._blenderBillboardRadiusAu(closeHalf, openCloseup=True, bodyScale=1.0)
         mid = animator._blenderBillboardRadiusAu(midHalf, openCloseup=False, bodyScale=1.0)
         far = animator._blenderBillboardRadiusAu(120.0, openCloseup=False, bodyScale=1.0)
@@ -99,7 +99,22 @@ class BlenderBodyOverlayTests(unittest.TestCase):
         self.assertIsNotNone(mid)
         self.assertIsNone(far)
         assert close is not None and mid is not None
+        # World radius stays fixed so zoom-out shrinks the disk on screen.
+        self.assertAlmostEqual(close, mid, places=9)
         self.assertGreater(close / closeHalf, mid / midHalf)
+
+    def test_lunar_motion_slows_during_earth_open_with_blender_bodies(self) -> None:
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=self.starsCsvPath,
+            useBlenderBodies=True,
+        )
+        moon = animator.moonCatalog.moons['Moon']
+        openDays = animator._lunarMotionDays(moon, frame=40, halfWidthAu=0.14)
+        solDays = animator._solMotionDays(40)
+        self.assertLess(openDays, 0.05 * solDays)
+        wideDays = animator._lunarMotionDays(moon, frame=40, halfWidthAu=5.0)
+        self.assertAlmostEqual(wideDays, solDays, places=9)
 
     def test_update_paints_overlay_images_when_textures_present(self) -> None:
         earth = appearanceForCatalogName('Earth')

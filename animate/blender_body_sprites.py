@@ -15,8 +15,9 @@ from PIL import Image
 from animate.scenes.blender.body_appearance import appearanceForCatalogName
 
 DEFAULT_GLOBE_RESOLUTION = 384
-EARTH_SPIN_DEG_PER_FRAME = 0.28
-MOON_SPIN_DEG_PER_FRAME = 0.10
+# ~2.4°/frame ≈ one Earth day every ~7.5 s at 20 fps — readable day/night crawl.
+EARTH_SPIN_DEG_PER_FRAME = 2.4
+MOON_SPIN_DEG_PER_FRAME = 0.15
 
 
 def _loadRgbMap(path) -> np.ndarray | None:
