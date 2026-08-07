@@ -13,7 +13,7 @@ from PIL import Image
 
 from animate.scenes.blender.body_appearance import appearanceForCatalogName
 from animate.scenes.blender.body_scene import buildBodyScene
-from animate.scenes.blender.export_body import DEFAULT_OUTPUT_DIRECTORY, exportBodyScene
+from animate.scenes.blender.export_body import DEFAULT_OUTPUT_DIRECTORY, bodyStem, exportBodyScene
 from animate.scenes.blender.flyby_camera import buildFlybyCameraPath
 from animate.scenes.blender.render_flyby import JOB_SCHEMA_ID
 
@@ -158,10 +158,11 @@ def renderPlanetFlyby(
     outputRoot = Path(outputDirectory)
     outputRoot.mkdir(parents=True, exist_ok=True)
     # Keep catalog export in the product tree so the #11 pipeline stays exercised.
-    preparePlanetFlybyExport(bodyName, outputDirectory=outputRoot)
+    # Export lands under blender/{planets|moons}/<body>/ — GIFs/jobs join it.
+    bodyDirectory = preparePlanetFlybyExport(bodyName, outputDirectory=outputRoot).parent
 
     written: list[Path] = []
-    stem = bodyName.lower().replace(' ', '_')
+    stem = bodyStem(bodyName)
     for themeName in themes:
         with tempfile.TemporaryDirectory(prefix=f'solsys_flyby_{stem}_{themeName}_') as temporary:
             framesDirectory = Path(temporary) / 'frames'
@@ -173,13 +174,13 @@ def renderPlanetFlyby(
                 fps=fps,
                 framesDirectory=framesDirectory,
             )
-            jobPath = outputRoot / f'{stem}_flyby_{themeName}_job.json'
+            jobPath = bodyDirectory / f'{stem}_flyby_{themeName}_job.json'
             writeFlybyJob(job, jobPath)
             _runBlenderFlybyJob(jobPath)
             framePaths = sorted(framesDirectory.glob('frame_*.png'))
             if not framePaths:
                 raise RuntimeError(f'No frames rendered for theme={themeName}')
-            gifPath = outputRoot / f'{stem}_flyby_{themeName}.gif'
+            gifPath = bodyDirectory / f'{stem}_flyby_{themeName}.gif'
             assembleGifFromPngs(framePaths, gifPath, fps=fps)
             written.append(gifPath)
             print(f'Wrote flyby GIF → {gifPath}')

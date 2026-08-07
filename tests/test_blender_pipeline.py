@@ -85,6 +85,7 @@ class ExportAndLoadTests(unittest.TestCase):
             path = exportPlanetBodyScene('Earth', frameCount=12, outputDirectory=outputDirectory)
             self.assertTrue(path.is_file())
             self.assertEqual(path.name, 'earth_body_scene.json')
+            self.assertEqual(path.parent.as_posix().endswith('planets/earth'), True)
 
             scene = loadBodyScene(path)
             self.assertEqual(scene.body.name, 'Earth')
@@ -157,6 +158,7 @@ class FlybyPipelineTests(unittest.TestCase):
             )
             self.assertTrue(path.is_file())
             self.assertEqual(path.name, 'mars_body_scene.json')
+            self.assertTrue(path.parent.as_posix().endswith('planets/mars'))
 
     def test_camera_path_moves_around_body(self) -> None:
         path = buildFlybyCameraPath(0.03, frameCount=12)
@@ -202,6 +204,7 @@ class FlybyPipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporaryDirectory:
             path = exportBodyScene('Moon', frameCount=6, outputDirectory=temporaryDirectory)
             self.assertEqual(path.name, 'moon_body_scene.json')
+            self.assertTrue(path.parent.as_posix().endswith('moons/moon'))
             job = buildFlybyJob(
                 'Moon',
                 theme='light',
