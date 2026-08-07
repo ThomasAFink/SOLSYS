@@ -16,12 +16,18 @@ Keep this module stdlib-only so Blender's bundled Python can import it.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
 SCHEMA_ID = 'solsys.blender_body_scene/v1'
+
+
+def _bpyAvailable() -> bool:
+    """True when running inside Blender (avoid unused ``import bpy`` for CodeQL)."""
+    return importlib.util.find_spec('bpy') is not None
 
 
 def _argvAfterDoubleDash(argv: list[str]) -> list[str]:
@@ -174,7 +180,5 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == '__main__':
     exitCode = main()
     # SystemExit terminates the Blender GUI process. Only exit for host dry-runs.
-    try:
-        import bpy  # type: ignore[import-not-found]  # noqa: F401
-    except ImportError:
-        raise SystemExit(exitCode) from None
+    if not _bpyAvailable():
+        raise SystemExit(exitCode)
