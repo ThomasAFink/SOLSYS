@@ -47,5 +47,3 @@ class StarCatalog:
             & self.starsDataFrame['positionX'].notna()
             & self.starsDataFrame['positionY'].notna()
         ]
-
-

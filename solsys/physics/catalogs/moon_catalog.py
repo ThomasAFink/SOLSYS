@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -19,8 +18,6 @@ class MoonOrbit:
     inclinationDeg: float = 0.0
 
 
-
-
 class MoonCatalog:
     """Major natural satellites with heliocentric offsets from parent planet positions."""
 
@@ -31,10 +28,10 @@ class MoonCatalog:
     MOON_VISIBLE_CAMERA_AU = 25.0
 
     def __init__(self):
-        self.moons: Dict[str, MoonOrbit] = self._buildCatalog()
-        self.moonsByParent: Dict[str, List[MoonOrbit]] = self._groupByParent()
+        self.moons: dict[str, MoonOrbit] = self._buildCatalog()
+        self.moonsByParent: dict[str, list[MoonOrbit]] = self._groupByParent()
 
-    def _buildCatalog(self) -> Dict[str, MoonOrbit]:
+    def _buildCatalog(self) -> dict[str, MoonOrbit]:
         return {
             'Moon': MoonOrbit('Moon', 'Earth', 384_400, 27.3, 'lightgray', 3474),
             'Phobos': MoonOrbit('Phobos', 'Mars', 9_376, 0.32, 'tan', 22),
@@ -52,13 +49,13 @@ class MoonCatalog:
             'Charon': MoonOrbit('Charon', 'Pluto', 19_596, 6.39, 'gray', 1212, 0.0),
         }
 
-    def _groupByParent(self) -> Dict[str, List[MoonOrbit]]:
-        grouped: Dict[str, List[MoonOrbit]] = {}
+    def _groupByParent(self) -> dict[str, list[MoonOrbit]]:
+        grouped: dict[str, list[MoonOrbit]] = {}
         for moon in self.moons.values():
             grouped.setdefault(moon.parentPlanet, []).append(moon)
         return grouped
 
-    def forPlanet(self, planetName: str) -> List[MoonOrbit]:
+    def forPlanet(self, planetName: str) -> list[MoonOrbit]:
         return self.moonsByParent.get(planetName, [])
 
     def semiMajorAxisAu(self, moon: MoonOrbit) -> float:
@@ -78,7 +75,9 @@ class MoonCatalog:
         if cameraDistanceAu <= 8.0:
             return self.DISPLAY_ORBIT_SCALE
         fadeSpanAu = self.MOON_VISIBLE_CAMERA_AU - 8.0
-        return self.DISPLAY_ORBIT_SCALE * (self.MOON_VISIBLE_CAMERA_AU - cameraDistanceAu) / fadeSpanAu
+        return (
+            self.DISPLAY_ORBIT_SCALE * (self.MOON_VISIBLE_CAMERA_AU - cameraDistanceAu) / fadeSpanAu
+        )
 
     @staticmethod
     def initialPhaseRad(moonName: str) -> float:
@@ -92,7 +91,7 @@ class MoonCatalog:
         moon: MoonOrbit,
         moonMeanAnomalyRad: float | np.ndarray,
         displayOrbitScale: float = 1.0,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         orbitRadiusAu = self.displayOrbitRadiusAu(moon, displayOrbitScale)
         inclinationRad = np.radians(moon.inclinationDeg)
         offsetX = orbitRadiusAu * np.cos(moonMeanAnomalyRad)
@@ -108,7 +107,7 @@ class MoonCatalog:
         moon: MoonOrbit,
         moonMeanAnomalyRad: float | np.ndarray,
         displayOrbitScale: float = 1.0,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         offsetX, offsetY, offsetZ = self.offsetFromPlanet(
             moon, moonMeanAnomalyRad, displayOrbitScale
         )
@@ -125,7 +124,7 @@ class MoonCatalog:
         planetPositionY: float,
         displayOrbitScale: float,
         numPoints: int = 48,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         azimuthRad = np.linspace(0, 2 * np.pi, numPoints)
         orbitRadiusAu = self.displayOrbitRadiusAu(moon, displayOrbitScale)
         return (
@@ -138,5 +137,3 @@ class MoonCatalog:
 
     def markerSize3d(self, moon: MoonOrbit, markerScaleDivisor: float = 800.0) -> int:
         return max(2, int((5 + moon.diameterKm / markerScaleDivisor) / 2))
-
-

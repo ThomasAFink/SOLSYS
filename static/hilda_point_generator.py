@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple
-
 import numpy as np
 
 
@@ -14,7 +12,7 @@ class HildaPointGenerator:
         jupiterEccentricity: float,
         jupiterInclinationDeg: float,
         pointsPerCluster: int,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         inclinationRad = np.radians(jupiterInclinationDeg)
         radialSpreadAu = 0.8
         verticalSpreadAu = 0.05
@@ -23,7 +21,8 @@ class HildaPointGenerator:
 
         for clusterAngleRad in clusterAnglesRad:
             radiusAu = (
-                jupiterSemiMajorAxisAu * (1 - jupiterEccentricity ** 2)
+                jupiterSemiMajorAxisAu
+                * (1 - jupiterEccentricity**2)
                 / (1 + jupiterEccentricity * np.cos(clusterAngleRad))
                 - radialSpreadAu / 2
             )
@@ -46,11 +45,11 @@ class HildaPointGenerator:
 
     @staticmethod
     def connectingBands(
-        clusterCenters: List[Tuple[float, float, float]],
+        clusterCenters: list[tuple[float, float, float]],
         numInterpolationPoints: int,
         spreadRadiusAu: float,
         bowFactor: float,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         interpolatedX, interpolatedY, interpolatedZ = [], [], []
         numClusters = len(clusterCenters)
 
@@ -59,7 +58,9 @@ class HildaPointGenerator:
             endCenter = np.array(clusterCenters[(clusterIndex + 1) % numClusters])
             for stepIndex in range(1, numInterpolationPoints + 1):
                 interpolationProgress = stepIndex / (numInterpolationPoints + 1)
-                basePoint = (1 - interpolationProgress) * startCenter + interpolationProgress * endCenter
+                basePoint = (
+                    1 - interpolationProgress
+                ) * startCenter + interpolationProgress * endCenter
                 bowOffsetAu = bowFactor * np.sin(np.pi * interpolationProgress)
                 spreadDistanceAu = np.random.uniform(-spreadRadiusAu, spreadRadiusAu) + bowOffsetAu
                 directionToSun = -basePoint / np.linalg.norm(basePoint)
@@ -69,5 +70,3 @@ class HildaPointGenerator:
                 interpolatedZ.append(spreadPoint[2])
 
         return np.array(interpolatedX), np.array(interpolatedY), np.array(interpolatedZ)
-
-
