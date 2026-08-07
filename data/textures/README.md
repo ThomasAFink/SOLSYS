@@ -10,7 +10,8 @@ data/textures/
     ├── earth/
     │   ├── color.png          # equirectangular color map
     │   └── clouds.png         # cloud layer (RGBA; alpha = coverage)
-    ├── moon/                  # future
+    ├── moon/
+    │   └── color.png          # equirectangular color map (airless)
     ├── jupiter/               # future
     └── ceres/                 # future (asteroids use the same layout)
 ```
@@ -36,6 +37,14 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
 - **Clouds:** `bodies/earth/clouds.png` (2048×1024 RGBA; thinned coverage mask)
   - **Source:** [Live Cloud Maps](https://clouds.matteason.co.uk/) 2048×1024 `clouds-alpha.png` (NASA/NOAA satellite cloud data; static pack for reproducible renders)
   - **Credit:** Matt Eason / Live Cloud Maps; underlying imagery from NASA & NOAA sources
+- **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/))
+
+## Moon
+
+- **Color:** `bodies/moon/color.png` (2048×1024)
+  - **Source:** NASA SVS — [CGI Moon Kit / LRO LROC WAC color (SVS 4720)](https://svs.gsfc.nasa.gov/4720) (`lroc_color_2k.jpg`)
+  - **Credit:** NASA/GSFC Scientific Visualization Studio; LRO / LROC
+- **Atmosphere / clouds:** none (airless pack in `body_appearance.py`)
 - **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/))
 
 Do not replace vendor textures without updating this README attribution.

@@ -103,7 +103,7 @@ def _mapsForBodyId(bodyId: str) -> BodyTextureMaps:
     )
 
 
-# Registry: add Moon / Jupiter / Ceres here as packs land under data/textures/bodies/.
+# Registry: add Jupiter / Ceres / other moons here as packs land under data/textures/bodies/.
 _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
     BodyAppearance(
         bodyId='earth',
@@ -121,9 +121,16 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
             fresnelBlend=0.14,
         ),
     ),
-    # Future examples (no files yet → colorRgba fallback until packs exist):
-    # BodyAppearance(..., atmosphere=BodyAtmosphere(enabled=True))  # thin-air moons
-    # BodyAppearance('ceres', 'asteroid', ..., atmosphere=BodyAtmosphere(enabled=False))
+    BodyAppearance(
+        bodyId='moon',
+        kind='moon',
+        catalogNames=('Moon',),
+        textures=_mapsForBodyId('moon'),
+        # Airless regolith: matte, no atmosphere / clouds.
+        roughness=0.82,
+        specular=0.04,
+        atmosphere=BodyAtmosphere(enabled=False),
+    ),
 )
 
 
