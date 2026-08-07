@@ -2,71 +2,51 @@
 
 Pipeline for Blender-based planet flybys / zoom-ins that plug into the SOLSYS animation product.
 
-## Chosen export path
+## Pipeline
 
-**Catalog orbit state → JSON keyframes → Blender ingest**
+**Catalog → body JSON → flyby job JSON → Blender PNG frames → GIF**
 
 | Stage | Module | Runs in | Role |
 |-------|--------|---------|------|
-| 1. Build | `body_scene.py` | SOLSYS venv | Load one `PlanetCatalog` body; sample Keplerian positions (`OrbitCalculator.ellipticalPosition`) into a versioned JSON scene |
+| 1. Build | `body_scene.py` | SOLSYS venv | Load one `PlanetCatalog` body; sample Keplerian positions into `solsys.blender_body_scene/v1` |
 | 2. Export | `export_body.py` | SOLSYS venv | Write `output/animate/blender/<body>_body_scene.json` |
-| 3. Ingest | `load_body.py` | Blender (`bpy`) or host dry-run | Create UV sphere + material + location keyframes from JSON (**stdlib-only** so Blender’s Python can run it) |
-| 4. Flyby | `flyby_scene.py` | SOLSYS → Blender | Extension point for issue #12 (camera path, light/dark renders) |
+| 3. Ingest | `load_body.py` | Blender (`bpy`) or host dry-run | Debug UV sphere + orbit keyframes (**stdlib-only**) |
+| 4. Camera | `flyby_camera.py` | SOLSYS venv | Body-centered elevated camera arc + spin samples |
+| 5. Flyby job | `flyby_scene.py` | SOLSYS venv | Theme job JSON (`solsys.blender_flyby_job/v1`) + GIF assembly |
+| 6. Render | `render_flyby.py` | Blender (`bpy`) | Close-up shading, lights, EEVEE PNG sequence |
 
-Why JSON keyframes (not a live `bpy` import of `solsys`)?
+Why JSON jobs (not a live `bpy` import of `solsys`)?
 
 - Blender ships its own Python; it should not need the SOLSYS venv.
-- CI can test export + JSON validation without Blender.
-- Flyby scenes (#12) can re-export and re-ingest the same schema.
-
-Schema id: `solsys.blender_body_scene/v1`
+- CI can test export / job validation / GIF assembly without Blender.
 
 ## CLI
 
-Export Earth (default) for Blender:
+Export body-scene JSON (scaffold):
 
 ```bash
 .venv/bin/python render.py blender --body Earth
 ```
 
-Validate JSON without Blender (dry-run):
+Render the first polished Earth flyby (light + dark GIFs; needs `blender` on `PATH`):
 
 ```bash
-.venv/bin/python animate/scenes/blender/load_body.py output/animate/blender/earth_body_scene.json
+.venv/bin/python render.py blender --body Earth --flyby
+.venv/bin/python render.py blender --body Earth --flyby --theme dark
 ```
 
-Ingest inside Blender (headless):
+Outputs:
 
-```bash
-blender --background --python animate/scenes/blender/load_body.py -- \
-  output/animate/blender/earth_body_scene.json
-```
+- `output/animate/blender/earth_flyby_light.gif`
+- `output/animate/blender/earth_flyby_dark.gif`
+- `output/animate/blender/earth_body_scene.json` (catalog export still written)
+- `output/animate/blender/earth_flyby_{light,dark}_job.json` (last flyby jobs)
 
-Open the GUI to look at it (omit `--background`). The window must stay open — do not use Ctrl+C in the terminal:
+### Debug ingest (orbit view, not the flyby)
 
 ```bash
 blender --python animate/scenes/blender/load_body.py -- \
   output/animate/blender/earth_body_scene.json
 ```
 
-That also writes `output/animate/blender/earth_body_scene.blend`. Re-open anytime with:
-
-```bash
-open output/animate/blender/earth_body_scene.blend
-```
-
-Tip: press **Numpad 0** for camera view, or select **Earth** in the outliner and **View → Frame Selected**. The body orbits near ~1 AU.
-
-Or from the CLI (requires `blender` on `PATH`):
-
-```bash
-.venv/bin/python render.py blender --body Earth --load
-```
-
-## Extension point (#12)
-
-`flyby_scene.renderPlanetFlyby` is the stable call site for the first polished flyby:
-
-- prepare export (already works via `preparePlanetFlybyExport`)
-- add camera path / shading / light+dark output under `output/animate/blender/`
-- link gallery entries in the root README
+That also writes `earth_body_scene.blend` (Blender may keep `*.blend1` as a save backup).
