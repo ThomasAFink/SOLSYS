@@ -54,7 +54,7 @@ class CameraController:
 
     @staticmethod
     def visibilityAlpha(positionX, positionY, positionZ, cameraDistanceAu: float) -> np.ndarray:
-        distances = np.sqrt(positionX ** 2 + positionY ** 2 + positionZ ** 2)
+        distances = np.sqrt(positionX**2 + positionY**2 + positionZ**2)
         return np.clip(0.8 * (1 - distances / (cameraDistanceAu * 1.5)), 0.05, 0.8)
 
     @staticmethod

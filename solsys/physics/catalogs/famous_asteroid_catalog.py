@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
 
 import numpy as np
 
@@ -23,8 +22,6 @@ class FamousAsteroidOrbit:
     ascendingNodeDeg: float = 0.0
 
 
-
-
 class FamousAsteroidCatalog:
     """Named asteroids and dwarf planets with real orbital elements."""
 
@@ -36,11 +33,11 @@ class FamousAsteroidCatalog:
     KUIPER_CAMERA_MAX_AU = 75.0
 
     def __init__(self):
-        self.asteroids: Dict[str, FamousAsteroidOrbit] = self._buildCatalog()
+        self.asteroids: dict[str, FamousAsteroidOrbit] = self._buildCatalog()
 
     @staticmethod
     def _orbitalPeriodDays(semiMajorAxisAu: float) -> float:
-        return semiMajorAxisAu ** 1.5 * 365.25
+        return semiMajorAxisAu**1.5 * 365.25
 
     def _asteroid(
         self,
@@ -65,7 +62,7 @@ class FamousAsteroidCatalog:
             ascendingNodeDeg=ascendingNodeDeg,
         )
 
-    def _buildCatalog(self) -> Dict[str, FamousAsteroidOrbit]:
+    def _buildCatalog(self) -> dict[str, FamousAsteroidOrbit]:
         return {
             'Ceres': self._asteroid('Ceres', 2.767, 0.076, 10.59, '#C4A882', 939, 'main_belt'),
             'Vesta': self._asteroid('Vesta', 2.362, 0.089, 7.14, '#B8B8B8', 525, 'main_belt'),
@@ -108,7 +105,7 @@ class FamousAsteroidCatalog:
         asteroid: FamousAsteroidOrbit,
         meanAnomalyRad: float | np.ndarray,
         orbitCalculator: OrbitCalculator,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         return orbitCalculator.ellipticalPosition(
             asteroid.semiMajorAxisAu,
             asteroid.eccentricity,
@@ -122,5 +119,3 @@ class FamousAsteroidCatalog:
 
     def markerSize3d(self, asteroid: FamousAsteroidOrbit, markerScaleDivisor: float = 600.0) -> int:
         return max(8, int(8 + asteroid.diameterKm / markerScaleDivisor))
-
-

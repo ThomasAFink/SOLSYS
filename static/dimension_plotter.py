@@ -39,5 +39,3 @@ class DimensionPlotter:
             self.axes.text(positionX, positionY, positionZ, label, **kwargs)
         else:
             self.axes.text(positionX, positionY, label, **kwargs)
-
-
