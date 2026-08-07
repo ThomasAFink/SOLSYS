@@ -50,6 +50,21 @@ Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth
 .venv/bin/python render.py blender --body Moon --flyby
 ```
 
+End-to-end (Earth + Moon flybys, then Sol→Centauri cinematic with textured bodies):
+
+```bash
+.venv/bin/python render.py blender --pipeline
+```
+
+Products land in:
+
+```text
+output/animate/blender/{planets,moons}/<body>/   # flyby GIFs + JSON
+output/animate/sol_centauri/blender/             # cinematic with Earth/Moon globes
+```
+
+Local debug leftovers (`.blend`, `*_smoke_*`, `overlay_probe.png`) are gitignored / not products.
+
 ### Debug ingest (orbit view, not the flyby)
 
 ```bash

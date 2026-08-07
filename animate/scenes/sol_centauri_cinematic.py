@@ -66,6 +66,9 @@ SPECTRAL_FIELD_COLORS = {
 # Sol opening: Earth+Moon → near-Sun → inner → tighter outer linger, then interstellar pullback.
 # Moon display radius ≈ 0.128 AU (50× exaggerated); keep it nearly filling the frame.
 SOL_EARTH_HALF_AU = 0.14
+# Fixed world radii for textured globes (must NOT scale up with camera half-width).
+EARTH_GLOBE_RADIUS_AU = SOL_EARTH_HALF_AU * 0.18
+# Luna uses bodyScale 0.35 against this base in the billboard path.
 SOL_NEAR_SUN_HALF_AU = 2.4
 SOL_INNER_HALF_AU = 6.5
 # Linger on the main belt / Jupiter's orbit (same idea as the Kuiper hold).
@@ -140,6 +143,7 @@ SOL_ELEVATION_DEG = 28.0
 EARTH_OPEN_ELEVATION_DEG = 62.0
 PROXIMA_ELEVATION_DEG = 58.0
 OUTPUT_DIRECTORY = 'output/animate/sol_centauri'
+BLENDER_OUTPUT_DIRECTORY = 'output/animate/sol_centauri/blender'
 
 SOL_PLANET_NAMES = (
     'Mercury',
@@ -1022,7 +1026,7 @@ class SolCentauriCinematicAnimator:
             alpha=0.75 if moonOpen else (0.55 if moon.name == 'Moon' else 0.3),
         )
         moonMeanAnomaly = planetMeanAnomalyRad(
-            moon.orbitalPeriodDays, 1, self._solMotionDays(frame)
+            moon.orbitalPeriodDays, 1, self._lunarMotionDays(moon, frame, halfWidthAu)
         )
         moonX, moonY, moonZ = self.moonCatalog.heliocentricPosition(
             planetPosition[0],
@@ -1066,6 +1070,20 @@ class SolCentauriCinematicAnimator:
                 fontsize=11 if moonOpen else (9 if moon.name == 'Moon' else 7),
             )
 
+    def _lunarMotionDays(self, moon, frame: int, halfWidthAu: float) -> float:
+        """Sol motion clock is too fast for a readable Earth–Moon opening orbit."""
+        days = self._solMotionDays(frame)
+        if moon.name != 'Moon' or not self.useBlenderBodies:
+            return days
+        # At open (~0.05 d/frame) Luna crawls; blend back to the sol clock by ~2 AU.
+        openHalf = SOL_EARTH_HALF_AU
+        leaveHalf = 2.0
+        if halfWidthAu >= leaveHalf:
+            return days
+        blend = smootherstep((halfWidthAu - openHalf) / max(leaveHalf - openHalf, 1e-6))
+        openScale = 0.015  # ≈0.05 d/frame vs sol's 3.5 d/frame near Earth
+        return days * (openScale + (1.0 - openScale) * blend)
+
     def _blenderBillboardRadiusAu(
         self,
         halfWidthAu: float,
@@ -1073,13 +1091,18 @@ class SolCentauriCinematicAnimator:
         openCloseup: bool,
         bodyScale: float,
     ) -> float | None:
-        """World-space radius for a readable globe; None → keep the scatter dot."""
-        if openCloseup:
-            return halfWidthAu * 0.20 * bodyScale
-        # Readable while Sol is still in-frame; beyond that, dots only.
-        if halfWidthAu > 80.0:
+        """Fixed world-space globe radius; None → keep the scatter dot.
+
+        Radius is anchored to the Earth-open framing so zoom-out shrinks the
+        body on screen instead of growing it inside the Moon's orbit.
+        """
+        del openCloseup  # size is world-fixed; closeup only affects texture resolution
+        radiusAu = EARTH_GLOBE_RADIUS_AU * bodyScale
+        # Drop to dots once the disk is a few pixels in a 1200px frame.
+        screenFraction = radiusAu / max(2.0 * halfWidthAu, 1e-9)
+        if screenFraction < 0.0035 or halfWidthAu > 80.0:
             return None
-        return max(halfWidthAu * 0.014 * bodyScale, 0.0012 * bodyScale)
+        return radiusAu
 
     def _flushBlenderBodyOverlays(self, halfWidthAu: float) -> None:
         """Project queued bodies and paint texture-pack globes into this frame."""
@@ -1806,9 +1829,14 @@ def renderSolCentauriCinematicAnimations(
 ) -> None:
     catalog = SystemCatalog(starsCsvPath=starsCsvPath)
     system = catalog.load('alpha_centauri')
-    stem = 'sol_centauri_cinematic_blender' if useBlenderBodies else 'sol_centauri_cinematic'
+    if useBlenderBodies:
+        outputDirectory = BLENDER_OUTPUT_DIRECTORY
+        stem = 'sol_centauri_cinematic_blender'
+    else:
+        outputDirectory = OUTPUT_DIRECTORY
+        stem = 'sol_centauri_cinematic'
     for themeName, styleName in (('light', 'default'), ('dark', 'dark_background')):
-        outputPath = f'{OUTPUT_DIRECTORY}/{stem}_{themeName}.gif'
+        outputPath = f'{outputDirectory}/{stem}_{themeName}.gif'
         print(f'Rendering {outputPath}...')
         animator = SolCentauriCinematicAnimator(
             system,

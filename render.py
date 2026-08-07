@@ -220,6 +220,14 @@ def buildParser() -> argparse.ArgumentParser:
         default='all',
         help='Flyby theme when using --flyby (default: all)',
     )
+    blenderParser.add_argument(
+        '--pipeline',
+        action='store_true',
+        help=(
+            'End-to-end: Earth+Moon Blender flybys, then Sol→Centauri cinematic '
+            'with --blender-bodies (texture-pack globes). Ignores --body.'
+        ),
+    )
 
     return parser
 
@@ -244,6 +252,36 @@ def _runBlenderLoad(scenePath: Path) -> None:
     )
     if completed.returncode != 0:
         raise SystemExit(f'Blender ingest failed with exit code {completed.returncode}')
+
+
+def _runBlenderCinematicPipeline(
+    *,
+    theme: str,
+    frames: int,
+    outputDirectory: str,
+    starsCsvPath: str,
+) -> None:
+    """Earth+Moon flybys, then Sol→Centauri cinematic with textured bodies."""
+    flybyFrames = 72 if frames == 120 else frames
+    for bodyName in ('Earth', 'Moon'):
+        print(f'[pipeline] Blender flyby → {bodyName}')
+        gifPaths = renderPlanetFlyby(
+            bodyName,
+            theme=theme,
+            frameCount=flybyFrames,
+            outputDirectory=outputDirectory,
+        )
+        for gifPath in gifPaths:
+            print(f'Flyby ready → {gifPath}')
+
+    print('[pipeline] Sol→Centauri cinematic with Blender body textures')
+    renderSolCentauriCinematicAnimations(
+        figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+        dpi=ANIMATE_DPI_CINEMATIC,
+        starsCsvPath=starsCsvPath,
+        useBlenderBodies=True,
+    )
+    print('[pipeline] done')
 
 
 def _renderAnimations(
@@ -324,6 +362,15 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == 'blender':
+        if args.pipeline:
+            _runBlenderCinematicPipeline(
+                theme=args.theme,
+                frames=args.frames,
+                outputDirectory=args.output_dir,
+                starsCsvPath='data/nearby_stars_30.csv',
+            )
+            return
+
         if args.flyby:
             flybyFrames = 72 if args.frames == 120 else args.frames
             gifPaths = renderPlanetFlyby(
@@ -351,7 +398,9 @@ def main(argv: list[str] | None = None) -> None:
                 'or ingest with\n'
                 f'  blender --background --python {BLENDER_LOAD_SCRIPT} -- {scenePath}\n'
                 'or render flybys with\n'
-                f'  {sys.executable} render.py blender --body {args.body} --flyby'
+                f'  {sys.executable} render.py blender --body {args.body} --flyby\n'
+                'or run the full Earth/Moon → cinematic pipeline with\n'
+                f'  {sys.executable} render.py blender --pipeline'
             )
         return
 
