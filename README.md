@@ -12,8 +12,8 @@ Built with `numpy`, `pandas`, and `matplotlib`. Orbital elements include ellipti
 
 | Layer | Path | Role |
 |-------|------|------|
-| CLI | `render.py` | Single entry point: `animate` / `static` / `neighborhood` / `all` |
-| Main product | `animate/` | GIF animations (2D inner system + 3D zoom tour); Blender close-ups planned under `animate/scenes/blender/` |
+| CLI | `render.py` | Single entry point: `animate` / `static` / `neighborhood` / `blender` / `all` |
+| Main product | `animate/` | GIF animations (2D inner system + 3D zoom tour); Blender close-ups scaffold under `animate/scenes/blender/` |
 | Side product | `static/` | Multi-zoom JPGs light/dark (2D top-down / 3D) and neighborhood star map |
 | Shared physics | `solsys/physics/` | Constants, orbits, catalogs, belt generators, view registry |
 | Shared motion | `solsys/motion/` | Animated asteroid / Hilda / Trojan / Kuiper / Oort populations |
@@ -61,8 +61,12 @@ SOLSYS/
 │       ├── trappist_1.py                          # TRAPPIST-1 planets via exoplanet_system
 │       ├── tabbys_star.py                         # Tabby's Star dust-cloud dimming schematic
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
-│       └── blender/                               # Future planet close-ups
-│           └── README.md
+│       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
+│           ├── README.md                          # Pipeline docs + CLI examples
+│           ├── body_scene.py                      # Versioned body-scene schema + PlanetCatalog build
+│           ├── export_body.py                     # Write output/animate/blender/*_body_scene.json
+│           ├── load_body.py                       # Blender ingest (stdlib + optional bpy)
+│           └── flyby_scene.py                     # Extension point for first flyby (#12)
 │
 ├── static/                                        # SIDE PRODUCT — still images
 │   ├── __init__.py
@@ -73,7 +77,8 @@ SOLSYS/
 │
 ├── tests/                                         # Unit tests (stdlib unittest)
 │   ├── test_frame_transform.py                    # Sol ↔ α Cen frame transform
-│   └── test_sol_centauri_cinematic.py             # Sol → α Cen cinematic helpers
+│   ├── test_sol_centauri_cinematic.py             # Sol → α Cen cinematic helpers
+│   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
 ├── solsys/                                        # Shared libraries (no plotting)
 │   ├── physics/
@@ -104,7 +109,8 @@ SOLSYS/
 │   ├── barnards_star/                         # barnards_star_planets_{light,dark}.gif
 │   ├── trappist_1/                            # trappist_1_planets_{light,dark}.gif
 │   ├── tabbys_star/                           # tabbys_star_dust_{light,dark}.gif
-│   └── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
+│   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
+│   └── blender/                               # *_body_scene.json (Blender ingest; flybys #12)
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
     ├── 3d/                                        # Static perspective zoom JPGs (*_{light,dark}.jpg)
     └── neighborhood/                              # interstellar_neighborhood_*ly.jpg
@@ -287,7 +293,11 @@ Or render by product:
 .venv/bin/python render.py animate --system oumuamua
 .venv/bin/python render.py static --dimension 2d
 .venv/bin/python render.py neighborhood --ly 10
+.venv/bin/python render.py blender --body Earth
+.venv/bin/python render.py blender --body Earth --load   # optional; needs blender on PATH
 ```
+
+Blender close-ups (issue #11 scaffold): `render.py blender` exports Keplerian keyframes for one `PlanetCatalog` body to `output/animate/blender/<body>_body_scene.json`. Ingest with `animate/scenes/blender/load_body.py` (host dry-run or `blender --python …`). Polished light/dark flybys land in issue #12 via `flyby_scene.renderPlanetFlyby`.
 
 Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animations render to `output/animate/alpha_centauri/`:
 
@@ -332,4 +342,4 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 ## Roadmap
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
-- Blender-based planet close-ups / flybys in `animate/scenes/blender/`
+- First Blender planet flyby (#12) on top of the `animate/scenes/blender/` catalog → JSON → bpy scaffold (#11)
