@@ -35,12 +35,21 @@ Validate JSON without Blender (dry-run):
 .venv/bin/python animate/scenes/blender/load_body.py output/animate/blender/earth_body_scene.json
 ```
 
-Ingest inside Blender:
+Ingest inside Blender (headless):
 
 ```bash
 blender --background --python animate/scenes/blender/load_body.py -- \
   output/animate/blender/earth_body_scene.json
 ```
+
+Open the GUI to look at it (omit `--background`), then press **Space** / use the timeline to scrub:
+
+```bash
+blender --python animate/scenes/blender/load_body.py -- \
+  output/animate/blender/earth_body_scene.json
+```
+
+Tip: press **Numpad 0** for camera view, or select **Earth** in the outliner and **View → Frame Selected**. The body orbits near ~1 AU.
 
 Or from the CLI (requires `blender` on `PATH`):
 
