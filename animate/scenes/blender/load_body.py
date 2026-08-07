@@ -55,6 +55,25 @@ def summarizePayload(payload: dict[str, Any]) -> str:
     )
 
 
+def _clearSceneObjects(bpy: Any) -> None:
+    for obj in list(bpy.data.objects):
+        bpy.data.objects.remove(obj, do_unlink=True)
+
+
+def _createUvSphere(bpy: Any, name: str, radius: float) -> Any:
+    """Build a UV sphere via bmesh (works in GUI and --background; no active_object)."""
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(f'{name}Mesh')
+    builder = bmesh.new()
+    bmesh.ops.create_uvsphere(builder, u_segments=32, v_segments=16, radius=radius)
+    builder.to_mesh(mesh)
+    builder.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
 def applyPayloadInBlender(payload: dict[str, Any]) -> str:
     """Create a UV sphere, material, and location keyframes from the payload."""
     import bpy  # type: ignore[import-not-found]
@@ -65,26 +84,26 @@ def applyPayloadInBlender(payload: dict[str, Any]) -> str:
     radius = float(body['displayRadiusAu'])
     color = [float(channel) for channel in body['colorRgba']]
 
-    # Fresh scene for the stub ingest.
-    bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=(0.0, 0.0, 0.0))
-    obj = bpy.context.active_object
-    assert obj is not None
-    obj.name = name
+    # Avoid wm.read_factory_settings / ops that need a VIEW_3D active object —
+    # those fail when the script runs at GUI startup in Blender 5.x.
+    _clearSceneObjects(bpy)
+    obj = _createUvSphere(bpy, name, radius)
 
     material = bpy.data.materials.new(name=f'{name}Material')
-    # Blender 5+ materials are node-based by default; avoid deprecated use_nodes.
     nodeTree = getattr(material, 'node_tree', None)
     if nodeTree is not None:
         principled = nodeTree.nodes.get('Principled BSDF')
         if principled is not None:
             principled.inputs['Base Color'].default_value = color
-    obj.data.materials.append(material)
+    if obj.data.materials:
+        obj.data.materials[0] = material
+    else:
+        obj.data.materials.append(material)
 
     scene = bpy.context.scene
-    assert scene is not None
     scene.frame_start = int(keyframes[0]['frame'])
     scene.frame_end = int(keyframes[-1]['frame'])
+    scene.frame_current = int(keyframes[0]['frame'])
 
     for keyframe in keyframes:
         frame = int(keyframe['frame'])
@@ -92,24 +111,26 @@ def applyPayloadInBlender(payload: dict[str, Any]) -> str:
         obj.location = (float(position[0]), float(position[1]), float(position[2]))
         obj.keyframe_insert(data_path='location', frame=frame)
 
-    distance = float(payload['cameraHintDistanceAu'])
-    bpy.ops.object.camera_add(location=(distance, -distance, distance * 0.6))
-    camera = bpy.context.active_object
-    assert camera is not None
-    camera.name = f'{name}Camera'
-    scene.camera = camera
-
-    # Point camera at the body origin of the first keyframe.
     first = keyframes[0]['positionAu']
-    track = camera.constraints.new(type='TRACK_TO')
-    track.target = obj
-    track.track_axis = 'TRACK_NEGATIVE_Z'
-    track.up_axis = 'UP_Y'
+    distance = float(payload['cameraHintDistanceAu'])
+    cameraData = bpy.data.cameras.new(f'{name}CameraData')
+    camera = bpy.data.objects.new(f'{name}Camera', cameraData)
     camera.location = (
         float(first[0]) + distance,
         float(first[1]) - distance,
         float(first[2]) + distance * 0.6,
     )
+    scene.collection.objects.link(camera)
+    scene.camera = camera
+    track = camera.constraints.new(type='TRACK_TO')
+    track.target = obj
+    track.track_axis = 'TRACK_NEGATIVE_Z'
+    track.up_axis = 'UP_Y'
+
+    lightData = bpy.data.lights.new(f'{name}Sun', type='SUN')
+    light = bpy.data.objects.new(f'{name}Sun', lightData)
+    light.location = (float(first[0]), float(first[1]) - distance, float(first[2]) + distance)
+    scene.collection.objects.link(light)
 
     return f'Blender scene built for {name} ({len(keyframes)} location keyframes)'
 
