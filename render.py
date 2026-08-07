@@ -132,6 +132,14 @@ def buildParser() -> argparse.ArgumentParser:
         default='data/nearby_stars_30.csv',
         help='Path to nearby-stars CSV (for multi-star systems)',
     )
+    animateParser.add_argument(
+        '--blender-bodies',
+        action='store_true',
+        help=(
+            'For --system sol_centauri: replace Earth/Moon scatter dots with Blender '
+            'flyby sprites drawn during the animation (requires prior flyby GIFs)'
+        ),
+    )
 
     allParser = subparsers.add_parser(
         'all',
@@ -243,6 +251,8 @@ def _renderAnimations(
     dimensions: tuple[Dimension, ...],
     starsCsvPath: str,
     objectChoice: str,
+    *,
+    useBlenderBodies: bool = False,
 ) -> None:
     if systemChoice in ('sol', 'all'):
         for dimension in dimensions:
@@ -263,6 +273,7 @@ def _renderAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_CINEMATIC,
             starsCsvPath=starsCsvPath,
+            useBlenderBodies=useBlenderBodies,
         )
     if systemChoice in ('barnards_star', 'all'):
         renderBarnardsStarAnimations(
@@ -354,6 +365,7 @@ def main(argv: list[str] | None = None) -> None:
             dimensions,
             starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
             objectChoice=getattr(args, 'object', 'all'),
+            useBlenderBodies=bool(getattr(args, 'blender_bodies', False)),
         )
 
     if args.command in ('static', 'all'):

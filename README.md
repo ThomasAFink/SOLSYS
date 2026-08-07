@@ -54,6 +54,7 @@ SOLSYS/
 │   ├── solar_system_animator.py                   # SolarSystemAnimator, renderAllAnimations
 │   ├── camera_controller.py                       # CameraController
 │   ├── animation_styles.py                        # Light/dark styles and timing constants
+│   ├── blender_body_sprites.py                    # Flyby GIF → circular RGBA sprites for cinematic
 │   └── scenes/
 │       ├── inner_system.py                        # Fixed 2D inner-system scene
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
@@ -84,6 +85,7 @@ SOLSYS/
 ├── tests/                                         # Unit tests (stdlib unittest)
 │   ├── test_frame_transform.py                    # Sol ↔ α Cen frame transform
 │   ├── test_sol_centauri_cinematic.py             # Sol → α Cen cinematic helpers
+│   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
 ├── solsys/                                        # Shared libraries (no plotting)
@@ -305,6 +307,7 @@ Or render by product:
 .venv/bin/python render.py animate --dimension 3d
 .venv/bin/python render.py animate --system alpha_centauri
 .venv/bin/python render.py animate --system sol_centauri
+.venv/bin/python render.py animate --system sol_centauri --blender-bodies
 .venv/bin/python render.py animate --system barnards_star
 .venv/bin/python render.py animate --system trappist_1
 .venv/bin/python render.py animate --system tabbys_star
@@ -321,6 +324,8 @@ Or render by product:
 
 Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`) to `output/animate/blender/{planets,moons}/<body>/` (`*_flyby_{light,dark}.gif`). Texture packs live under `data/textures/bodies/`.
 
+Sol → Centauri cinematic with `--blender-bodies` (issue #42) keeps the same camera tour but replaces Earth/Moon scatter dots with camera-facing sprites sampled from those flyby GIFs during `FuncAnimation`. Output stem: `sol_centauri_cinematic_blender_{light,dark}.gif` (classic dotted GIFs unchanged without the flag).
+
 Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animations render to `output/animate/alpha_centauri/`:
 
 - `alpha_centauri_ab_{light,dark}.gif` — A–B binary close-up (±28 AU)
@@ -329,7 +334,8 @@ Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animati
 
 Sol → Alpha Centauri cinematic (issue #10) flies from our solar system to the A–B close-up, zooms back out, then finishes on Proxima and its planets — all in Sol XYZ via `SolCentauriFrameTransform`. Animations render to `output/animate/sol_centauri/`:
 
-- `sol_centauri_cinematic_{light,dark}.gif` — Sol → AB → wide → Proxima planets
+- `sol_centauri_cinematic_{light,dark}.gif` — Sol → AB → wide → Proxima planets (scatter-dot bodies)
+- `sol_centauri_cinematic_blender_{light,dark}.gif` — same tour with Blender Earth/Moon sprites (`--blender-bodies`; requires Earth/Moon flyby GIFs)
 
 Earth Blender close-up (issues #12 / #36) is a body-centered EEVEE view of Earth with NASA Blue Marble texture (light/dark). Render with `render.py blender --body Earth --flyby` to `output/animate/blender/planets/earth/`:
 
