@@ -11,6 +11,7 @@ from typing import Literal
 
 from PIL import Image
 
+from animate.scenes.blender.body_appearance import appearanceForCatalogName
 from animate.scenes.blender.body_scene import buildPlanetBodyScene
 from animate.scenes.blender.export_body import DEFAULT_OUTPUT_DIRECTORY, exportPlanetBodyScene
 from animate.scenes.blender.flyby_camera import buildFlybyCameraPath
@@ -53,7 +54,8 @@ def buildFlybyJob(
         raise ValueError(f'theme must be light or dark, got {theme!r}')
     bodyScene = buildPlanetBodyScene(planetName, frameCount=max(frameCount, 2))
     cameraPath = buildFlybyCameraPath(bodyScene.body.displayRadiusAu, frameCount=frameCount)
-    return {
+    appearance = appearanceForCatalogName(bodyScene.body.name)
+    job: dict = {
         'schema': JOB_SCHEMA_ID,
         'theme': theme,
         'body': {
@@ -77,6 +79,9 @@ def buildFlybyJob(
         'resolution': resolution,
         'fps': fps,
     }
+    if appearance is not None:
+        job['appearance'] = appearance.toJobDict()
+    return job
 
 
 def writeFlybyJob(job: dict, path: Path | str) -> Path:

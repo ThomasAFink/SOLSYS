@@ -51,6 +51,8 @@ def _clearSceneObjects(bpy: Any) -> None:
         bpy.data.materials.remove(material)
     for mesh in list(bpy.data.meshes):
         bpy.data.meshes.remove(mesh)
+    for image in list(bpy.data.images):
+        bpy.data.images.remove(image)
     for camera in list(bpy.data.cameras):
         bpy.data.cameras.remove(camera)
     for light in list(bpy.data.lights):
@@ -59,16 +61,27 @@ def _clearSceneObjects(bpy: Any) -> None:
         bpy.data.worlds.remove(world)
 
 
+def _assignSphericalUvs(builder: Any) -> None:
+    """Equirectangular UVs from vertex directions (shared by planets/moons/asteroids)."""
+    uvLayer = builder.loops.layers.uv.new('UVMap')
+    for face in builder.faces:
+        for loop in face.loops:
+            direction = loop.vert.co.normalized()
+            u = 0.5 + math.atan2(direction.y, direction.x) / (2.0 * math.pi)
+            v = 0.5 + math.asin(max(-1.0, min(1.0, direction.z))) / math.pi
+            loop[uvLayer].uv = (u, v)
+
+
 def _createUvSphere(bpy: Any, name: str, radius: float) -> Any:
     import bmesh  # type: ignore[import-not-found]
 
     mesh = bpy.data.meshes.new(f'{name}Mesh')
     builder = bmesh.new()
-    bmesh.ops.create_uvsphere(builder, u_segments=48, v_segments=24, radius=radius)
+    bmesh.ops.create_uvsphere(builder, u_segments=96, v_segments=48, radius=radius)
     bmesh.ops.recalc_face_normals(builder, faces=builder.faces)
+    _assignSphericalUvs(builder)
     builder.to_mesh(mesh)
     builder.free()
-    # Smooth shading for a softer planet look.
     for polygon in mesh.polygons:
         polygon.use_smooth = True
     obj = bpy.data.objects.new(name, mesh)
@@ -76,21 +89,64 @@ def _createUvSphere(bpy: Any, name: str, radius: float) -> Any:
     return obj
 
 
-def _setPrincipled(material: Any, *, color: list[float], roughness: float, specular: float) -> None:
+def _loadImageTexture(bpy: Any, nodeTree: Any, imagePath: Path, *, label: str) -> Any | None:
+    if not imagePath.is_file():
+        print(f'Warning: texture missing ({label}): {imagePath}', file=sys.stderr)
+        return None
+    image = bpy.data.images.load(str(imagePath), check_existing=True)
+    textureNode = nodeTree.nodes.new('ShaderNodeTexImage')
+    textureNode.image = image
+    textureNode.label = label
+    textureNode.interpolation = 'Smart'
+    return textureNode
+
+
+def _applyBodyMaterial(
+    bpy: Any,
+    material: Any,
+    *,
+    color: list[float],
+    appearance: dict[str, Any] | None,
+    theme: str,
+) -> None:
     nodeTree = getattr(material, 'node_tree', None)
     if nodeTree is None:
         return
     principled = nodeTree.nodes.get('Principled BSDF')
     if principled is None:
         return
+
+    roughness = float((appearance or {}).get('roughness', 0.42 if theme == 'light' else 0.55))
+    specular = float((appearance or {}).get('specular', 0.35 if theme == 'light' else 0.22))
     principled.inputs['Base Color'].default_value = color
     if 'Roughness' in principled.inputs:
         principled.inputs['Roughness'].default_value = roughness
-    # Blender 4+/5 name variants for specular-ish controls.
-    for inputName in ('Specular IOR Level', 'Specular', 'Specular Tint'):
-        if inputName in principled.inputs and inputName != 'Specular Tint':
+    for inputName in ('Specular IOR Level', 'Specular'):
+        if inputName in principled.inputs:
             principled.inputs[inputName].default_value = specular
             break
+
+    textures = (appearance or {}).get('textures') or {}
+    colorPath = textures.get('color')
+    if not colorPath:
+        return
+
+    colorNode = _loadImageTexture(bpy, nodeTree, Path(colorPath), label='color')
+    if colorNode is None:
+        return
+    colorNode.location = (-400, 200)
+    nodeTree.links.new(colorNode.outputs['Color'], principled.inputs['Base Color'])
+
+    specularPath = textures.get('specular')
+    if specularPath and 'Roughness' in principled.inputs:
+        specularNode = _loadImageTexture(bpy, nodeTree, Path(specularPath), label='specular')
+        if specularNode is not None:
+            # Bright specular mask → lower roughness (oceans).
+            invert = nodeTree.nodes.new('ShaderNodeInvert')
+            invert.location = (-180, 40)
+            specularNode.location = (-400, 0)
+            nodeTree.links.new(specularNode.outputs['Color'], invert.inputs['Color'])
+            nodeTree.links.new(invert.outputs['Color'], principled.inputs['Roughness'])
 
 
 def _configureWorld(bpy: Any, theme: str) -> None:
@@ -134,9 +190,19 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
     _clearSceneObjects(bpy)
     planet = _createUvSphere(bpy, name, radius)
     material = bpy.data.materials.new(name=f'{name}FlybyMaterial')
-    roughness = 0.42 if theme == 'light' else 0.55
-    specular = 0.35 if theme == 'light' else 0.22
-    _setPrincipled(material, color=color, roughness=roughness, specular=specular)
+    appearance = job.get('appearance')
+    if isinstance(appearance, dict) and appearance.get('bodyId'):
+        print(
+            f'Appearance: bodyId={appearance.get("bodyId")} '
+            f'textures={sorted((appearance.get("textures") or {}).keys())}'
+        )
+    _applyBodyMaterial(
+        bpy,
+        material,
+        color=color,
+        appearance=appearance if isinstance(appearance, dict) else None,
+        theme=theme,
+    )
     if planet.data.materials:
         planet.data.materials[0] = material
     else:

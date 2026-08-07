@@ -665,7 +665,16 @@
       "bodyRotationDeg": 140.0
     }
   ],
-  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_earth_dark__k2cc49a/frames",
+  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_earth_dark_o9_f4nqu/frames",
   "resolution": 640,
-  "fps": 18
+  "fps": 18,
+  "appearance": {
+    "bodyId": "earth",
+    "kind": "planet",
+    "textures": {
+      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/earth/color.png"
+    },
+    "roughness": 0.48,
+    "specular": 0.35
+  }
 }
