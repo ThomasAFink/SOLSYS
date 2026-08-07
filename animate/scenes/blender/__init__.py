@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from animate.scenes.blender.body_appearance import (
+    BodyAppearance,
+    appearanceForCatalogName,
+    registeredCatalogNames,
+)
 from animate.scenes.blender.body_scene import (
     SCHEMA_ID,
     BodyKeyframe,
@@ -19,14 +24,17 @@ from animate.scenes.blender.flyby_scene import (
 
 __all__ = [
     'SCHEMA_ID',
+    'BodyAppearance',
     'BodyKeyframe',
     'BodyScene',
     'BodySceneBody',
     'DEFAULT_OUTPUT_DIRECTORY',
     'FLYBY_EXTENSION_POINT',
+    'appearanceForCatalogName',
     'buildPlanetBodyScene',
     'exportPlanetBodyScene',
     'loadBodyScene',
     'preparePlanetFlybyExport',
+    'registeredCatalogNames',
     'renderPlanetFlyby',
 ]
