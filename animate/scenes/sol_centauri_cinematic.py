@@ -112,6 +112,11 @@ BLENDER_ASTEROID_BODY_SCALE = {
     'Makemake': 0.10,
     'Eris': 0.11,
 }
+# Sol photosphere billboard (world scale vs Earth globe). Large enough that the
+# Near-Sun / inner holds read as a clear textured disk, not a ~40px speck.
+BLENDER_STAR_BODY_SCALE = {
+    'Sun': 8.0,
+}
 # Below this on-screen (floored) fraction, non-Earth/Moon packs fall back to catalog dots.
 # Matches the default paint floor so world-fixed disks stay textured through Sol zoom-out.
 BLENDER_MIN_BILLBOARD_FRAC = 0.0035
@@ -124,9 +129,20 @@ SOL_NEAR_SUN_HALF_AU = 2.4
 SOL_INNER_HALF_AU = 6.5
 # Linger on the main belt / Jupiter's orbit (same idea as the Kuiper hold).
 SOL_BELT_LINGER_HALF_AU = 7.8
+# Saturn rings beat — wide enough for the annulus without jumping to Kuiper.
+SOL_SATURN_LINGER_HALF_AU = 18.0
 # Outer linger frames Neptune/Pluto with Kuiper just coming into view.
 SOL_OUTER_LINGER_HALF_AU = 42.0
 SOL_HALF_WIDTH_AU = SOL_OUTER_LINGER_HALF_AU
+# Leave Earth look-at and ease toward Sol before the Near-Sun plateau.
+SOL_LEAVE_EARTH_FOCUS_HALF_AU = 1.15
+# Textured Sol billboard through the Sol tour; scatter star-marker only after pullback.
+# Min is 0: as soon as Sol is on-screen in blender mode we use the photosphere spin
+# (the old ~1 AU gate left a few scatter-marker frames when Sol first entered view).
+BLENDER_STAR_BILLBOARD_HALF_AU = (
+    0.0,
+    min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2),
+)
 # Wide enough to bring most of the 30 ly catalog into the Sol neighborhood frame.
 START_HALF_WIDTH_LY = 25.0
 AB_HALF_WIDTH_AU = 32.0
@@ -172,13 +188,23 @@ PULLBACK_WAYPOINTS_AU = (
     100000.0,
 )
 PULLBACK_WEIGHTS = (1.4, 2.0, 2.4, 2.8, 3.0, 3.0, 2.6, 2.0, 1.6, 1.3, 1.0)
-# Timeline: Earth → belt linger → outer linger → Oort pullback.
+# Timeline: Earth → belt linger → outer linger → Oort pullback (classic dotted mode).
 SOL_EARTH_DWELL_END = 0.03
 # Blender open: hold Earth-close for ~2 day/night spins (48 PNG samples/turn),
-# then ease out to Earth+Moon before the existing Sol dive.
+# then ease out to Earth+Moon before the staged Sol zoom-out beats (#51).
 SOL_EARTH_SPIN_HOLD_END = 0.055
 SOL_EARTH_MOON_REVEAL_END = 0.085
 SOL_EARTH_BLENDER_DWELL_END = 0.10
+# Blender-only Sol beats (classic mode keeps SOL_BELT_* / SOL_OUTER_* below).
+SOL_BEAT_NEAR_SUN_ARRIVE = 0.125
+SOL_BEAT_NEAR_SUN_HOLD_END = 0.155
+SOL_BEAT_INNER_ARRIVE = 0.175
+SOL_BEAT_INNER_HOLD_END = 0.20
+SOL_BEAT_BELT_ARRIVE = 0.225
+SOL_BEAT_BELT_HOLD_END = 0.325
+SOL_BEAT_SATURN_ARRIVE = 0.365
+SOL_BEAT_SATURN_HOLD_END = 0.405
+SOL_BEAT_OUTER_ARRIVE = 0.46
 SOL_BELT_ARRIVE = 0.16
 SOL_BELT_HOLD_END = 0.28
 SOL_OUTER_ARRIVE = 0.40
@@ -706,6 +732,8 @@ class SolCentauriCinematicAnimator:
                     smootherstep(reveal),
                 )
             return self.solEarthHalfWidthAu
+        if self.useBlenderBodies:
+            return self._blenderSolOpeningHalfWidthAu(linear, dwellEnd)
         if linear < SOL_BELT_ARRIVE:
             dive = segmentProgress(linear, dwellEnd, SOL_BELT_ARRIVE)
             if dive >= 1.0 - 1e-9:
@@ -730,6 +758,39 @@ class SolCentauriCinematicAnimator:
                 dive,
                 weights=SOL_BELT_TO_OUTER_WEIGHTS,
             )
+        return self.solHalfWidthAu
+
+    def _blenderSolOpeningHalfWidthAu(self, linear: float, dwellEnd: float) -> float:
+        """Staged Sol zoom-out beats (#51): Near-Sun → inner → belt → Saturn → Kuiper."""
+        if linear < SOL_BEAT_NEAR_SUN_ARRIVE:
+            dive = segmentProgress(linear, dwellEnd, SOL_BEAT_NEAR_SUN_ARRIVE)
+            return stagedLogDive(
+                self.solEarthHalfWidthAu,
+                SOL_NEAR_SUN_HALF_AU,
+                (0.40, 0.75, 1.2, 1.8),
+                dive,
+                weights=(1.0, 1.2, 1.4, 1.6, 1.8),
+            )
+        if linear < SOL_BEAT_NEAR_SUN_HOLD_END:
+            return SOL_NEAR_SUN_HALF_AU
+        if linear < SOL_BEAT_INNER_ARRIVE:
+            dive = segmentProgress(linear, SOL_BEAT_NEAR_SUN_HOLD_END, SOL_BEAT_INNER_ARRIVE)
+            return logLerp(SOL_NEAR_SUN_HALF_AU, SOL_INNER_HALF_AU, smootherstep(dive))
+        if linear < SOL_BEAT_INNER_HOLD_END:
+            return SOL_INNER_HALF_AU
+        if linear < SOL_BEAT_BELT_ARRIVE:
+            dive = segmentProgress(linear, SOL_BEAT_INNER_HOLD_END, SOL_BEAT_BELT_ARRIVE)
+            return logLerp(SOL_INNER_HALF_AU, SOL_BELT_LINGER_HALF_AU, smootherstep(dive))
+        if linear < SOL_BEAT_BELT_HOLD_END:
+            return SOL_BELT_LINGER_HALF_AU
+        if linear < SOL_BEAT_SATURN_ARRIVE:
+            dive = segmentProgress(linear, SOL_BEAT_BELT_HOLD_END, SOL_BEAT_SATURN_ARRIVE)
+            return logLerp(SOL_BELT_LINGER_HALF_AU, SOL_SATURN_LINGER_HALF_AU, smootherstep(dive))
+        if linear < SOL_BEAT_SATURN_HOLD_END:
+            return SOL_SATURN_LINGER_HALF_AU
+        if linear < SOL_BEAT_OUTER_ARRIVE:
+            dive = segmentProgress(linear, SOL_BEAT_SATURN_HOLD_END, SOL_BEAT_OUTER_ARRIVE)
+            return logLerp(SOL_SATURN_LINGER_HALF_AU, self.solHalfWidthAu, smootherstep(dive))
         return self.solHalfWidthAu
 
     def _pullbackHalfWidthAu(self, linear: float) -> float:
@@ -790,7 +851,19 @@ class SolCentauriCinematicAnimator:
         """Earth+Moon dwell → near-Sun → inner system → full Sol belts."""
         halfWidthAu = self._solOpeningHalfWidthAu(linear)
         earth = self._planetPositionAu('Earth', frame)
-        # Keep Earth framed until the Sun fits, then ease the look-at back to Sol.
+        if self.useBlenderBodies:
+            # Earth/Moon open stays on Earth; then ease to Sol for the Near-Sun beat+.
+            if halfWidthAu <= SOL_LEAVE_EARTH_FOCUS_HALF_AU:
+                focus = earth
+            elif halfWidthAu >= SOL_NEAR_SUN_HALF_AU:
+                focus = np.zeros(3)
+            else:
+                blend = (halfWidthAu - SOL_LEAVE_EARTH_FOCUS_HALF_AU) / (
+                    SOL_NEAR_SUN_HALF_AU - SOL_LEAVE_EARTH_FOCUS_HALF_AU
+                )
+                focus = (1.0 - smootherstep(blend)) * earth
+            return focus, halfWidthAu
+        # Classic: keep Earth framed until the Sun fits, then ease look-at back to Sol.
         if halfWidthAu <= SOL_NEAR_SUN_HALF_AU:
             focus = earth
         elif halfWidthAu >= SOL_INNER_HALF_AU:
@@ -993,14 +1066,41 @@ class SolCentauriCinematicAnimator:
         if abProgress > 0.85 and halfWidthAu < 80.0:
             return
 
+        sunPosition = np.zeros(3)
         sunSize = 340.0 if halfWidthAu < 3.0 else (270.0 if halfWidthAu < 80.0 else 150.0)
-        sunInView = self._inView(np.zeros(3), margin=1.05)
-        if sunInView or (halfWidthAu >= SOL_NEAR_SUN_HALF_AU and halfWidthAu < 5000.0):
-            self._drawStarMarker(np.zeros(3), STAR_COLORS['sun'], sunSize)
+        sunInView = self._inView(sunPosition, margin=1.05)
+        wantSun = sunInView or (SOL_NEAR_SUN_HALF_AU <= halfWidthAu < 5000.0)
+        starBillboardMin, starBillboardMax = BLENDER_STAR_BILLBOARD_HALF_AU
+        queuedSun = False
+        # Blender mode: textured photosphere for every on-screen Sol during the Sol tour.
+        # Do not draw a scatter marker first — that reads as a non→textured pop.
+        if (
+            wantSun
+            and self.useBlenderBodies
+            and starBillboardMin <= halfWidthAu <= starBillboardMax
+        ):
+            queuedSun = self._queueBlenderBody(
+                'Sun',
+                sunPosition,
+                frame,
+                halfWidthAu,
+                openCloseup=True,
+                bodyScale=BLENDER_STAR_BODY_SCALE['Sun'],
+                orbitalPhaseRad=None,
+                suppressDotFallback=True,
+            )
+        if wantSun:
+            if not queuedSun:
+                self._drawStarMarker(sunPosition, STAR_COLORS['sun'], sunSize)
             if sunInView and halfWidthAu < 120.0:
-                self._label3d(np.zeros(3), '  Sun', color=self.labelColor, fontsize=10)
+                if queuedSun:
+                    self._pendingBlenderLabels.append(
+                        ('Sun', sunPosition.copy(), 10.0, BLENDER_STAR_BODY_SCALE['Sun'])
+                    )
+                else:
+                    self._label3d(sunPosition, '  Sun', color=self.labelColor, fontsize=10)
             elif sunInView and halfWidthAu > 150.0:
-                self._label3d(np.zeros(3), '  Sol (Sun)', color=self.labelColor, fontsize=9)
+                self._label3d(sunPosition, '  Sol (Sun)', color=self.labelColor, fontsize=9)
 
         if halfWidthAu <= 140.0:
             self._drawSolPlanets(frame, halfWidthAu)
@@ -1048,15 +1148,25 @@ class SolCentauriCinematicAnimator:
         earthOpen = halfWidthAu <= SOL_EARTH_HALF_AU * 1.5
         plutoOuter = name == 'Pluto' and halfWidthAu >= 20.0
         bodyScale = self._blenderPlanetBodyScale(name)
+        saturnHero = (
+            self.useBlenderBodies
+            and name == 'Saturn'
+            and SOL_SATURN_LINGER_HALF_AU * 0.9 <= halfWidthAu <= SOL_SATURN_LINGER_HALF_AU * 1.15
+        )
+        jupiterHero = (
+            self.useBlenderBodies
+            and name == 'Jupiter'
+            and SOL_BELT_LINGER_HALF_AU * 0.85 <= halfWidthAu <= SOL_BELT_LINGER_HALF_AU * 1.25
+        )
         queuedBlender = self._queueBlenderBody(
             name,
             position,
             frame,
             halfWidthAu,
-            openCloseup=earthOpen and name == 'Earth',
+            openCloseup=(earthOpen and name == 'Earth') or saturnHero or jupiterHero,
             bodyScale=bodyScale,
             orbitalPhaseRad=None,
-            suppressDotFallback=name == 'Earth',
+            suppressDotFallback=name == 'Earth' or saturnHero,
         )
         # Earth: never fall back to the catalog-blue scatter when a spin pack exists.
         # Other planets: dots when the pack is missing or the disk is too tiny.
@@ -1222,10 +1332,19 @@ class SolCentauriCinematicAnimator:
             scale *= 1.0 + 0.35 * (outer - 1.0)
         return scale
 
-    def _blenderRawFracRadius(self, halfWidthAu: float, bodyScale: float) -> float | None:
+    def _blenderRawFracRadius(
+        self,
+        halfWidthAu: float,
+        bodyScale: float,
+        *,
+        catalogName: str | None = None,
+    ) -> float | None:
         """Unfloored on-screen fraction (used for LOD / queue decisions)."""
         radiusAu = self._blenderBillboardRadiusAu(
-            halfWidthAu, openCloseup=False, bodyScale=bodyScale
+            halfWidthAu,
+            openCloseup=False,
+            bodyScale=bodyScale,
+            catalogName=catalogName,
         )
         if radiusAu is None:
             return None
@@ -1248,7 +1367,10 @@ class SolCentauriCinematicAnimator:
             return False
         if (
             self._blenderBillboardRadiusAu(
-                halfWidthAu, openCloseup=openCloseup, bodyScale=bodyScale
+                halfWidthAu,
+                openCloseup=openCloseup,
+                bodyScale=bodyScale,
+                catalogName=catalogName,
             )
             is None
         ):
@@ -1281,6 +1403,7 @@ class SolCentauriCinematicAnimator:
         *,
         openCloseup: bool,
         bodyScale: float,
+        catalogName: str | None = None,
     ) -> float | None:
         """Fixed world-space globe radius; None → omit the body (no catalog-color dot).
 
@@ -1291,7 +1414,11 @@ class SolCentauriCinematicAnimator:
         radiusAu = EARTH_GLOBE_RADIUS_AU * bodyScale
         # Keep textured disks through the Sol zoom-out; drop only once the
         # camera is well past the outer system (never swap to catalog blue/gray).
-        if halfWidthAu > 100.0:
+        # Sol's photosphere billboard may run a little past that generic planet cutoff.
+        dropAbove = 100.0
+        if catalogName in BLENDER_STAR_BODY_SCALE:
+            dropAbove = BLENDER_STAR_BILLBOARD_HALF_AU[1]
+        if halfWidthAu > dropAbove:
             return None
         return radiusAu
 
@@ -1309,7 +1436,10 @@ class SolCentauriCinematicAnimator:
             orbitalPhaseRad,
         ) in self._pendingBlenderBodies:
             radiusAu = self._blenderBillboardRadiusAu(
-                bodyHalfWidth, openCloseup=openCloseup, bodyScale=bodyScale
+                bodyHalfWidth,
+                openCloseup=openCloseup,
+                bodyScale=bodyScale,
+                catalogName=catalogName,
             )
             if radiusAu is None:
                 continue
@@ -1318,7 +1448,13 @@ class SolCentauriCinematicAnimator:
             )
             if fracRadius is None:
                 continue
-            resolution = 384 if openCloseup else (64 if fracRadius <= 0.01 else 128)
+            if catalogName in BLENDER_STAR_BODY_SCALE:
+                # Native spin size — avoid an extra 768→384 downscale before paint.
+                resolution = 768
+            elif openCloseup:
+                resolution = 384
+            else:
+                resolution = 64 if fracRadius <= 0.01 else 128
             disk = self.blenderSprites.bodyFrame(
                 catalogName,
                 frame,
@@ -1362,9 +1498,12 @@ class SolCentauriCinematicAnimator:
         catalogName: str | None = None,
     ) -> float | None:
         """On-screen disk radius in figure fraction (matches overlay paint)."""
-        rawFrac = self._blenderRawFracRadius(halfWidthAu, bodyScale)
+        rawFrac = self._blenderRawFracRadius(halfWidthAu, bodyScale, catalogName=catalogName)
         if rawFrac is None:
             return None
+        # Sol uses pure world scale (no stepped floors) so zoom-out is monotonic.
+        if catalogName in BLENDER_STAR_BODY_SCALE:
+            return rawFrac
         floor = 0.0035
         if catalogName is not None:
             appearance = appearanceForCatalogName(catalogName)
@@ -1626,15 +1765,21 @@ class SolCentauriCinematicAnimator:
                 continue
 
             bodyScale = BLENDER_ASTEROID_BODY_SCALE.get(asteroid.name, 0.22)
+            # Ceres is the belt-linger hero during the staged blender zoom-out.
+            ceresHero = (
+                self.useBlenderBodies
+                and asteroid.name == 'Ceres'
+                and SOL_BELT_LINGER_HALF_AU * 0.85 <= halfWidthAu <= SOL_BELT_LINGER_HALF_AU * 1.25
+            )
             queuedBlender = self._queueBlenderBody(
                 asteroid.name,
                 position,
                 frame,
                 halfWidthAu,
-                openCloseup=False,
-                bodyScale=bodyScale,
+                openCloseup=ceresHero,
+                bodyScale=bodyScale * (1.35 if ceresHero else 1.0),
                 orbitalPhaseRad=None,
-                suppressDotFallback=False,
+                suppressDotFallback=ceresHero,
             )
             if not queuedBlender:
                 markerScale = 420.0 if halfWidthAu <= 14.0 else 700.0
@@ -1972,6 +2117,10 @@ class SolCentauriCinematicAnimator:
         # Sol titles are timeline-gated so Proxima's small AU scale cannot reuse them.
         if linear >= PULLBACK_END:
             return None
+        if self.useBlenderBodies:
+            staged = self._blenderSolCaption(halfWidthAu, linear)
+            if staged is not None:
+                return staged
         if halfWidthAu <= SOL_EARTH_HALF_AU * 2.2:
             if self.useBlenderBodies and halfWidthAu < SOL_MOON_REVEAL_HALF_AU:
                 return ('Earth', 'A couple of day–night cycles before we find the Moon')
@@ -2000,6 +2149,35 @@ class SolCentauriCinematicAnimator:
         if halfWidthAu < OORT_VISIBLE_ABOVE_AU:
             return ('Leaving the solar system', 'Past Pluto and the Kuiper Belt')
         return ('Through the Oort Cloud', 'A vast shell of icy bodies around Sol')
+
+    def _blenderSolCaption(self, halfWidthAu: float, linear: float) -> tuple[str, str] | None:
+        """Beat-specific HUD copy for the staged blender Sol zoom-out (#51)."""
+        if linear < SOL_EARTH_BLENDER_DWELL_END:
+            if halfWidthAu < SOL_MOON_REVEAL_HALF_AU:
+                return ('Earth', 'A couple of day–night cycles before we find the Moon')
+            return ('Earth and the Moon', 'Starting close to home before we pull back')
+        if linear < SOL_BEAT_NEAR_SUN_HOLD_END:
+            return ('The Sun', 'Our star up close — then we leave the inner system')
+        if linear < SOL_BEAT_INNER_HOLD_END:
+            return ('Inner planets', 'Mercury, Venus, and Mars on the road to the belt')
+        if linear < SOL_BEAT_BELT_HOLD_END:
+            return (
+                'Asteroid belt and Jupiter',
+                'Ceres in the main belt · Jupiter and its moons beyond',
+            )
+        if linear < SOL_BEAT_SATURN_HOLD_END:
+            return ('Saturn', "Ringed giant — the outer system's signature silhouette")
+        if linear < SOL_HOLD_END and halfWidthAu < 28.0:
+            return (
+                'Outer solar system',
+                'Ice giants and the path out toward Pluto',
+            )
+        if linear < SOL_HOLD_END:
+            return (
+                'Kuiper Belt and Pluto',
+                'Icy bodies beyond Neptune · Pluto on its inclined orbit',
+            )
+        return None
 
     def _caption(
         self, abProgress: float, proximaProgress: float, halfWidthAu: float, linear: float

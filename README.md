@@ -434,6 +434,19 @@ Sun close-up (issue #50) is Sol-only for now (`kind=star`):
 - `render.py blender --body Sun --flyby` / `--spin` → `output/animate/blender/stars/sun/`
 - Emissive photosphere (not a yellow diffuse planet under a key lamp; no atmosphere shell)
 
+Staged Sol zoom-out beats (issue #51) — blender mode only (`--blender-bodies`); classic dotted GIFs unchanged:
+
+| Beat | Approx. scale | Notes |
+|------|---------------|--------|
+| Earth → Moon | 0.04 → 0.16 AU | Day/night hold, then reveal Luna |
+| Near-Sun | ~2.4 AU | Large Sol photosphere billboard + look-at Sol (textured spin stays through outer Sol) |
+| Inner planets | ~6.5 AU | Mercury / Venus / Mars pass |
+| Belt + Jupiter | ~7.8 AU | Ceres hero + Jupiter system |
+| Saturn | ~18 AU | Rings linger floor |
+| Outer / Kuiper | ~42 AU | Ice giants + Pluto, then Oort pullback |
+
+Beats ease in/out via half-width plateaus (no GIF splicing). HUD titles switch per beat.
+
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 
 - `barnards_star_planets_{light,dark}.gif` — compact planets d, b, c, e

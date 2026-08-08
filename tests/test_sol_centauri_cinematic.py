@@ -12,8 +12,18 @@ from animate.scenes.sol_centauri_cinematic import (
     AB_TRAVEL_END,
     ANIMATION_SPEED_AB,
     ANIMATION_SPEED_SOL_NEAR,
+    BLENDER_STAR_BILLBOARD_HALF_AU,
+    BLENDER_STAR_BODY_SCALE,
     PROXIMA_TRAVEL_END,
     PULLBACK_END,
+    SOL_BEAT_BELT_ARRIVE,
+    SOL_BEAT_BELT_HOLD_END,
+    SOL_BEAT_INNER_ARRIVE,
+    SOL_BEAT_INNER_HOLD_END,
+    SOL_BEAT_NEAR_SUN_ARRIVE,
+    SOL_BEAT_NEAR_SUN_HOLD_END,
+    SOL_BEAT_SATURN_ARRIVE,
+    SOL_BEAT_SATURN_HOLD_END,
     SOL_BELT_ARRIVE,
     SOL_BELT_HOLD_END,
     SOL_BELT_LINGER_HALF_AU,
@@ -24,7 +34,10 @@ from animate.scenes.sol_centauri_cinematic import (
     SOL_HALF_WIDTH_AU,
     SOL_HOLD_END,
     SOL_INNER_HALF_AU,
+    SOL_NEAR_SUN_HALF_AU,
     SOL_OUTER_ARRIVE,
+    SOL_OUTER_LINGER_HALF_AU,
+    SOL_SATURN_LINGER_HALF_AU,
     WIDE_OUT_ARRIVE,
     WIDE_OUT_END,
     SolCentauriCinematicAnimator,
@@ -106,6 +119,153 @@ class CinematicTransformTests(unittest.TestCase):
             revealFrame = int(SOL_EARTH_MOON_REVEAL_END * (animator.animationFrames - 1))
             _, revealHalf = animator._cameraState(revealFrame)
             self.assertAlmostEqual(revealHalf, SOL_EARTH_HALF_AU, places=6)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_blender_sol_beats_hold_near_sun_belt_and_saturn(self) -> None:
+        """Staged blender zoom-out (#51) plateaus at Near-Sun, belt, and Saturn scales."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            frames = animator.animationFrames
+            nearHold = int(
+                0.5 * (SOL_BEAT_NEAR_SUN_ARRIVE + SOL_BEAT_NEAR_SUN_HOLD_END) * (frames - 1)
+            )
+            focus, halfWidth = animator._cameraState(nearHold)
+            np.testing.assert_allclose(focus, np.zeros(3), atol=1e-9)
+            self.assertAlmostEqual(halfWidth, SOL_NEAR_SUN_HALF_AU, places=4)
+            title, _ = animator._solCaption(halfWidth, nearHold / max(frames - 1, 1))
+            self.assertEqual(title, 'The Sun')
+
+            innerMid = int(0.5 * (SOL_BEAT_INNER_ARRIVE + SOL_BEAT_INNER_HOLD_END) * (frames - 1))
+            _, innerHalf = animator._cameraState(innerMid)
+            self.assertAlmostEqual(innerHalf, SOL_INNER_HALF_AU, places=4)
+
+            beltHold = int(0.5 * (SOL_BEAT_BELT_ARRIVE + SOL_BEAT_BELT_HOLD_END) * (frames - 1))
+            _, beltHalf = animator._cameraState(beltHold)
+            self.assertAlmostEqual(beltHalf, SOL_BELT_LINGER_HALF_AU, places=4)
+            beltTitle, _ = animator._solCaption(beltHalf, beltHold / max(frames - 1, 1))
+            self.assertIn('belt', beltTitle.lower())
+
+            saturnHold = int(
+                0.5 * (SOL_BEAT_SATURN_ARRIVE + SOL_BEAT_SATURN_HOLD_END) * (frames - 1)
+            )
+            _, saturnHalf = animator._cameraState(saturnHold)
+            self.assertAlmostEqual(saturnHalf, SOL_SATURN_LINGER_HALF_AU, places=4)
+            saturnTitle, _ = animator._solCaption(saturnHalf, saturnHold / max(frames - 1, 1))
+            self.assertEqual(saturnTitle, 'Saturn')
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_classic_mode_skips_blender_sol_beat_timeline(self) -> None:
+        """Dotted mode keeps the pre-#51 belt arrive (no Near-Sun plateau)."""
+        frames = self.animator.animationFrames
+        # Just before classic belt arrive, half-width is still diving (not held at Near-Sun).
+        preBelt = int((SOL_BELT_ARRIVE - 0.01) * (frames - 1))
+        _, halfWidth = self.animator._cameraState(preBelt)
+        self.assertNotAlmostEqual(halfWidth, SOL_NEAR_SUN_HALF_AU, places=3)
+        arrive = int(np.ceil(SOL_BELT_ARRIVE * (frames - 1)))
+        _, arriveHalf = self.animator._cameraState(arrive)
+        self.assertAlmostEqual(arriveHalf, SOL_BELT_LINGER_HALF_AU, places=4)
+
+    def test_blender_sun_billboard_shrinks_monotonically_through_sol_beats(self) -> None:
+        """Sol photosphere follows world scale — no stepped floors that pulse size."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            sunScale = BLENDER_STAR_BODY_SCALE['Sun']
+            nearFrac = animator._blenderBillboardFracRadius(
+                SOL_NEAR_SUN_HALF_AU, sunScale, catalogName='Sun'
+            )
+            innerFrac = animator._blenderBillboardFracRadius(
+                SOL_INNER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            beltFrac = animator._blenderBillboardFracRadius(
+                SOL_BELT_LINGER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            saturnFrac = animator._blenderBillboardFracRadius(
+                SOL_SATURN_LINGER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            outerFrac = animator._blenderBillboardFracRadius(
+                SOL_OUTER_LINGER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            fracs = (nearFrac, innerFrac, beltFrac, saturnFrac, outerFrac)
+            self.assertTrue(all(f is not None for f in fracs))
+            assert all(f is not None for f in fracs)
+            for earlier, later in zip(fracs[:-1], fracs[1:], strict=True):
+                self.assertGreater(earlier, later)
+            # Near-Sun should still read as a clear hero disk.
+            self.assertGreater(nearFrac, 0.04)
+            starMax = BLENDER_STAR_BILLBOARD_HALF_AU[1]
+            self.assertGreater(starMax, SOL_OUTER_LINGER_HALF_AU)
+            self.assertIsNone(
+                animator._blenderBillboardRadiusAu(
+                    starMax + 1.0,
+                    openCloseup=True,
+                    bodyScale=sunScale,
+                    catalogName='Sun',
+                )
+            )
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_blender_sun_is_textured_on_first_on_screen_frame(self) -> None:
+        """Leaving Earth must not show a scatter Sol before the photosphere billboard."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            from animate.scenes.sol_centauri_cinematic import STAR_COLORS
+
+            starFrames: list[int] = []
+            queueFrames: list[int] = []
+            origStar = animator._drawStarMarker
+            origQueue = animator._queueBlenderBody
+
+            def starSpy(position, color, size, **kwargs):
+                if color == STAR_COLORS['sun']:
+                    starFrames.append(int(animator._viewHalfWidthAu * 1000))
+                return origStar(position, color, size, **kwargs)
+
+            def queueSpy(catalogName, position, frame, halfWidthAu, **kwargs):
+                ok = origQueue(catalogName, position, frame, halfWidthAu, **kwargs)
+                if catalogName == 'Sun' and ok:
+                    queueFrames.append(frame)
+                return ok
+
+            animator._drawStarMarker = starSpy  # type: ignore[method-assign]
+            animator._queueBlenderBody = queueSpy  # type: ignore[method-assign]
+
+            firstSunFrame: int | None = None
+            for frame in range(170, 230):
+                starBefore = len(starFrames)
+                queueBefore = len(queueFrames)
+                animator.update(frame)
+                sawStar = len(starFrames) > starBefore
+                sawQueue = len(queueFrames) > queueBefore
+                if sawStar or sawQueue:
+                    firstSunFrame = frame
+                    self.assertTrue(sawQueue, f'Sol first appeared as scatter at frame {frame}')
+                    self.assertFalse(sawStar, f'Sol scatter drawn at textured frame {frame}')
+                    break
+            self.assertIsNotNone(firstSunFrame)
         finally:
             import matplotlib.pyplot as plt
 
