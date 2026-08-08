@@ -150,7 +150,27 @@ def _planet(
     )
 
 
-# Registry: Sol planets + Earth/Moon. Asteroids / extra moons land in later issues.
+def _moon(
+    bodyId: str,
+    catalogName: str,
+    *,
+    roughness: float = 0.82,
+    specular: float = 0.04,
+    atmosphere: BodyAtmosphere | None = None,
+) -> BodyAppearance:
+    """Airless by default; Titan may pass a thin haze shell."""
+    return BodyAppearance(
+        bodyId=bodyId,
+        kind='moon',
+        catalogNames=(catalogName,),
+        textures=_mapsForBodyId(bodyId),
+        roughness=roughness,
+        specular=specular,
+        atmosphere=atmosphere or BodyAtmosphere(enabled=False),
+    )
+
+
+# Registry: Sol planets + major moons. Asteroids land in a later issue.
 _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
     _planet(
         'mercury',
@@ -279,16 +299,33 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
         roughness=0.80,
         specular=0.05,
     ),
-    BodyAppearance(
-        bodyId='moon',
-        kind='moon',
-        catalogNames=('Moon',),
-        textures=_mapsForBodyId('moon'),
-        # Airless regolith: matte, no atmosphere / clouds.
-        roughness=0.82,
-        specular=0.04,
-        atmosphere=BodyAtmosphere(enabled=False),
+    # --- Moons (MoonCatalog) ---
+    _moon('moon', 'Moon'),
+    _moon('phobos', 'Phobos', roughness=0.88, specular=0.03),
+    _moon('deimos', 'Deimos', roughness=0.88, specular=0.03),
+    _moon('io', 'Io', roughness=0.70, specular=0.08),
+    _moon('europa', 'Europa', roughness=0.55, specular=0.18),
+    _moon('ganymede', 'Ganymede', roughness=0.72, specular=0.08),
+    _moon('callisto', 'Callisto', roughness=0.80, specular=0.05),
+    _moon(
+        'titan',
+        'Titan',
+        roughness=0.65,
+        specular=0.10,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.045,
+            colorRgba=(0.95, 0.70, 0.35, 1.0),
+            strength=1.10,
+            fresnelBlend=0.20,
+        ),
     ),
+    _moon('enceladus', 'Enceladus', roughness=0.45, specular=0.22),
+    _moon('rhea', 'Rhea', roughness=0.78, specular=0.06),
+    _moon('titania', 'Titania', roughness=0.80, specular=0.05),
+    _moon('oberon', 'Oberon', roughness=0.80, specular=0.05),
+    _moon('triton', 'Triton', roughness=0.70, specular=0.10),
+    _moon('charon', 'Charon', roughness=0.80, specular=0.05),
 )
 
 
@@ -328,5 +365,17 @@ def registeredPlanetCatalogNames() -> tuple[str, ...]:
             for appearance in _catalogIndex().values()
             for name in appearance.catalogNames
             if appearance.kind == 'planet'
+        )
+    )
+
+
+def registeredMoonCatalogNames() -> tuple[str, ...]:
+    """MoonCatalog-facing packs."""
+    return tuple(
+        sorted(
+            name
+            for appearance in _catalogIndex().values()
+            for name in appearance.catalogNames
+            if appearance.kind == 'moon'
         )
     )
