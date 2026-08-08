@@ -66,11 +66,10 @@ def _blendSpinFrames(frames: list[np.ndarray], position: float) -> np.ndarray:
     wrapped = position % count
     index0 = int(np.floor(wrapped)) % count
     index1 = (index0 + 1) % count
+    # Fractional part of floor is always in [0, 1) — no near-1.0 branch needed.
     blend = float(wrapped - np.floor(wrapped))
     if blend <= 1e-6:
         return frames[index0]
-    if blend >= 1.0 - 1e-6:
-        return frames[index1]
     return frames[index0] * (1.0 - blend) + frames[index1] * blend
 
 
