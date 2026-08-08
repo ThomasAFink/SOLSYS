@@ -352,13 +352,27 @@ def buildAsteroidBodyScene(
     )
 
 
-# Mean solar diameter (IAU nominal); Sol is not in PlanetCatalog.
-_SUN_DIAMETER_KM = 1_392_700.0
-_SUN_COLOR = 'gold'
+@dataclass(frozen=True)
+class _StarSpec:
+    """Fixed-origin star for Blender close-ups (not in PlanetCatalog)."""
+
+    name: str
+    diameterKm: float
+    color: str
+    periodDays: float  # approximate equatorial rotation (spin metadata only)
+
+
+# Sol + α Cen companions. Diameters ≈ catalog R★ × IAU nominal solar diameter.
+_STAR_SPECS: dict[str, _StarSpec] = {
+    'Sun': _StarSpec('Sun', 1_392_700.0, 'gold', 25.0),
+    'Alpha Centauri A': _StarSpec('Alpha Centauri A', 1_701_000.0, '#F6D56A', 22.0),
+    'Alpha Centauri B': _StarSpec('Alpha Centauri B', 1_201_000.0, '#E8A050', 41.0),
+    'Proxima Centauri': _StarSpec('Proxima Centauri', 214_500.0, '#E07060', 83.0),
+}
 
 
 def _fixedOriginKeyframes(frameCount: int, *, periodDays: float = 25.0) -> tuple[BodyKeyframe, ...]:
-    """Stationary body at the origin (Sol); day advances for spin metadata only."""
+    """Stationary body at the origin; day advances for spin metadata only."""
     daysPerFrame = periodDays / frameCount
     return tuple(
         BodyKeyframe(frame=frame, day=frame * daysPerFrame, positionAu=(0.0, 0.0, 0.0))
@@ -366,28 +380,33 @@ def _fixedOriginKeyframes(frameCount: int, *, periodDays: float = 25.0) -> tuple
     )
 
 
-def buildSunBodyScene(
+def buildStarBodyScene(
+    bodyName: str,
     *,
     frameCount: int = 120,
     constants: AstronomicalConstants | None = None,
 ) -> BodyScene:
-    """Build a Blender-ingestible Sol scene (emissive star; body-centered at origin)."""
+    """Build a Blender-ingestible star scene (emissive; body-centered at origin)."""
     if frameCount < 2:
         raise ValueError('frameCount must be >= 2')
+    spec = _STAR_SPECS.get(bodyName)
+    if spec is None:
+        known = ', '.join(sorted(_STAR_SPECS))
+        raise ValueError(f'Unknown star {bodyName!r}. Known stars: {known}')
 
     constants = constants or AstronomicalConstants()
     body = BodySceneBody(
-        name='Sun',
+        name=spec.name,
         kind='star',
-        systemId='sol',
+        systemId='sol' if spec.name == 'Sun' else 'alpha_centauri',
         semiMajorAxisAu=0.0,
         eccentricity=0.0,
         inclinationDeg=0.0,
-        orbitalPeriodDays=25.0,  # approximate equatorial synodic period
-        diameterKm=_SUN_DIAMETER_KM,
-        color=_SUN_COLOR,
-        colorRgba=colorRgbaForName(_SUN_COLOR),
-        displayRadiusAu=displayRadiusAu(_SUN_DIAMETER_KM, constants),
+        orbitalPeriodDays=spec.periodDays,
+        diameterKm=spec.diameterKm,
+        color=spec.color,
+        colorRgba=colorRgbaForName(spec.color),
+        displayRadiusAu=displayRadiusAu(spec.diameterKm, constants),
     )
     keyframes = _fixedOriginKeyframes(frameCount, periodDays=body.orbitalPeriodDays)
     cameraHintDistanceAu = max(body.displayRadiusAu * 8.0, 0.05)
@@ -399,16 +418,25 @@ def buildSunBodyScene(
     )
 
 
+def buildSunBodyScene(
+    *,
+    frameCount: int = 120,
+    constants: AstronomicalConstants | None = None,
+) -> BodyScene:
+    """Build a Blender-ingestible Sol scene (emissive star; body-centered at origin)."""
+    return buildStarBodyScene('Sun', frameCount=frameCount, constants=constants)
+
+
 def buildBodyScene(
     bodyName: str = 'Earth',
     *,
     frameCount: int = 120,
     constants: AstronomicalConstants | None = None,
 ) -> BodyScene:
-    """Build a body scene from planet / moon / asteroid catalogs, or Sol by name."""
+    """Build a body scene from planet / moon / asteroid catalogs, or a registered star."""
     constants = constants or AstronomicalConstants()
-    if bodyName == 'Sun':
-        return buildSunBodyScene(frameCount=frameCount, constants=constants)
+    if bodyName in _STAR_SPECS:
+        return buildStarBodyScene(bodyName, frameCount=frameCount, constants=constants)
     planets = PlanetCatalog(constants).planets
     moons = MoonCatalog().moons
     asteroids = FamousAsteroidCatalog().asteroids
@@ -418,10 +446,12 @@ def buildBodyScene(
         return buildMoonBodyScene(bodyName, frameCount=frameCount, constants=constants)
     if bodyName in asteroids:
         return buildAsteroidBodyScene(bodyName, frameCount=frameCount, constants=constants)
+    knownStars = ', '.join(sorted(_STAR_SPECS))
     knownPlanets = ', '.join(sorted(planets))
     knownMoons = ', '.join(sorted(moons))
     knownAsteroids = ', '.join(sorted(asteroids))
     raise ValueError(
-        f'Unknown body {bodyName!r}. Known: Sun; planets: {knownPlanets}. '
-        f'Known moons: {knownMoons}. Known asteroids: {knownAsteroids}'
+        f'Unknown body {bodyName!r}. Known stars: {knownStars}. '
+        f'Known planets: {knownPlanets}. Known moons: {knownMoons}. '
+        f'Known asteroids: {knownAsteroids}'
     )
