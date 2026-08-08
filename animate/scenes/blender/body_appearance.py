@@ -190,8 +190,24 @@ def _asteroid(
     )
 
 
-# Registry: Sol planets, major moons, named asteroids / dwarfs.
+# Registry: Sol (star), planets, major moons, named asteroids / dwarfs.
 _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
+    BodyAppearance(
+        bodyId='sun',
+        kind='star',
+        catalogNames=('Sun',),
+        textures=_mapsForBodyId('sun'),
+        # Emission-driven in render_flyby; roughness/specular mostly unused.
+        roughness=0.95,
+        specular=0.0,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.10,
+            colorRgba=(1.0, 0.78, 0.32, 1.0),
+            strength=3.6,
+            fresnelBlend=0.50,
+        ),
+    ),
     _planet(
         'mercury',
         'Mercury',
@@ -379,8 +395,20 @@ def _catalogIndex() -> dict[str, BodyAppearance]:
 
 
 def appearanceForCatalogName(catalogName: str) -> BodyAppearance | None:
-    """Return a texture pack for a PlanetCatalog / MoonCatalog / asteroid name."""
+    """Return a texture pack for a catalog / CLI body name (planets, moons, Sun, …)."""
     return _catalogIndex().get(catalogName)
+
+
+def registeredStarCatalogNames() -> tuple[str, ...]:
+    """Star packs (Sol only for now)."""
+    return tuple(
+        sorted(
+            name
+            for appearance in _catalogIndex().values()
+            for name in appearance.catalogNames
+            if appearance.kind == 'star'
+        )
+    )
 
 
 def registeredCatalogNames() -> tuple[str, ...]:

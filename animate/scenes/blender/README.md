@@ -44,7 +44,7 @@ output/animate/blender/
 └── moons/moon/
 ```
 
-Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth/` (see `data/textures/README.md`) plus a shared fresnel **atmosphere** shell from `BodyAtmosphere`. Luna and major moons use NASA 3D Resources color packs under `data/textures/bodies/<moon>/` (airless; Titan adds an orange haze shell). All Sol planets (+ Pluto) register in `body_appearance.py` with color packs; Saturn / Uranus / Neptune also enable a shared **ring** annulus (`BodyRings` + optional `rings.png`). Named asteroids / dwarf planets (`FamousAsteroidCatalog`) resolve via `--body Ceres` / `Vesta` / … into `output/animate/blender/{asteroids,dwarf_planets}/` (airless packs).
+Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth/` (see `data/textures/README.md`) plus a shared fresnel **atmosphere** shell from `BodyAtmosphere`. Luna and major moons use NASA 3D Resources color packs under `data/textures/bodies/<moon>/` (airless; Titan adds an orange haze shell). All Sol planets (+ Pluto) register in `body_appearance.py` with color packs; Saturn / Uranus / Neptune also enable a shared **ring** annulus (`BodyRings` + optional `rings.png`). Named asteroids / dwarf planets (`FamousAsteroidCatalog`) resolve via `--body Ceres` / `Vesta` / … into `output/animate/blender/{asteroids,dwarf_planets}/` (airless packs). Sol (`--body Sun`, `kind=star`) is an emissive photosphere + limb shell under `stars/sun/` (self-lit; no key lamp).
 
 ```bash
 .venv/bin/python render.py blender --body Moon --flyby

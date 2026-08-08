@@ -293,7 +293,7 @@ def _mixCloudLayer(
     return mixRgb.outputs['Color']
 
 
-def _applyBodyMaterial(
+def _applyStarMaterial(
     bpy: Any,
     material: Any,
     *,
@@ -301,6 +301,81 @@ def _applyBodyMaterial(
     appearance: dict[str, Any] | None,
     theme: str,
 ) -> None:
+    """Self-lit photosphere: emission from color map (not a matte ball under a lamp)."""
+    nodeTree = getattr(material, 'node_tree', None)
+    if nodeTree is None:
+        return
+    principled = nodeTree.nodes.get('Principled BSDF')
+    if principled is None:
+        return
+
+    principled.inputs['Base Color'].default_value = color
+    if 'Alpha' in principled.inputs:
+        principled.inputs['Alpha'].default_value = 1.0
+    if 'Roughness' in principled.inputs:
+        principled.inputs['Roughness'].default_value = 0.95
+    for inputName in ('Specular IOR Level', 'Specular'):
+        if inputName in principled.inputs:
+            principled.inputs[inputName].default_value = 0.0
+            break
+
+    emissionStrength = 12.0 if theme == 'dark' else 8.5
+    textures = (appearance or {}).get('textures') or {}
+    colorPath = textures.get('color')
+    surfaceColor = None
+    if colorPath:
+        colorNode = _loadBodyColorTexture(bpy, nodeTree, Path(colorPath))
+        if colorNode is not None:
+            colorNode.location = (-820, 200)
+            hueSat = nodeTree.nodes.new('ShaderNodeHueSaturation')
+            hueSat.location = (-720, 200)
+            # Brighten granulation; SSS map is already warm.
+            hueSat.inputs['Saturation'].default_value = 0.92
+            hueSat.inputs['Value'].default_value = 1.45 if theme == 'light' else 1.65
+            nodeTree.links.new(colorNode.outputs['Color'], hueSat.inputs['Color'])
+            # SCREEN toward solar gold so the disk reads as a star, not a peach planet.
+            solarTint = (1.0, 0.92, 0.55, 1.0) if theme == 'light' else (1.0, 0.88, 0.45, 1.0)
+            surfaceColor = _screenMixColor(
+                nodeTree,
+                hueSat.outputs['Color'],
+                solarTint,
+                factor=0.45 if theme == 'light' else 0.55,
+            )
+            nodeTree.links.new(surfaceColor, principled.inputs['Base Color'])
+
+    if 'Emission Color' in principled.inputs:
+        if surfaceColor is not None:
+            nodeTree.links.new(surfaceColor, principled.inputs['Emission Color'])
+        else:
+            principled.inputs['Emission Color'].default_value = (
+                float(color[0]),
+                float(color[1]),
+                float(color[2]),
+                1.0,
+            )
+        principled.inputs['Emission Strength'].default_value = emissionStrength
+    elif 'Emission' in principled.inputs:
+        principled.inputs['Emission'].default_value = (
+            float(color[0]),
+            float(color[1]),
+            float(color[2]),
+            1.0,
+        )
+
+
+def _applyBodyMaterial(
+    bpy: Any,
+    material: Any,
+    *,
+    color: list[float],
+    appearance: dict[str, Any] | None,
+    theme: str,
+    bodyKind: str = 'planet',
+) -> None:
+    if bodyKind == 'star' or (appearance or {}).get('kind') == 'star':
+        _applyStarMaterial(bpy, material, color=color, appearance=appearance, theme=theme)
+        return
+
     nodeTree = getattr(material, 'node_tree', None)
     if nodeTree is None:
         return
@@ -874,12 +949,15 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
             f'atmosphere={bool((appearanceDict.get("atmosphere") or {}).get("enabled"))} '
             f'rings={bool((appearanceDict.get("rings") or {}).get("enabled"))}'
         )
+    bodyKind = str(body.get('kind') or (appearanceDict or {}).get('kind') or 'planet')
+    isStar = bodyKind == 'star'
     _applyBodyMaterial(
         bpy,
         material,
         color=color,
         appearance=appearanceDict,
         theme=theme,
+        bodyKind=bodyKind,
     )
     if planet.data.materials:
         planet.data.materials[0] = material
@@ -919,26 +997,28 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
         camera.location = (float(position[0]), float(position[1]), float(position[2]))
         camera.keyframe_insert(data_path='location', frame=frame)
 
-    # Single distant sun aimed at the body. No area fill — that was carving the
-    # pointy false "terminator". Ambient lift comes from the world background.
-    lightData = bpy.data.lights.new(f'{name}KeySun', type='SUN')
-    if theme == 'dark':
-        lightData.energy = 2.8
-        lightData.angle = math.radians(5.0)
-        sunLocation = (radius * 14.0, -radius * 8.0, radius * 6.0)
-    else:
-        lightData.energy = 4.2
-        lightData.angle = math.radians(3.0)
-        sunLocation = (radius * 10.0, -radius * 3.5, radius * 9.0)
-    light = bpy.data.objects.new(f'{name}KeySun', lightData)
-    light.location = sunLocation
-    scene.collection.objects.link(light)
-    sunTrack = light.constraints.new(type='TRACK_TO')
-    sunTrack.target = planet
-    sunTrack.track_axis = 'TRACK_NEGATIVE_Z'
-    sunTrack.up_axis = 'UP_Y'
+    # Planets/moons: distant key lamp. Stars are self-emissive — skip the key so
+    # they don't read as yellow diffuse balls under a second sun.
+    if not isStar:
+        lightData = bpy.data.lights.new(f'{name}KeySun', type='SUN')
+        if theme == 'dark':
+            lightData.energy = 2.8
+            lightData.angle = math.radians(5.0)
+            sunLocation = (radius * 14.0, -radius * 8.0, radius * 6.0)
+        else:
+            lightData.energy = 4.2
+            lightData.angle = math.radians(3.0)
+            sunLocation = (radius * 10.0, -radius * 3.5, radius * 9.0)
+        light = bpy.data.objects.new(f'{name}KeySun', lightData)
+        light.location = sunLocation
+        scene.collection.objects.link(light)
+        sunTrack = light.constraints.new(type='TRACK_TO')
+        sunTrack.target = planet
+        sunTrack.track_axis = 'TRACK_NEGATIVE_Z'
+        sunTrack.up_axis = 'UP_Y'
 
-    _configureWorld(bpy, theme)
+    # Stars: keep space dark in both themes so the photosphere / limb read as luminous.
+    _configureWorld(bpy, 'dark' if isStar else theme)
     _configureFlybyRenderer(
         scene,
         ringsEnabled=ringsEnabled,
