@@ -201,6 +201,48 @@ class BodyAppearanceTests(unittest.TestCase):
             self.assertFalse(appearance.atmosphere.enabled, name)
             self.assertNotIn('atmosphere', appearance.toJobDict())
 
+    def test_major_moon_packs_resolve_color_maps(self) -> None:
+        from animate.scenes.blender.body_appearance import registeredMoonCatalogNames
+
+        expected = (
+            'Callisto',
+            'Charon',
+            'Deimos',
+            'Enceladus',
+            'Europa',
+            'Ganymede',
+            'Io',
+            'Moon',
+            'Oberon',
+            'Phobos',
+            'Rhea',
+            'Titan',
+            'Titania',
+            'Triton',
+        )
+        self.assertEqual(registeredMoonCatalogNames(), expected)
+        for name in expected:
+            appearance = appearanceForCatalogName(name)
+            self.assertIsNotNone(appearance, name)
+            assert appearance is not None
+            self.assertEqual(appearance.kind, 'moon', name)
+            maps = appearance.textures.existingMaps()
+            self.assertIn('color', maps, name)
+            self.assertTrue(maps['color'].is_file(), name)
+            self.assertNotIn('clouds', maps, name)
+
+    def test_galilean_and_titan_airless_except_titan_haze(self) -> None:
+        for name in ('Io', 'Europa', 'Ganymede', 'Callisto'):
+            appearance = appearanceForCatalogName(name)
+            assert appearance is not None
+            self.assertFalse(appearance.atmosphere.enabled, name)
+            self.assertNotIn('atmosphere', appearance.toJobDict())
+        titan = appearanceForCatalogName('Titan')
+        assert titan is not None
+        self.assertTrue(titan.atmosphere.enabled)
+        self.assertIn('atmosphere', titan.toJobDict())
+        self.assertGreater(titan.atmosphere.scale, 1.0)
+
 
 class FlybyPipelineTests(unittest.TestCase):
     def test_prepare_export(self) -> None:

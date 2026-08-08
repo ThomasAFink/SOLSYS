@@ -186,6 +186,16 @@ solsys.motion    → moving asteroid fields for animation frames
 |-------|------|
 | ![Saturn close-up light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/saturn/saturn_flyby_light.gif?raw=true) | ![Saturn close-up dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/saturn/saturn_flyby_dark.gif?raw=true) |
 
+**Galilean moons + Titan**
+
+| Body | Light | Dark |
+|------|-------|------|
+| Io | ![Io light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/io/io_flyby_light.gif?raw=true) | ![Io dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/io/io_flyby_dark.gif?raw=true) |
+| Europa | ![Europa light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/europa/europa_flyby_light.gif?raw=true) | ![Europa dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/europa/europa_flyby_dark.gif?raw=true) |
+| Ganymede | ![Ganymede light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/ganymede/ganymede_flyby_light.gif?raw=true) | ![Ganymede dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/ganymede/ganymede_flyby_dark.gif?raw=true) |
+| Callisto | ![Callisto light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/callisto/callisto_flyby_light.gif?raw=true) | ![Callisto dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/callisto/callisto_flyby_dark.gif?raw=true) |
+| Titan | ![Titan light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/titan/titan_flyby_light.gif?raw=true) | ![Titan dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/titan/titan_flyby_dark.gif?raw=true) |
+
 ### Static zoom views (side)
 
 **Inner Solar System With Jupiter**
@@ -335,13 +345,15 @@ Or render by product:
 .venv/bin/python render.py blender --body Moon --flyby    # Moon close-up GIFs
 .venv/bin/python render.py blender --body Jupiter --flyby # textured gas giant
 .venv/bin/python render.py blender --body Saturn --flyby  # rings + textured globe
+.venv/bin/python render.py blender --body Europa --flyby  # Galilean moon close-up
+.venv/bin/python render.py blender --body Titan --flyby   # Titan + haze shell
 .venv/bin/python render.py blender --body Saturn --spin   # RGBA spin (rings) for cinematic
 .venv/bin/python render.py blender --body Earth --spin    # RGBA day/night loop for cinematic
 .venv/bin/python render.py blender --body Moon --spin     # Moon spin loop for cinematic
 .venv/bin/python render.py blender --pipeline             # Earth+Moon spins + blender cinematic
 ```
 
-Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`/`#46`) to `output/animate/blender/{planets,moons}/<body>/` (`*_flyby_{light,dark}.gif`). `render.py blender --spin` writes a fixed-camera transparent PNG day/night loop (`*_spin_<theme>/frame_*.png`) for cinematic reuse. Texture packs for all Sol planets (+ Pluto) live under `data/textures/bodies/` (Saturn/Uranus/Neptune include rings).
+Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`/`#46`/`#47`) to `output/animate/blender/{planets,moons}/<body>/` (`*_flyby_{light,dark}.gif`). `render.py blender --spin` writes a fixed-camera transparent PNG day/night loop (`*_spin_<theme>/frame_*.png`) for cinematic reuse. Texture packs for all Sol planets (+ Pluto) and major moons live under `data/textures/bodies/` (Saturn/Uranus/Neptune include rings; Titan has a haze shell).
 
 Blender → cinematic workflow:
 
@@ -381,6 +393,12 @@ Sol planet packs (issue #46) extend the same path to Mercury–Neptune + Pluto (
 - `jupiter_flyby_{light,dark}.gif` — textured Jupiter + subtle limb haze
 - `saturn_flyby_{light,dark}.gif` / `saturn_spin_{light,dark}/` — rings + globe
 - Other bodies: `render.py blender --body <Name> --flyby`
+
+Major moon packs (issue #47) cover every `MoonCatalog` body (Galileans, Titan, Enceladus, Rhea, Phobos/Deimos, Titania/Oberon, Triton, Charon):
+
+- `io|europa|ganymede|callisto|titan_flyby_{light,dark}.gif` — priority gallery moons
+- `--spin` writes transparent RGBA loops under `output/animate/blender/moons/<body>/`
+- Airless by default; Titan uses a thin orange haze shell
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 
