@@ -135,7 +135,7 @@ class ExportAndLoadTests(unittest.TestCase):
 
 
 class BodyAppearanceTests(unittest.TestCase):
-    def test_sun_pack_is_emissive_star_with_limb(self) -> None:
+    def test_sun_pack_is_emissive_star_without_atmosphere_shell(self) -> None:
         from animate.scenes.blender.body_appearance import registeredStarCatalogNames
         from animate.scenes.blender.export_body import bodyOutputDirectory
 
@@ -144,15 +144,15 @@ class BodyAppearanceTests(unittest.TestCase):
         self.assertIsNotNone(appearance)
         assert appearance is not None
         self.assertEqual(appearance.kind, 'star')
-        self.assertTrue(appearance.atmosphere.enabled)
-        self.assertGreater(appearance.atmosphere.scale, 1.0)
+        # Fresnel atmosphere shell reads as a hard pixelated ring on emissive stars.
+        self.assertFalse(appearance.atmosphere.enabled)
         maps = appearance.textures.existingMaps()
         self.assertIn('color', maps)
         self.assertTrue(maps['color'].is_file())
         job = buildFlybyJob('Sun', theme='dark', framesDirectory=Path('/tmp/sun_frames'))
         self.assertEqual(job['body']['kind'], 'star')
         self.assertEqual(job['appearance']['kind'], 'star')
-        self.assertIn('atmosphere', job['appearance'])
+        self.assertNotIn('atmosphere', job['appearance'])
         self.assertTrue((TEXTURE_BODIES_ROOT / 'sun' / 'color.png').is_file())
         self.assertEqual(
             bodyOutputDirectory('star', 'Sun').as_posix().endswith('stars/sun'),

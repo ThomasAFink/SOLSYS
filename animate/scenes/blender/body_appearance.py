@@ -197,17 +197,10 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
         kind='star',
         catalogNames=('Sun',),
         textures=_mapsForBodyId('sun'),
-        # Emission-driven in render_flyby; roughness/specular mostly unused.
+        # Emission-driven in render_flyby; no fresnel shell (reads as a hard pixelated ring).
         roughness=0.95,
         specular=0.0,
-        atmosphere=BodyAtmosphere(
-            enabled=True,
-            scale=1.06,
-            # Yellow-gold limb matching SSS 8k_sun (avoid peach / brown rim).
-            colorRgba=(1.0, 0.88, 0.22, 1.0),
-            strength=2.2,
-            fresnelBlend=0.38,
-        ),
+        atmosphere=BodyAtmosphere(enabled=False),
     ),
     _planet(
         'mercury',
