@@ -123,12 +123,6 @@ BLENDER_MIN_BILLBOARD_FRAC = 0.0035
 # Soft floors so rings/asteroids stay barely readable without dominating the frame.
 BLENDER_RING_LINGER_MIN_FRAC = 0.008
 BLENDER_ASTEROID_BELT_MIN_FRAC = 0.004
-# Keep Sol's textured disk readable in close holds; taper outward so Kuiper isn't huge.
-BLENDER_STAR_NEAR_SUN_MIN_FRAC = 0.028
-BLENDER_STAR_BELT_MIN_FRAC = 0.012
-BLENDER_STAR_OUTER_MIN_FRAC = 0.0055
-
-
 # Hide Luna until the camera is wide enough that its exaggerated orbit fits.
 SOL_MOON_REVEAL_HALF_AU = 0.11
 SOL_NEAR_SUN_HALF_AU = 2.4
@@ -140,9 +134,13 @@ SOL_SATURN_LINGER_HALF_AU = 18.0
 # Outer linger frames Neptune/Pluto with Kuiper just coming into view.
 SOL_OUTER_LINGER_HALF_AU = 42.0
 SOL_HALF_WIDTH_AU = SOL_OUTER_LINGER_HALF_AU
-# Textured Sol billboard through the whole Sol tour; scatter star-marker after pullback.
-# Cap below the generic billboard drop (halfWidth > 100) in `_blenderBillboardRadiusAu`.
-BLENDER_STAR_BILLBOARD_HALF_AU = (1.2, min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2))
+# Textured Sol billboard through the Sol tour; scatter star-marker after pullback.
+# Start near the Near-Sun hold so the disk does not pop in oversized then pulse
+# through stepped floors. Cap below the generic billboard drop (halfWidth > 100).
+BLENDER_STAR_BILLBOARD_HALF_AU = (
+    SOL_NEAR_SUN_HALF_AU * 0.88,
+    min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2),
+)
 # Leave Earth look-at and ease toward Sol before the Near-Sun plateau.
 SOL_LEAVE_EARTH_FOCUS_HALF_AU = 1.15
 # Wide enough to bring most of the 30 ly catalog into the Sol neighborhood frame.
@@ -1488,14 +1486,6 @@ class SolCentauriCinematicAnimator:
         self.bodyOverlay.set_xlim(0.0, 1.0)
         self.bodyOverlay.set_ylim(0.0, 1.0)
 
-    def _blenderStarFloorFrac(self, halfWidthAu: float) -> float:
-        """Taper Sol's on-screen floor so the photosphere shrinks after the inner hold."""
-        if halfWidthAu <= SOL_INNER_HALF_AU * 1.15:
-            return BLENDER_STAR_NEAR_SUN_MIN_FRAC
-        if halfWidthAu <= SOL_SATURN_LINGER_HALF_AU * 1.15:
-            return BLENDER_STAR_BELT_MIN_FRAC
-        return BLENDER_STAR_OUTER_MIN_FRAC
-
     def _blenderBillboardFracRadius(
         self,
         halfWidthAu: float,
@@ -1507,16 +1497,13 @@ class SolCentauriCinematicAnimator:
         rawFrac = self._blenderRawFracRadius(halfWidthAu, bodyScale, catalogName=catalogName)
         if rawFrac is None:
             return None
+        # Sol uses pure world scale (no stepped floors) so zoom-out is monotonic.
+        if catalogName in BLENDER_STAR_BODY_SCALE:
+            return rawFrac
         floor = 0.0035
         if catalogName is not None:
             appearance = appearanceForCatalogName(catalogName)
-            if catalogName in BLENDER_STAR_BODY_SCALE:
-                starMin, starMax = BLENDER_STAR_BILLBOARD_HALF_AU
-                if starMin <= halfWidthAu <= starMax:
-                    floor = self._blenderStarFloorFrac(halfWidthAu)
-            elif (
-                appearance is not None and appearance.rings.enabled and 18.0 <= halfWidthAu <= 70.0
-            ):
+            if appearance is not None and appearance.rings.enabled and 18.0 <= halfWidthAu <= 70.0:
                 floor = BLENDER_RING_LINGER_MIN_FRAC
             elif catalogName in BLENDER_ASTEROID_BODY_SCALE and 3.5 <= halfWidthAu <= 14.0:
                 floor = BLENDER_ASTEROID_BELT_MIN_FRAC

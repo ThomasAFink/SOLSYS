@@ -12,11 +12,8 @@ from animate.scenes.sol_centauri_cinematic import (
     AB_TRAVEL_END,
     ANIMATION_SPEED_AB,
     ANIMATION_SPEED_SOL_NEAR,
-    BLENDER_STAR_BELT_MIN_FRAC,
     BLENDER_STAR_BILLBOARD_HALF_AU,
     BLENDER_STAR_BODY_SCALE,
-    BLENDER_STAR_NEAR_SUN_MIN_FRAC,
-    BLENDER_STAR_OUTER_MIN_FRAC,
     PROXIMA_TRAVEL_END,
     PULLBACK_END,
     SOL_BEAT_BELT_ARRIVE,
@@ -179,8 +176,8 @@ class CinematicTransformTests(unittest.TestCase):
         _, arriveHalf = self.animator._cameraState(arrive)
         self.assertAlmostEqual(arriveHalf, SOL_BELT_LINGER_HALF_AU, places=4)
 
-    def test_blender_sun_billboard_stays_large_through_inner_hold(self) -> None:
-        """Sol photosphere disk stays floored/large so inner-system frames are not speckled."""
+    def test_blender_sun_billboard_shrinks_monotonically_through_sol_beats(self) -> None:
+        """Sol photosphere follows world scale — no stepped floors that pulse size."""
         paths = defaultDataPaths(REPO_ROOT)
         animator = SolCentauriCinematicAnimator(
             self.system,
@@ -195,30 +192,6 @@ class CinematicTransformTests(unittest.TestCase):
             innerFrac = animator._blenderBillboardFracRadius(
                 SOL_INNER_HALF_AU, sunScale, catalogName='Sun'
             )
-            self.assertIsNotNone(nearFrac)
-            self.assertIsNotNone(innerFrac)
-            assert nearFrac is not None and innerFrac is not None
-            self.assertGreaterEqual(nearFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC)
-            self.assertGreaterEqual(innerFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC)
-            # Near-Sun should read clearly larger than the floor (not a min-size speck).
-            self.assertGreater(nearFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC * 1.2)
-        finally:
-            import matplotlib.pyplot as plt
-
-            plt.close(animator.figure)
-
-    def test_blender_sun_glow_persists_past_inner_into_outer_sol(self) -> None:
-        """Textured Sol billboard continues through belt/Saturn/outer — no scatter-dot swap."""
-        paths = defaultDataPaths(REPO_ROOT)
-        animator = SolCentauriCinematicAnimator(
-            self.system,
-            starsCsvPath=paths['starsCsvPath'],
-            useBlenderBodies=True,
-        )
-        try:
-            sunScale = BLENDER_STAR_BODY_SCALE['Sun']
-            starMax = BLENDER_STAR_BILLBOARD_HALF_AU[1]
-            self.assertGreater(starMax, SOL_OUTER_LINGER_HALF_AU)
             beltFrac = animator._blenderBillboardFracRadius(
                 SOL_BELT_LINGER_HALF_AU, sunScale, catalogName='Sun'
             )
@@ -228,14 +201,15 @@ class CinematicTransformTests(unittest.TestCase):
             outerFrac = animator._blenderBillboardFracRadius(
                 SOL_OUTER_LINGER_HALF_AU, sunScale, catalogName='Sun'
             )
-            self.assertIsNotNone(beltFrac)
-            self.assertIsNotNone(saturnFrac)
-            self.assertIsNotNone(outerFrac)
-            assert beltFrac is not None and saturnFrac is not None and outerFrac is not None
-            self.assertGreaterEqual(beltFrac, BLENDER_STAR_BELT_MIN_FRAC)
-            self.assertGreaterEqual(saturnFrac, BLENDER_STAR_BELT_MIN_FRAC)
-            self.assertGreaterEqual(outerFrac, BLENDER_STAR_OUTER_MIN_FRAC)
-            # Past the Sol tour, glow drops so the neighborhood can use a star marker.
+            fracs = (nearFrac, innerFrac, beltFrac, saturnFrac, outerFrac)
+            self.assertTrue(all(f is not None for f in fracs))
+            assert all(f is not None for f in fracs)
+            for earlier, later in zip(fracs[:-1], fracs[1:], strict=True):
+                self.assertGreater(earlier, later)
+            # Near-Sun should still read as a clear hero disk.
+            self.assertGreater(nearFrac, 0.04)
+            starMax = BLENDER_STAR_BILLBOARD_HALF_AU[1]
+            self.assertGreater(starMax, SOL_OUTER_LINGER_HALF_AU)
             self.assertIsNone(
                 animator._blenderBillboardRadiusAu(
                     starMax + 1.0,
