@@ -1196,11 +1196,9 @@ class SolCentauriCinematicAnimator:
             )
             if radiusAu is None:
                 continue
-            # Map world radius → figure fraction (axes fills the figure).
-            fracRadius = float(radiusAu / max(2.0 * halfWidthAu, 1e-9))
-            # Hold a few on-screen pixels in the outer Sol so Earth stays textured
-            # instead of vanishing into a sub-pixel (and never a blue catalog dot).
-            fracRadius = max(fracRadius, 0.0035)
+            fracRadius = self._blenderBillboardFracRadius(halfWidthAu, bodyScale)
+            if fracRadius is None:
+                continue
             resolution = 384 if openCloseup else (64 if fracRadius <= 0.01 else 128)
             if catalogName == 'Earth':
                 disk = self.blenderSprites.earthFrame(frame, resolution=resolution)
@@ -1239,13 +1237,29 @@ class SolCentauriCinematicAnimator:
         self.bodyOverlay.set_xlim(0.0, 1.0)
         self.bodyOverlay.set_ylim(0.0, 1.0)
 
+    def _blenderBillboardFracRadius(self, halfWidthAu: float, bodyScale: float) -> float | None:
+        """On-screen disk radius in figure fraction (matches overlay paint)."""
+        radiusAu = self._blenderBillboardRadiusAu(
+            halfWidthAu, openCloseup=False, bodyScale=bodyScale
+        )
+        if radiusAu is None:
+            return None
+        # Same floor as _flushBlenderBodyOverlays so labels track the painted disk.
+        return max(float(radiusAu / max(2.0 * halfWidthAu, 1e-9)), 0.0035)
+
+    def _blenderBodyLabelPad(self, fracRadius: float) -> float:
+        """Gap from disk edge to label; shrinks with Earth as the camera pulls back."""
+        # Close-up (~0.09): ~0.03. Inner-Sol floor (0.0035): ~0.0045 — not a fixed
+        # 3% figure gap that leaves Earth floating alone on zoom-out.
+        return max(0.004, min(0.03, fracRadius * 0.45 + 0.003))
+
     def _flushBlenderBodyLabels(self, halfWidthAu: float) -> None:
         """Draw deferred body labels above spin billboards (figure fraction)."""
-        del halfWidthAu
         if not self._pendingBlenderLabels:
             return
         self.bodyOverlay.set_xlim(0.0, 1.0)
         self.bodyOverlay.set_ylim(0.0, 1.0)
+        viewHalf = float(halfWidthAu) if halfWidthAu > 0.0 else self._viewHalfWidthAu
         for name, center, fontsize, bodyScale in self._pendingBlenderLabels:
             x2, y2, _ = proj3d.proj_transform(
                 float(center[0]),
@@ -1255,20 +1269,19 @@ class SolCentauriCinematicAnimator:
             )
             display = self.axes.transData.transform((x2, y2))
             frac = self.figure.transFigure.inverted().transform(display)
-            radiusAu = self._blenderBillboardRadiusAu(
-                self._viewHalfWidthAu, openCloseup=True, bodyScale=bodyScale
-            )
-            fracRadius = float((radiusAu or 0.0) / max(2.0 * self._viewHalfWidthAu, 1e-9))
+            fracRadius = self._blenderBillboardFracRadius(viewHalf, bodyScale) or 0.0035
+            pad = self._blenderBodyLabelPad(fracRadius)
             # Overlay text above the imshow disk. Figure-level text paints under this
             # axes (zorder 20) and gets covered by the globe.
             if name == 'Earth':
-                textX = min(frac[0] + fracRadius + 0.03, 0.94)
+                textX = min(frac[0] + fracRadius + pad, 0.94)
                 textY = frac[1]
                 va = 'center'
             else:
                 # Moon sits near the right edge; lower-right keeps the leading "M".
-                textX = min(frac[0] + fracRadius + 0.016, 0.90)
-                textY = max(frac[1] - fracRadius - 0.02, 0.08)
+                moonPad = max(0.004, min(0.016, pad * 0.55))
+                textX = min(frac[0] + fracRadius + moonPad, 0.90)
+                textY = max(frac[1] - fracRadius - moonPad, 0.08)
                 va = 'top'
             self.bodyOverlay.text(
                 textX,

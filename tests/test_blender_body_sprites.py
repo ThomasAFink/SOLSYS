@@ -143,6 +143,23 @@ class BlenderBodyOverlayTests(unittest.TestCase):
         self.assertAlmostEqual(close, mid, places=9)
         self.assertAlmostEqual(close, outerSol, places=9)
 
+    def test_earth_label_pad_shrinks_on_inner_sol_zoom_out(self) -> None:
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=self.starsCsvPath,
+            useBlenderBodies=False,
+        )
+        closeFrac = animator._blenderBillboardFracRadius(0.16, 1.0)
+        innerFrac = animator._blenderBillboardFracRadius(6.5, 1.0)
+        self.assertIsNotNone(closeFrac)
+        self.assertIsNotNone(innerFrac)
+        assert closeFrac is not None and innerFrac is not None
+        closePad = animator._blenderBodyLabelPad(closeFrac)
+        innerPad = animator._blenderBodyLabelPad(innerFrac)
+        self.assertAlmostEqual(closePad, 0.03, places=3)
+        self.assertLess(innerPad, 0.01)
+        self.assertLess(innerFrac + innerPad, closeFrac * 0.35)
+
     def test_update_paints_overlay_when_spin_assets_present(self) -> None:
         with tempfile.TemporaryDirectory() as temporaryName:
             temporary = Path(temporaryName)
