@@ -12,8 +12,21 @@ from animate.scenes.sol_centauri_cinematic import (
     AB_TRAVEL_END,
     ANIMATION_SPEED_AB,
     ANIMATION_SPEED_SOL_NEAR,
+    BLENDER_STAR_BELT_MIN_FRAC,
+    BLENDER_STAR_BILLBOARD_HALF_AU,
+    BLENDER_STAR_BODY_SCALE,
+    BLENDER_STAR_NEAR_SUN_MIN_FRAC,
+    BLENDER_STAR_OUTER_MIN_FRAC,
     PROXIMA_TRAVEL_END,
     PULLBACK_END,
+    SOL_BEAT_BELT_ARRIVE,
+    SOL_BEAT_BELT_HOLD_END,
+    SOL_BEAT_INNER_ARRIVE,
+    SOL_BEAT_INNER_HOLD_END,
+    SOL_BEAT_NEAR_SUN_ARRIVE,
+    SOL_BEAT_NEAR_SUN_HOLD_END,
+    SOL_BEAT_SATURN_ARRIVE,
+    SOL_BEAT_SATURN_HOLD_END,
     SOL_BELT_ARRIVE,
     SOL_BELT_HOLD_END,
     SOL_BELT_LINGER_HALF_AU,
@@ -24,7 +37,10 @@ from animate.scenes.sol_centauri_cinematic import (
     SOL_HALF_WIDTH_AU,
     SOL_HOLD_END,
     SOL_INNER_HALF_AU,
+    SOL_NEAR_SUN_HALF_AU,
     SOL_OUTER_ARRIVE,
+    SOL_OUTER_LINGER_HALF_AU,
+    SOL_SATURN_LINGER_HALF_AU,
     WIDE_OUT_ARRIVE,
     WIDE_OUT_END,
     SolCentauriCinematicAnimator,
@@ -106,6 +122,128 @@ class CinematicTransformTests(unittest.TestCase):
             revealFrame = int(SOL_EARTH_MOON_REVEAL_END * (animator.animationFrames - 1))
             _, revealHalf = animator._cameraState(revealFrame)
             self.assertAlmostEqual(revealHalf, SOL_EARTH_HALF_AU, places=6)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_blender_sol_beats_hold_near_sun_belt_and_saturn(self) -> None:
+        """Staged blender zoom-out (#51) plateaus at Near-Sun, belt, and Saturn scales."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            frames = animator.animationFrames
+            nearHold = int(
+                0.5 * (SOL_BEAT_NEAR_SUN_ARRIVE + SOL_BEAT_NEAR_SUN_HOLD_END) * (frames - 1)
+            )
+            focus, halfWidth = animator._cameraState(nearHold)
+            np.testing.assert_allclose(focus, np.zeros(3), atol=1e-9)
+            self.assertAlmostEqual(halfWidth, SOL_NEAR_SUN_HALF_AU, places=4)
+            title, _ = animator._solCaption(halfWidth, nearHold / max(frames - 1, 1))
+            self.assertEqual(title, 'The Sun')
+
+            innerMid = int(0.5 * (SOL_BEAT_INNER_ARRIVE + SOL_BEAT_INNER_HOLD_END) * (frames - 1))
+            _, innerHalf = animator._cameraState(innerMid)
+            self.assertAlmostEqual(innerHalf, SOL_INNER_HALF_AU, places=4)
+
+            beltHold = int(0.5 * (SOL_BEAT_BELT_ARRIVE + SOL_BEAT_BELT_HOLD_END) * (frames - 1))
+            _, beltHalf = animator._cameraState(beltHold)
+            self.assertAlmostEqual(beltHalf, SOL_BELT_LINGER_HALF_AU, places=4)
+            beltTitle, _ = animator._solCaption(beltHalf, beltHold / max(frames - 1, 1))
+            self.assertIn('belt', beltTitle.lower())
+
+            saturnHold = int(
+                0.5 * (SOL_BEAT_SATURN_ARRIVE + SOL_BEAT_SATURN_HOLD_END) * (frames - 1)
+            )
+            _, saturnHalf = animator._cameraState(saturnHold)
+            self.assertAlmostEqual(saturnHalf, SOL_SATURN_LINGER_HALF_AU, places=4)
+            saturnTitle, _ = animator._solCaption(saturnHalf, saturnHold / max(frames - 1, 1))
+            self.assertEqual(saturnTitle, 'Saturn')
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_classic_mode_skips_blender_sol_beat_timeline(self) -> None:
+        """Dotted mode keeps the pre-#51 belt arrive (no Near-Sun plateau)."""
+        frames = self.animator.animationFrames
+        # Just before classic belt arrive, half-width is still diving (not held at Near-Sun).
+        preBelt = int((SOL_BELT_ARRIVE - 0.01) * (frames - 1))
+        _, halfWidth = self.animator._cameraState(preBelt)
+        self.assertNotAlmostEqual(halfWidth, SOL_NEAR_SUN_HALF_AU, places=3)
+        arrive = int(np.ceil(SOL_BELT_ARRIVE * (frames - 1)))
+        _, arriveHalf = self.animator._cameraState(arrive)
+        self.assertAlmostEqual(arriveHalf, SOL_BELT_LINGER_HALF_AU, places=4)
+
+    def test_blender_sun_billboard_stays_large_through_inner_hold(self) -> None:
+        """Sol soft glow stays floored/large so inner-system frames are not speckled."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            sunScale = BLENDER_STAR_BODY_SCALE['Sun']
+            nearFrac = animator._blenderBillboardFracRadius(
+                SOL_NEAR_SUN_HALF_AU, sunScale, catalogName='Sun'
+            )
+            innerFrac = animator._blenderBillboardFracRadius(
+                SOL_INNER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            self.assertIsNotNone(nearFrac)
+            self.assertIsNotNone(innerFrac)
+            assert nearFrac is not None and innerFrac is not None
+            self.assertGreaterEqual(nearFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC)
+            self.assertGreaterEqual(innerFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC)
+            # Near-Sun should read clearly larger than the floor (not a min-size speck).
+            self.assertGreater(nearFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC * 1.2)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_blender_sun_glow_persists_past_inner_into_outer_sol(self) -> None:
+        """Soft Sol glow continues through belt/Saturn/outer — no sudden scatter-dot swap."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            sunScale = BLENDER_STAR_BODY_SCALE['Sun']
+            starMax = BLENDER_STAR_BILLBOARD_HALF_AU[1]
+            self.assertGreater(starMax, SOL_OUTER_LINGER_HALF_AU)
+            beltFrac = animator._blenderBillboardFracRadius(
+                SOL_BELT_LINGER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            saturnFrac = animator._blenderBillboardFracRadius(
+                SOL_SATURN_LINGER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            outerFrac = animator._blenderBillboardFracRadius(
+                SOL_OUTER_LINGER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            self.assertIsNotNone(beltFrac)
+            self.assertIsNotNone(saturnFrac)
+            self.assertIsNotNone(outerFrac)
+            assert beltFrac is not None and saturnFrac is not None and outerFrac is not None
+            self.assertGreaterEqual(beltFrac, BLENDER_STAR_BELT_MIN_FRAC)
+            self.assertGreaterEqual(saturnFrac, BLENDER_STAR_BELT_MIN_FRAC)
+            self.assertGreaterEqual(outerFrac, BLENDER_STAR_OUTER_MIN_FRAC)
+            # Past the Sol tour, glow drops so the neighborhood can use a star marker.
+            self.assertIsNone(
+                animator._blenderBillboardRadiusAu(
+                    starMax + 1.0,
+                    openCloseup=True,
+                    bodyScale=sunScale,
+                    catalogName='Sun',
+                )
+            )
         finally:
             import matplotlib.pyplot as plt
 

@@ -63,6 +63,8 @@ End-to-end (Earth + Moon spins, then Sol→Centauri cinematic compositing those 
 .venv/bin/python render.py blender --pipeline
 ```
 
+Staged Sol zoom-out beats (issue #51) apply only with `--blender-bodies`: Earth/Moon → Near-Sun → inner planets → belt/Jupiter → Saturn → outer/Kuiper. Half-width plateaus + HUD captions; classic dotted mode is unchanged.
+
 Products land in:
 
 ```text
