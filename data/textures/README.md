@@ -12,6 +12,7 @@ data/textures/
     │   └── clouds.png         # cloud layer (RGBA; alpha = coverage)
     ├── moon/
     │   └── color.png          # equirectangular color map (airless)
+    ├── sun/                   # Sol photosphere (emissive star close-up)
     ├── mercury/ … pluto/      # Sol planet packs (color; rings where applicable)
     ├── io/ … charon/          # major moon packs (airless; Titan haze in code)
     └── ceres/ … eris/         # asteroids / dwarf planets (airless)
@@ -48,6 +49,17 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
   - **Credit:** NASA/GSFC Scientific Visualization Studio; LRO / LROC
 - **Atmosphere / clouds:** none (airless pack in `body_appearance.py`)
 - **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/))
+
+## Sun (Sol)
+
+Equirectangular photosphere map for the Blender star close-up (`kind=star`). Rendered emissive (not a matte ball under a key lamp); no fresnel atmosphere shell (that read as a hard ring).
+
+| Body | Pack notes | Primary source |
+|------|------------|----------------|
+| Sun | Photosphere granulation (emissive; no atmosphere shell) | [Solar System Scope](https://www.solarsystemscope.com/textures/) [`8k_sun.jpg`](https://www.solarsystemscope.com/textures/download/8k_sun.jpg) (4096×2048) |
+
+- **SSS textures:** free with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/).
+- Sol only for now; α Cen A/B / Proxima packs are a follow-up.
 
 ## Sol planets (Mercury–Neptune + Pluto)
 
