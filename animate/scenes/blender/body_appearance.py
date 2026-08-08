@@ -170,7 +170,27 @@ def _moon(
     )
 
 
-# Registry: Sol planets + major moons. Asteroids land in a later issue.
+def _asteroid(
+    bodyId: str,
+    catalogName: str,
+    *,
+    kind: str = 'asteroid',
+    roughness: float = 0.88,
+    specular: float = 0.04,
+) -> BodyAppearance:
+    """Airless small body / dwarf planet (no atmosphere or clouds)."""
+    return BodyAppearance(
+        bodyId=bodyId,
+        kind=kind,
+        catalogNames=(catalogName,),
+        textures=_mapsForBodyId(bodyId),
+        roughness=roughness,
+        specular=specular,
+        atmosphere=BodyAtmosphere(enabled=False),
+    )
+
+
+# Registry: Sol planets, major moons, named asteroids / dwarfs.
 _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
     _planet(
         'mercury',
@@ -326,6 +346,16 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
     _moon('oberon', 'Oberon', roughness=0.80, specular=0.05),
     _moon('triton', 'Triton', roughness=0.70, specular=0.10),
     _moon('charon', 'Charon', roughness=0.80, specular=0.05),
+    # --- Asteroids / dwarf planets (FamousAsteroidCatalog) ---
+    _asteroid('ceres', 'Ceres', kind='dwarf_planet', roughness=0.78, specular=0.06),
+    _asteroid('vesta', 'Vesta', roughness=0.82, specular=0.05),
+    _asteroid('pallas', 'Pallas', roughness=0.85, specular=0.04),
+    _asteroid('psyche', 'Psyche', roughness=0.55, specular=0.28),
+    _asteroid('bennu', 'Bennu', roughness=0.90, specular=0.03),
+    _asteroid('eros', 'Eros', roughness=0.86, specular=0.04),
+    _asteroid('haumea', 'Haumea', kind='dwarf_planet', roughness=0.55, specular=0.18),
+    _asteroid('makemake', 'Makemake', kind='dwarf_planet', roughness=0.70, specular=0.10),
+    _asteroid('eris', 'Eris', kind='dwarf_planet', roughness=0.60, specular=0.16),
 )
 
 
@@ -377,5 +407,17 @@ def registeredMoonCatalogNames() -> tuple[str, ...]:
             for appearance in _catalogIndex().values()
             for name in appearance.catalogNames
             if appearance.kind == 'moon'
+        )
+    )
+
+
+def registeredAsteroidCatalogNames() -> tuple[str, ...]:
+    """FamousAsteroidCatalog-facing packs (asteroids + dwarf planets)."""
+    return tuple(
+        sorted(
+            name
+            for appearance in _catalogIndex().values()
+            for name in appearance.catalogNames
+            if appearance.kind in {'asteroid', 'dwarf_planet'}
         )
     )
