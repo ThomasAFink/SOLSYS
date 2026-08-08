@@ -8,9 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
-from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from mpl_toolkits.mplot3d import proj3d
-from PIL import Image
 from solsys.motion import AnimatedAsteroidPopulation, AsteroidPopulationCounts
 from solsys.motion.mean_anomaly import planetMeanAnomalyRad
 from solsys.physics import (
@@ -115,7 +113,7 @@ BLENDER_ASTEROID_BODY_SCALE = {
     'Eris': 0.11,
 }
 # Sol photosphere billboard (world scale vs Earth globe). Large enough that the
-# Near-Sun / inner holds read as a smooth disk, not a ~40px GIF-quantized speck.
+# Near-Sun / inner holds read as a clear textured disk, not a ~40px speck.
 BLENDER_STAR_BODY_SCALE = {
     'Sun': 8.0,
 }
@@ -125,35 +123,10 @@ BLENDER_MIN_BILLBOARD_FRAC = 0.0035
 # Soft floors so rings/asteroids stay barely readable without dominating the frame.
 BLENDER_RING_LINGER_MIN_FRAC = 0.008
 BLENDER_ASTEROID_BELT_MIN_FRAC = 0.004
-# Keep Sol's soft disk readable in close holds; taper outward so Kuiper isn't a giant blob.
+# Keep Sol's textured disk readable in close holds; taper outward so Kuiper isn't huge.
 BLENDER_STAR_NEAR_SUN_MIN_FRAC = 0.028
 BLENDER_STAR_BELT_MIN_FRAC = 0.012
 BLENDER_STAR_OUTER_MIN_FRAC = 0.0055
-
-
-def softStarGlowDisk(size: int = 256) -> np.ndarray:
-    """Warm radial glow disk (RGBA float) for mid-scale cinematic Sol.
-
-    Renders 2× and Lanczos-downsamples so the limb stays round after GIF quantize.
-    """
-    size = max(16, int(size))
-    hi = max(size * 2, 32)
-    axis = np.linspace(-1.0, 1.0, hi, dtype=np.float32)
-    yy, xx = np.meshgrid(axis, axis, indexing='ij')
-    radius = np.sqrt(xx * xx + yy * yy)
-    # Gaussian layers — no hard power cutoffs (those ring under 8-bit GIF).
-    core = np.exp(-((radius / 0.26) ** 2))
-    mid = np.exp(-((radius / 0.46) ** 2))
-    halo = np.exp(-((radius / 0.78) ** 2))
-    alpha = np.clip(0.98 * core + 0.55 * mid + 0.30 * halo, 0.0, 1.0)
-    rgb = np.zeros((hi, hi, 3), dtype=np.float32)
-    rgb[..., 0] = np.clip(1.00 * core + 1.00 * mid + 0.90 * halo, 0.0, 1.0)
-    rgb[..., 1] = np.clip(0.95 * core + 0.55 * mid + 0.22 * halo, 0.0, 1.0)
-    rgb[..., 2] = np.clip(0.55 * core + 0.14 * mid + 0.04 * halo, 0.0, 1.0)
-    rgba = np.concatenate([rgb, alpha[..., None]], axis=-1)
-    image = Image.fromarray((np.clip(rgba, 0.0, 1.0) * 255.0).astype(np.uint8), mode='RGBA')
-    image = image.resize((size, size), Image.Resampling.LANCZOS)
-    return np.asarray(image, dtype=np.float32) / 255.0
 
 
 # Hide Luna until the camera is wide enough that its exaggerated orbit fits.
@@ -167,7 +140,7 @@ SOL_SATURN_LINGER_HALF_AU = 18.0
 # Outer linger frames Neptune/Pluto with Kuiper just coming into view.
 SOL_OUTER_LINGER_HALF_AU = 42.0
 SOL_HALF_WIDTH_AU = SOL_OUTER_LINGER_HALF_AU
-# Soft Sol glow through the whole Sol tour; scatter star-marker only after pullback.
+# Textured Sol billboard through the whole Sol tour; scatter star-marker after pullback.
 # Cap below the generic billboard drop (halfWidth > 100) in `_blenderBillboardRadiusAu`.
 BLENDER_STAR_BILLBOARD_HALF_AU = (1.2, min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2))
 # Leave Earth look-at and ease toward Sol before the Near-Sun plateau.
@@ -1340,12 +1313,11 @@ class SolCentauriCinematicAnimator:
         return days * (openScale + (1.0 - openScale) * blend)
 
     def _blenderBodyAvailable(self, catalogName: str) -> bool:
-        if not self.useBlenderBodies:
-            return False
-        # Mid-scale Sol uses a procedural glow disk (no spin pack required).
-        if catalogName in BLENDER_STAR_BODY_SCALE:
-            return True
-        return self.blenderSprites is not None and self.blenderSprites.hasBody(catalogName)
+        return (
+            self.useBlenderBodies
+            and self.blenderSprites is not None
+            and self.blenderSprites.hasBody(catalogName)
+        )
 
     def _blenderPlanetBodyScale(self, planetName: str) -> float:
         """World billboard scale vs Earth, lightly padded when the spin includes rings."""
@@ -1440,7 +1412,7 @@ class SolCentauriCinematicAnimator:
         radiusAu = EARTH_GLOBE_RADIUS_AU * bodyScale
         # Keep textured disks through the Sol zoom-out; drop only once the
         # camera is well past the outer system (never swap to catalog blue/gray).
-        # Sol's soft glow may run a little past that generic planet cutoff.
+        # Sol's photosphere billboard may run a little past that generic planet cutoff.
         dropAbove = 100.0
         if catalogName in BLENDER_STAR_BODY_SCALE:
             dropAbove = BLENDER_STAR_BILLBOARD_HALF_AU[1]
@@ -1450,12 +1422,7 @@ class SolCentauriCinematicAnimator:
 
     def _flushBlenderBodyOverlays(self, halfWidthAu: float) -> None:
         """Project queued bodies and paint Blender spin-loop frames into this frame."""
-        # Sol glow is procedural; other bodies need the spin atlas.
-        if not self._pendingBlenderBodies:
-            return
-        if self.blenderSprites is None and not any(
-            name in BLENDER_STAR_BODY_SCALE for name, *_ in self._pendingBlenderBodies
-        ):
+        if not self._pendingBlenderBodies or self.blenderSprites is None:
             return
         for (
             catalogName,
@@ -1479,39 +1446,10 @@ class SolCentauriCinematicAnimator:
             )
             if fracRadius is None:
                 continue
-            isStar = catalogName in BLENDER_STAR_BODY_SCALE
-            x2, y2, _ = proj3d.proj_transform(
-                float(center[0]),
-                float(center[1]),
-                float(center[2]),
-                self.axes.get_proj(),
-            )
-            display = self.axes.transData.transform((x2, y2))
-            frac = self.figure.transFigure.inverted().transform(display)
-            if isStar:
-                # Mid-scale cinematic Sol: procedural soft disk. Textured SSS spin
-                # bricks under GIF quantize at this LOD; keep photosphere spins for
-                # `blender --body Sun` close-ups. Paint via OffsetImage at native
-                # pixels so imshow extent resampling doesn't ring the falloff.
-                glowFrac = fracRadius * 1.45
-                pixelSize = int(
-                    round(2.0 * glowFrac * self.figure.get_figwidth() * float(self.dpi))
-                )
-                disk = softStarGlowDisk(max(64, min(pixelSize, 320)))
-                diskU8 = (np.clip(disk, 0.0, 1.0) * 255.0).astype(np.uint8)
-                sprite = OffsetImage(diskU8, zoom=1.0, interpolation='bilinear')
-                marker = AnnotationBbox(
-                    sprite,
-                    (float(frac[0]), float(frac[1])),
-                    xycoords='data',
-                    frameon=False,
-                    pad=0.0,
-                    box_alignment=(0.5, 0.5),
-                    zorder=5,
-                )
-                self.bodyOverlay.add_artist(marker)
-                continue
-            if openCloseup:
+            if catalogName in BLENDER_STAR_BODY_SCALE:
+                # Native spin size — avoid an extra 768→384 downscale before paint.
+                resolution = 768
+            elif openCloseup:
                 resolution = 384
             else:
                 resolution = 64 if fracRadius <= 0.01 else 128
@@ -1523,6 +1461,14 @@ class SolCentauriCinematicAnimator:
             )
             if disk is None:
                 continue
+            x2, y2, _ = proj3d.proj_transform(
+                float(center[0]),
+                float(center[1]),
+                float(center[2]),
+                self.axes.get_proj(),
+            )
+            display = self.axes.transData.transform((x2, y2))
+            frac = self.figure.transFigure.inverted().transform(display)
             # PillowWriter quantizes better from 8-bit RGBA than float arrays.
             diskU8 = (np.clip(disk, 0.0, 1.0) * 255.0).astype(np.uint8)
             self.bodyOverlay.imshow(
@@ -1543,7 +1489,7 @@ class SolCentauriCinematicAnimator:
         self.bodyOverlay.set_ylim(0.0, 1.0)
 
     def _blenderStarFloorFrac(self, halfWidthAu: float) -> float:
-        """Taper Sol's on-screen floor so the glow shrinks after the inner hold."""
+        """Taper Sol's on-screen floor so the photosphere shrinks after the inner hold."""
         if halfWidthAu <= SOL_INNER_HALF_AU * 1.15:
             return BLENDER_STAR_NEAR_SUN_MIN_FRAC
         if halfWidthAu <= SOL_SATURN_LINGER_HALF_AU * 1.15:

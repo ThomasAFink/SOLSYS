@@ -180,7 +180,7 @@ class CinematicTransformTests(unittest.TestCase):
         self.assertAlmostEqual(arriveHalf, SOL_BELT_LINGER_HALF_AU, places=4)
 
     def test_blender_sun_billboard_stays_large_through_inner_hold(self) -> None:
-        """Sol soft glow stays floored/large so inner-system frames are not speckled."""
+        """Sol photosphere disk stays floored/large so inner-system frames are not speckled."""
         paths = defaultDataPaths(REPO_ROOT)
         animator = SolCentauriCinematicAnimator(
             self.system,
@@ -208,7 +208,7 @@ class CinematicTransformTests(unittest.TestCase):
             plt.close(animator.figure)
 
     def test_blender_sun_glow_persists_past_inner_into_outer_sol(self) -> None:
-        """Soft Sol glow continues through belt/Saturn/outer — no sudden scatter-dot swap."""
+        """Textured Sol billboard continues through belt/Saturn/outer — no scatter-dot swap."""
         paths = defaultDataPaths(REPO_ROOT)
         animator = SolCentauriCinematicAnimator(
             self.system,
