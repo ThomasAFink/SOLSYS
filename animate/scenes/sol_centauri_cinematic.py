@@ -493,7 +493,8 @@ class SolCentauriCinematicAnimator:
         self._pendingBlenderBodies: list[
             tuple[str, np.ndarray, int, float, bool, float, float | None]
         ] = []
-        self._pendingBlenderLabels: list[tuple[str, np.ndarray, float]] = []
+        # (name, center, fontsize, bodyScale)
+        self._pendingBlenderLabels: list[tuple[str, np.ndarray, float, float]] = []
         self.blenderSprites: BlenderBodySpriteAtlas | None = None
         if self.useBlenderBodies:
             themeName = 'dark' if self.isDark else 'light'
@@ -996,12 +997,17 @@ class SolCentauriCinematicAnimator:
         if name in LABELED_SOL_PLANETS or (
             halfWidthAu < SOL_INNER_HALF_AU and name in ('Mercury', 'Venus', 'Mars')
         ):
-            self._label3d(
-                position,
-                f'  {name}',
-                color=self.labelColor,
-                fontsize=(12 if earthOpen and name == 'Earth' else (10 if plutoOuter else 8)),
-            )
+            fontsize = 12 if earthOpen and name == 'Earth' else (10 if plutoOuter else 8)
+            if name == 'Earth' and queuedBlenderEarth:
+                # Overlay text above the spin billboard — axes labels sit under the disk.
+                self._pendingBlenderLabels.append((name, position.copy(), float(fontsize), 1.0))
+            else:
+                self._label3d(
+                    position,
+                    f'  {name}',
+                    color=self.labelColor,
+                    fontsize=fontsize,
+                )
 
     def _drawSolMoons(self, frame: int, halfWidthAu: float) -> None:
         moonScale = self.moonCatalog.displayScaleForCameraAu(halfWidthAu)
@@ -1082,8 +1088,8 @@ class SolCentauriCinematicAnimator:
         if moon.name == 'Moon':
             if moonOpen:
                 if queuedBlenderMoon:
-                    # Figure text above the spin billboard so the leading "M" isn't covered.
-                    self._pendingBlenderLabels.append((moon.name, moonPosition.copy(), 11.0))
+                    # Overlay text above the spin billboard so the leading "M" isn't covered.
+                    self._pendingBlenderLabels.append((moon.name, moonPosition.copy(), 11.0, 0.35))
                 else:
                     self._label3d(
                         moonPosition,
@@ -1187,13 +1193,18 @@ class SolCentauriCinematicAnimator:
                 zorder=5,
                 clip_on=False,
             )
+        # imshow(extent=...) expands data limits; keep 0–1 so label coords stay figure-like.
+        self.bodyOverlay.set_xlim(0.0, 1.0)
+        self.bodyOverlay.set_ylim(0.0, 1.0)
 
     def _flushBlenderBodyLabels(self, halfWidthAu: float) -> None:
         """Draw deferred body labels above spin billboards (figure fraction)."""
         del halfWidthAu
         if not self._pendingBlenderLabels:
             return
-        for name, center, fontsize in self._pendingBlenderLabels:
+        self.bodyOverlay.set_xlim(0.0, 1.0)
+        self.bodyOverlay.set_ylim(0.0, 1.0)
+        for name, center, fontsize, bodyScale in self._pendingBlenderLabels:
             x2, y2, _ = proj3d.proj_transform(
                 float(center[0]),
                 float(center[1]),
@@ -1203,24 +1214,30 @@ class SolCentauriCinematicAnimator:
             display = self.axes.transData.transform((x2, y2))
             frac = self.figure.transFigure.inverted().transform(display)
             radiusAu = self._blenderBillboardRadiusAu(
-                self._viewHalfWidthAu, openCloseup=True, bodyScale=0.35
+                self._viewHalfWidthAu, openCloseup=True, bodyScale=bodyScale
             )
             fracRadius = float((radiusAu or 0.0) / max(2.0 * self._viewHalfWidthAu, 1e-9))
-            # Figure text (not axes): overlay axes were clipping the leading "M".
-            # Keep the whole word inside the frame to the lower-right of the disk.
-            textX = min(frac[0] + fracRadius + 0.02, 0.90)
-            textY = max(frac[1] - fracRadius - 0.02, 0.08)
-            self.figure.text(
+            # Overlay text above the imshow disk. Figure-level text paints under this
+            # axes (zorder 20) and gets covered by the globe.
+            if name == 'Earth':
+                textX = min(frac[0] + fracRadius + 0.03, 0.94)
+                textY = frac[1]
+                va = 'center'
+            else:
+                # Moon sits near the right edge; lower-right keeps the leading "M".
+                textX = min(frac[0] + fracRadius + 0.016, 0.90)
+                textY = max(frac[1] - fracRadius - 0.02, 0.08)
+                va = 'top'
+            self.bodyOverlay.text(
                 textX,
                 textY,
                 name,
                 color=self.labelColor,
                 fontsize=fontsize,
                 ha='left',
-                va='top',
-                transform=self.figure.transFigure,
+                va=va,
                 clip_on=False,
-                zorder=20,
+                zorder=10,
             )
 
     def _drawSolAsteroidPopulations(self, frame: int, halfWidthAu: float) -> None:
