@@ -9,9 +9,16 @@ from typing import Any
 
 import numpy as np
 from solsys.physics.astronomical_constants import AstronomicalConstants
+from solsys.physics.catalogs.famous_asteroid_catalog import (
+    FamousAsteroidCatalog,
+    FamousAsteroidOrbit,
+)
 from solsys.physics.catalogs.moon_catalog import MoonCatalog, MoonOrbit
 from solsys.physics.catalogs.planet_catalog import PlanetCatalog, PlanetOrbit
 from solsys.physics.orbit_calculator import OrbitCalculator
+
+# FamousAsteroidCatalog uses hex colors; planets/moons use matplotlib names.
+_DWARF_PLANET_NAMES = frozenset({'Ceres', 'Eris', 'Makemake', 'Haumea'})
 
 SCHEMA_ID = 'solsys.blender_body_scene/v1'
 
@@ -48,7 +55,7 @@ class BodySceneBody:
     eccentricity: float
     inclinationDeg: float
     orbitalPeriodDays: float
-    diameterKm: int
+    diameterKm: float
     color: str
     colorRgba: tuple[float, float, float, float]
     displayRadiusAu: float
@@ -100,7 +107,7 @@ class BodyScene:
             eccentricity=float(bodyPayload['eccentricity']),
             inclinationDeg=float(bodyPayload['inclinationDeg']),
             orbitalPeriodDays=float(bodyPayload['orbitalPeriodDays']),
-            diameterKm=int(bodyPayload['diameterKm']),
+            diameterKm=float(bodyPayload['diameterKm']),
             color=str(bodyPayload['color']),
             colorRgba=tuple(float(channel) for channel in bodyPayload['colorRgba']),  # type: ignore[arg-type]
             displayRadiusAu=float(bodyPayload['displayRadiusAu']),
@@ -130,13 +137,29 @@ def loadBodyScene(path: Path | str) -> BodyScene:
     return BodyScene.fromDict(payload)
 
 
-def displayRadiusAu(diameterKm: int, constants: AstronomicalConstants) -> float:
-    physicalRadiusAu = (diameterKm / 2.0) / constants.auToKm
+def displayRadiusAu(diameterKm: float, constants: AstronomicalConstants) -> float:
+    physicalRadiusAu = (float(diameterKm) / 2.0) / constants.auToKm
     return max(physicalRadiusAu * _DISPLAY_RADIUS_EXAGGERATION, _MIN_DISPLAY_RADIUS_AU)
 
 
 def colorRgbaForName(colorName: str) -> tuple[float, float, float, float]:
-    return _COLOR_RGBA.get(colorName.lower(), (0.7, 0.7, 0.7, 1.0))
+    """Matplotlib color name or ``#RRGGBB`` / ``#RGB`` hex (asteroid catalog)."""
+    named = _COLOR_RGBA.get(colorName.lower())
+    if named is not None:
+        return named
+    text = colorName.strip()
+    if text.startswith('#') and len(text) in (4, 7):
+        hexDigits = text[1:]
+        if len(hexDigits) == 3:
+            hexDigits = ''.join(channel * 2 for channel in hexDigits)
+        try:
+            red = int(hexDigits[0:2], 16) / 255.0
+            green = int(hexDigits[2:4], 16) / 255.0
+            blue = int(hexDigits[4:6], 16) / 255.0
+            return (red, green, blue, 1.0)
+        except ValueError:
+            pass
+    return (0.7, 0.7, 0.7, 1.0)
 
 
 def _bodyFromPlanet(planet: PlanetOrbit, constants: AstronomicalConstants) -> BodySceneBody:
@@ -274,22 +297,82 @@ def buildMoonBodyScene(
     )
 
 
+def _bodyFromAsteroid(
+    asteroid: FamousAsteroidOrbit,
+    constants: AstronomicalConstants,
+) -> BodySceneBody:
+    kind = 'dwarf_planet' if asteroid.name in _DWARF_PLANET_NAMES else 'asteroid'
+    return BodySceneBody(
+        name=asteroid.name,
+        kind=kind,
+        systemId='sol',
+        semiMajorAxisAu=asteroid.semiMajorAxisAu,
+        eccentricity=asteroid.eccentricity,
+        inclinationDeg=asteroid.inclinationDeg,
+        orbitalPeriodDays=asteroid.orbitalPeriodDays,
+        diameterKm=float(asteroid.diameterKm),
+        color=asteroid.color,
+        colorRgba=colorRgbaForName(asteroid.color),
+        displayRadiusAu=displayRadiusAu(asteroid.diameterKm, constants),
+    )
+
+
+def buildAsteroidBodyScene(
+    asteroidName: str = 'Ceres',
+    *,
+    frameCount: int = 120,
+    constants: AstronomicalConstants | None = None,
+) -> BodyScene:
+    """Build a Blender-ingestible scene from ``FamousAsteroidCatalog``."""
+    if frameCount < 2:
+        raise ValueError('frameCount must be >= 2')
+
+    constants = constants or AstronomicalConstants()
+    catalog = FamousAsteroidCatalog()
+    try:
+        asteroid = catalog.asteroids[asteroidName]
+    except KeyError as error:
+        known = ', '.join(sorted(catalog.asteroids))
+        raise ValueError(f'Unknown asteroid {asteroidName!r}. Known: {known}') from error
+
+    body = _bodyFromAsteroid(asteroid, constants)
+    keyframes = _orbitKeyframes(
+        semiMajorAxisAu=body.semiMajorAxisAu,
+        eccentricity=body.eccentricity,
+        inclinationDeg=body.inclinationDeg,
+        orbitalPeriodDays=body.orbitalPeriodDays,
+        frameCount=frameCount,
+    )
+    cameraHintDistanceAu = max(body.displayRadiusAu * 8.0, 0.05)
+    return BodyScene(
+        schema=SCHEMA_ID,
+        body=body,
+        keyframes=keyframes,
+        cameraHintDistanceAu=cameraHintDistanceAu,
+    )
+
+
 def buildBodyScene(
     bodyName: str = 'Earth',
     *,
     frameCount: int = 120,
     constants: AstronomicalConstants | None = None,
 ) -> BodyScene:
-    """Build a body scene from PlanetCatalog or MoonCatalog by name."""
+    """Build a body scene from planet / moon / famous-asteroid catalogs by name."""
     constants = constants or AstronomicalConstants()
     planets = PlanetCatalog(constants).planets
     moons = MoonCatalog().moons
+    asteroids = FamousAsteroidCatalog().asteroids
     if bodyName in planets:
         return buildPlanetBodyScene(bodyName, frameCount=frameCount, constants=constants)
     if bodyName in moons:
         return buildMoonBodyScene(bodyName, frameCount=frameCount, constants=constants)
+    if bodyName in asteroids:
+        return buildAsteroidBodyScene(bodyName, frameCount=frameCount, constants=constants)
     knownPlanets = ', '.join(sorted(planets))
     knownMoons = ', '.join(sorted(moons))
+    knownAsteroids = ', '.join(sorted(asteroids))
     raise ValueError(
-        f'Unknown body {bodyName!r}. Known planets: {knownPlanets}. Known moons: {knownMoons}'
+        f'Unknown body {bodyName!r}. Known planets: {knownPlanets}. '
+        f'Known moons: {knownMoons}. Known asteroids: {knownAsteroids}'
     )

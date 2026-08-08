@@ -196,6 +196,13 @@ solsys.motion    → moving asteroid fields for animation frames
 | Callisto | ![Callisto light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/callisto/callisto_flyby_light.gif?raw=true) | ![Callisto dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/callisto/callisto_flyby_dark.gif?raw=true) |
 | Titan | ![Titan light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/titan/titan_flyby_light.gif?raw=true) | ![Titan dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/titan/titan_flyby_dark.gif?raw=true) |
 
+**Ceres + Vesta**
+
+| Body | Light | Dark |
+|------|-------|------|
+| Ceres | ![Ceres light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/dwarf_planets/ceres/ceres_flyby_light.gif?raw=true) | ![Ceres dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/dwarf_planets/ceres/ceres_flyby_dark.gif?raw=true) |
+| Vesta | ![Vesta light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/asteroids/vesta/vesta_flyby_light.gif?raw=true) | ![Vesta dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/asteroids/vesta/vesta_flyby_dark.gif?raw=true) |
+
 ### Static zoom views (side)
 
 **Inner Solar System With Jupiter**
@@ -347,13 +354,15 @@ Or render by product:
 .venv/bin/python render.py blender --body Saturn --flyby  # rings + textured globe
 .venv/bin/python render.py blender --body Europa --flyby  # Galilean moon close-up
 .venv/bin/python render.py blender --body Titan --flyby   # Titan + haze shell
+.venv/bin/python render.py blender --body Ceres --flyby   # dwarf planet
+.venv/bin/python render.py blender --body Vesta --flyby   # main-belt asteroid
 .venv/bin/python render.py blender --body Saturn --spin   # RGBA spin (rings) for cinematic
 .venv/bin/python render.py blender --body Earth --spin    # RGBA day/night loop for cinematic
 .venv/bin/python render.py blender --body Moon --spin     # Moon spin loop for cinematic
 .venv/bin/python render.py blender --pipeline             # Earth+Moon spins + blender cinematic
 ```
 
-Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`/`#46`/`#47`) to `output/animate/blender/{planets,moons}/<body>/` (`*_flyby_{light,dark}.gif`). `render.py blender --spin` writes a fixed-camera transparent PNG day/night loop (`*_spin_<theme>/frame_*.png`) for cinematic reuse. Texture packs for all Sol planets (+ Pluto) and major moons live under `data/textures/bodies/` (Saturn/Uranus/Neptune include rings; Titan has a haze shell).
+Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`/`#46`/`#47`/`#48`) to `output/animate/blender/{planets,moons,asteroids,dwarf_planets}/<body>/` (`*_flyby_{light,dark}.gif`). `render.py blender --spin` writes a fixed-camera transparent PNG day/night loop (`*_spin_<theme>/frame_*.png`) for cinematic reuse. Texture packs for Sol planets, major moons, and named asteroids/dwarfs live under `data/textures/bodies/`.
 
 Blender → cinematic workflow:
 
@@ -399,6 +408,12 @@ Major moon packs (issue #47) cover every `MoonCatalog` body (Galileans, Titan, E
 - `io|europa|ganymede|callisto|titan_flyby_{light,dark}.gif` — priority gallery moons
 - `--spin` writes transparent RGBA loops under `output/animate/blender/moons/<body>/`
 - Airless by default; Titan uses a thin orange haze shell
+
+Asteroid / dwarf packs (issue #48) wire `FamousAsteroidCatalog` into the Blender CLI (`--body Ceres`, `--body Vesta`, …):
+
+- `dwarf_planets/ceres/` and `asteroids/vesta/` flyby + spin outputs
+- Also registered: Pallas, Psyche, Bennu, Eros, Haumea, Makemake, Eris
+- Airless (no atmosphere/clouds); sphere + texture for v1
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 

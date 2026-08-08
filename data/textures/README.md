@@ -14,7 +14,7 @@ data/textures/
     │   └── color.png          # equirectangular color map (airless)
     ├── mercury/ … pluto/      # Sol planet packs (color; rings where applicable)
     ├── io/ … charon/          # major moon packs (airless; Titan haze in code)
-    └── ceres/                 # future (asteroids use the same layout)
+    └── ceres/ … eris/         # asteroids / dwarf planets (airless)
 ```
 
 Optional maps per body (same filename convention when added):
@@ -88,5 +88,21 @@ Equirectangular color maps under `bodies/<bodyId>/color.png` for every `MoonCata
 
 - **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/)).
 - Titan’s spacecraft map is low-contrast; the EEVEE orange limb haze carries most of the recognizable look.
+
+## Asteroids & dwarf planets
+
+Equirectangular color maps for priority `FamousAsteroidCatalog` bodies. Registered as `kind=asteroid` or `kind=dwarf_planet` (atmosphere/clouds always off). Sphere + texture is enough for v1 (no irregular mesh).
+
+| Body | Pack notes | Primary source |
+|------|------------|----------------|
+| Ceres | Dwarf planet | [Solar System Scope](https://www.solarsystemscope.com/textures/) `2k_ceres_fictional.jpg` (Dawn-based) |
+| Vesta | Dawn HAMO clear mosaic, downsampled 2k | USGS Planetary Maps [`Vesta_Dawn_FC_HAMO_Mosaic_Global_74ppd.tif`](https://planetarymaps.usgs.gov/mosaic/Vesta_Dawn_FC_HAMO_Mosaic_Global_74ppd.tif) (NASA/JPL-Caltech/UCLA/MPS/DLR/IDA) |
+| Pallas / Psyche | Gallery-grade procedural cratered maps (no public 2k pack yet) | Generated in-repo |
+| Bennu / Eros | Gallery-grade procedural (stretch NEOs) | Generated in-repo |
+| Haumea / Makemake / Eris | Dwarf planets | SSS `2k_*_fictional.jpg` |
+
+- **SSS textures:** free with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/).
+- **Vesta Dawn mosaic:** NASA / USGS public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/)).
+- Procedural packs are placeholders for belt linger readability until spacecraft mosaics are packaged.
 
 Do not replace vendor textures without updating this README attribution.
