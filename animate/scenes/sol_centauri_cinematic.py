@@ -125,8 +125,10 @@ BLENDER_MIN_BILLBOARD_FRAC = 0.0035
 # Soft floors so rings/asteroids stay barely readable without dominating the frame.
 BLENDER_RING_LINGER_MIN_FRAC = 0.008
 BLENDER_ASTEROID_BELT_MIN_FRAC = 0.004
-# Keep Sol's soft disk readable through the Inner-planets hold (scatter markers GIF poorly).
+# Keep Sol's soft disk readable in close holds; taper outward so Kuiper isn't a giant blob.
 BLENDER_STAR_NEAR_SUN_MIN_FRAC = 0.028
+BLENDER_STAR_BELT_MIN_FRAC = 0.012
+BLENDER_STAR_OUTER_MIN_FRAC = 0.0055
 
 
 def softStarGlowDisk(size: int = 256) -> np.ndarray:
@@ -158,8 +160,6 @@ def softStarGlowDisk(size: int = 256) -> np.ndarray:
 SOL_MOON_REVEAL_HALF_AU = 0.11
 SOL_NEAR_SUN_HALF_AU = 2.4
 SOL_INNER_HALF_AU = 6.5
-# Half-width window where Sol uses the spin billboard instead of a scatter star marker.
-BLENDER_STAR_BILLBOARD_HALF_AU = (1.2, SOL_INNER_HALF_AU * 1.15)
 # Linger on the main belt / Jupiter's orbit (same idea as the Kuiper hold).
 SOL_BELT_LINGER_HALF_AU = 7.8
 # Saturn rings beat — wide enough for the annulus without jumping to Kuiper.
@@ -167,6 +167,9 @@ SOL_SATURN_LINGER_HALF_AU = 18.0
 # Outer linger frames Neptune/Pluto with Kuiper just coming into view.
 SOL_OUTER_LINGER_HALF_AU = 42.0
 SOL_HALF_WIDTH_AU = SOL_OUTER_LINGER_HALF_AU
+# Soft Sol glow through the whole Sol tour; scatter star-marker only after pullback.
+# Cap below the generic billboard drop (halfWidth > 100) in `_blenderBillboardRadiusAu`.
+BLENDER_STAR_BILLBOARD_HALF_AU = (1.2, min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2))
 # Leave Earth look-at and ease toward Sol before the Near-Sun plateau.
 SOL_LEAVE_EARTH_FOCUS_HALF_AU = 1.15
 # Wide enough to bring most of the 30 ly catalog into the Sol neighborhood frame.
@@ -1355,10 +1358,19 @@ class SolCentauriCinematicAnimator:
             scale *= 1.0 + 0.35 * (outer - 1.0)
         return scale
 
-    def _blenderRawFracRadius(self, halfWidthAu: float, bodyScale: float) -> float | None:
+    def _blenderRawFracRadius(
+        self,
+        halfWidthAu: float,
+        bodyScale: float,
+        *,
+        catalogName: str | None = None,
+    ) -> float | None:
         """Unfloored on-screen fraction (used for LOD / queue decisions)."""
         radiusAu = self._blenderBillboardRadiusAu(
-            halfWidthAu, openCloseup=False, bodyScale=bodyScale
+            halfWidthAu,
+            openCloseup=False,
+            bodyScale=bodyScale,
+            catalogName=catalogName,
         )
         if radiusAu is None:
             return None
@@ -1381,7 +1393,10 @@ class SolCentauriCinematicAnimator:
             return False
         if (
             self._blenderBillboardRadiusAu(
-                halfWidthAu, openCloseup=openCloseup, bodyScale=bodyScale
+                halfWidthAu,
+                openCloseup=openCloseup,
+                bodyScale=bodyScale,
+                catalogName=catalogName,
             )
             is None
         ):
@@ -1414,6 +1429,7 @@ class SolCentauriCinematicAnimator:
         *,
         openCloseup: bool,
         bodyScale: float,
+        catalogName: str | None = None,
     ) -> float | None:
         """Fixed world-space globe radius; None → omit the body (no catalog-color dot).
 
@@ -1424,13 +1440,22 @@ class SolCentauriCinematicAnimator:
         radiusAu = EARTH_GLOBE_RADIUS_AU * bodyScale
         # Keep textured disks through the Sol zoom-out; drop only once the
         # camera is well past the outer system (never swap to catalog blue/gray).
-        if halfWidthAu > 100.0:
+        # Sol's soft glow may run a little past that generic planet cutoff.
+        dropAbove = 100.0
+        if catalogName in BLENDER_STAR_BODY_SCALE:
+            dropAbove = BLENDER_STAR_BILLBOARD_HALF_AU[1]
+        if halfWidthAu > dropAbove:
             return None
         return radiusAu
 
     def _flushBlenderBodyOverlays(self, halfWidthAu: float) -> None:
         """Project queued bodies and paint Blender spin-loop frames into this frame."""
-        if not self._pendingBlenderBodies or self.blenderSprites is None:
+        # Sol glow is procedural; other bodies need the spin atlas.
+        if not self._pendingBlenderBodies:
+            return
+        if self.blenderSprites is None and not any(
+            name in BLENDER_STAR_BODY_SCALE for name, *_ in self._pendingBlenderBodies
+        ):
             return
         for (
             catalogName,
@@ -1442,7 +1467,10 @@ class SolCentauriCinematicAnimator:
             orbitalPhaseRad,
         ) in self._pendingBlenderBodies:
             radiusAu = self._blenderBillboardRadiusAu(
-                bodyHalfWidth, openCloseup=openCloseup, bodyScale=bodyScale
+                bodyHalfWidth,
+                openCloseup=openCloseup,
+                bodyScale=bodyScale,
+                catalogName=catalogName,
             )
             if radiusAu is None:
                 continue
@@ -1514,6 +1542,14 @@ class SolCentauriCinematicAnimator:
         self.bodyOverlay.set_xlim(0.0, 1.0)
         self.bodyOverlay.set_ylim(0.0, 1.0)
 
+    def _blenderStarFloorFrac(self, halfWidthAu: float) -> float:
+        """Taper Sol's on-screen floor so the glow shrinks after the inner hold."""
+        if halfWidthAu <= SOL_INNER_HALF_AU * 1.15:
+            return BLENDER_STAR_NEAR_SUN_MIN_FRAC
+        if halfWidthAu <= SOL_SATURN_LINGER_HALF_AU * 1.15:
+            return BLENDER_STAR_BELT_MIN_FRAC
+        return BLENDER_STAR_OUTER_MIN_FRAC
+
     def _blenderBillboardFracRadius(
         self,
         halfWidthAu: float,
@@ -1522,7 +1558,7 @@ class SolCentauriCinematicAnimator:
         catalogName: str | None = None,
     ) -> float | None:
         """On-screen disk radius in figure fraction (matches overlay paint)."""
-        rawFrac = self._blenderRawFracRadius(halfWidthAu, bodyScale)
+        rawFrac = self._blenderRawFracRadius(halfWidthAu, bodyScale, catalogName=catalogName)
         if rawFrac is None:
             return None
         floor = 0.0035
@@ -1531,7 +1567,7 @@ class SolCentauriCinematicAnimator:
             if catalogName in BLENDER_STAR_BODY_SCALE:
                 starMin, starMax = BLENDER_STAR_BILLBOARD_HALF_AU
                 if starMin <= halfWidthAu <= starMax:
-                    floor = BLENDER_STAR_NEAR_SUN_MIN_FRAC
+                    floor = self._blenderStarFloorFrac(halfWidthAu)
             elif (
                 appearance is not None and appearance.rings.enabled and 18.0 <= halfWidthAu <= 70.0
             ):

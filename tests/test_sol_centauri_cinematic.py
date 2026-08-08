@@ -12,8 +12,11 @@ from animate.scenes.sol_centauri_cinematic import (
     AB_TRAVEL_END,
     ANIMATION_SPEED_AB,
     ANIMATION_SPEED_SOL_NEAR,
+    BLENDER_STAR_BELT_MIN_FRAC,
+    BLENDER_STAR_BILLBOARD_HALF_AU,
     BLENDER_STAR_BODY_SCALE,
     BLENDER_STAR_NEAR_SUN_MIN_FRAC,
+    BLENDER_STAR_OUTER_MIN_FRAC,
     PROXIMA_TRAVEL_END,
     PULLBACK_END,
     SOL_BEAT_BELT_ARRIVE,
@@ -36,6 +39,7 @@ from animate.scenes.sol_centauri_cinematic import (
     SOL_INNER_HALF_AU,
     SOL_NEAR_SUN_HALF_AU,
     SOL_OUTER_ARRIVE,
+    SOL_OUTER_LINGER_HALF_AU,
     SOL_SATURN_LINGER_HALF_AU,
     WIDE_OUT_ARRIVE,
     WIDE_OUT_END,
@@ -176,7 +180,7 @@ class CinematicTransformTests(unittest.TestCase):
         self.assertAlmostEqual(arriveHalf, SOL_BELT_LINGER_HALF_AU, places=4)
 
     def test_blender_sun_billboard_stays_large_through_inner_hold(self) -> None:
-        """Sol photosphere disk stays floored/large so inner-system frames are not speckled."""
+        """Sol soft glow stays floored/large so inner-system frames are not speckled."""
         paths = defaultDataPaths(REPO_ROOT)
         animator = SolCentauriCinematicAnimator(
             self.system,
@@ -198,6 +202,48 @@ class CinematicTransformTests(unittest.TestCase):
             self.assertGreaterEqual(innerFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC)
             # Near-Sun should read clearly larger than the floor (not a min-size speck).
             self.assertGreater(nearFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC * 1.2)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_blender_sun_glow_persists_past_inner_into_outer_sol(self) -> None:
+        """Soft Sol glow continues through belt/Saturn/outer — no sudden scatter-dot swap."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            sunScale = BLENDER_STAR_BODY_SCALE['Sun']
+            starMax = BLENDER_STAR_BILLBOARD_HALF_AU[1]
+            self.assertGreater(starMax, SOL_OUTER_LINGER_HALF_AU)
+            beltFrac = animator._blenderBillboardFracRadius(
+                SOL_BELT_LINGER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            saturnFrac = animator._blenderBillboardFracRadius(
+                SOL_SATURN_LINGER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            outerFrac = animator._blenderBillboardFracRadius(
+                SOL_OUTER_LINGER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            self.assertIsNotNone(beltFrac)
+            self.assertIsNotNone(saturnFrac)
+            self.assertIsNotNone(outerFrac)
+            assert beltFrac is not None and saturnFrac is not None and outerFrac is not None
+            self.assertGreaterEqual(beltFrac, BLENDER_STAR_BELT_MIN_FRAC)
+            self.assertGreaterEqual(saturnFrac, BLENDER_STAR_BELT_MIN_FRAC)
+            self.assertGreaterEqual(outerFrac, BLENDER_STAR_OUTER_MIN_FRAC)
+            # Past the Sol tour, glow drops so the neighborhood can use a star marker.
+            self.assertIsNone(
+                animator._blenderBillboardRadiusAu(
+                    starMax + 1.0,
+                    openCloseup=True,
+                    bodyScale=sunScale,
+                    catalogName='Sun',
+                )
+            )
         finally:
             import matplotlib.pyplot as plt
 
