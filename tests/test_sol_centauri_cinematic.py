@@ -223,6 +223,73 @@ class CinematicTransformTests(unittest.TestCase):
 
             plt.close(animator.figure)
 
+    def test_blender_alpha_cen_star_billboards_sized_for_arrival(self) -> None:
+        """α Cen A/B readable at AB hold; Proxima capped so the dive does not fill the frame."""
+        from animate.scenes.sol_centauri_cinematic import (
+            AB_HALF_WIDTH_AU,
+            BLENDER_STAR_BODY_SCALE,
+            BLENDER_STAR_MAX_FRAC,
+            PROXIMA_WIDE_HALF_AU,
+        )
+
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            aFrac = animator._blenderBillboardFracRadius(
+                AB_HALF_WIDTH_AU,
+                BLENDER_STAR_BODY_SCALE['Alpha Centauri A'],
+                catalogName='Alpha Centauri A',
+            )
+            bFrac = animator._blenderBillboardFracRadius(
+                AB_HALF_WIDTH_AU,
+                BLENDER_STAR_BODY_SCALE['Alpha Centauri B'],
+                catalogName='Alpha Centauri B',
+            )
+            proxWide = animator._blenderBillboardFracRadius(
+                PROXIMA_WIDE_HALF_AU,
+                BLENDER_STAR_BODY_SCALE['Proxima Centauri'],
+                catalogName='Proxima Centauri',
+            )
+            proxInner = animator._blenderBillboardFracRadius(
+                0.1,
+                BLENDER_STAR_BODY_SCALE['Proxima Centauri'],
+                catalogName='Proxima Centauri',
+            )
+            self.assertIsNotNone(aFrac)
+            self.assertIsNotNone(bFrac)
+            self.assertIsNotNone(proxWide)
+            self.assertIsNotNone(proxInner)
+            assert aFrac is not None and bFrac is not None
+            assert proxWide is not None and proxInner is not None
+            self.assertGreater(aFrac, 0.015)
+            self.assertGreater(bFrac, 0.012)
+            self.assertLess(aFrac, BLENDER_STAR_MAX_FRAC['Alpha Centauri A'])
+            self.assertEqual(proxInner, BLENDER_STAR_MAX_FRAC['Proxima Centauri'])
+            self.assertIsNone(
+                animator._blenderBillboardRadiusAu(
+                    5.0,
+                    openCloseup=True,
+                    bodyScale=BLENDER_STAR_BODY_SCALE['Alpha Centauri A'],
+                    catalogName='Alpha Centauri A',
+                )
+            )
+            self.assertIsNone(
+                animator._blenderBillboardRadiusAu(
+                    0.05,
+                    openCloseup=True,
+                    bodyScale=BLENDER_STAR_BODY_SCALE['Proxima Centauri'],
+                    catalogName='Proxima Centauri',
+                )
+            )
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
     def test_blender_sun_is_textured_on_first_on_screen_frame(self) -> None:
         """Leaving Earth must not show a scatter Sol before the photosphere billboard."""
         paths = defaultDataPaths(REPO_ROOT)

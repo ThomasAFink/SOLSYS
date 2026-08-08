@@ -13,6 +13,7 @@ data/textures/
     ├── moon/
     │   └── color.png          # equirectangular color map (airless)
     ├── sun/                   # Sol photosphere (emissive star close-up)
+    ├── alpha_centauri_a/ …    # α Cen A/B + Proxima (spectral-tint from Sol)
     ├── mercury/ … pluto/      # Sol planet packs (color; rings where applicable)
     ├── io/ … charon/          # major moon packs (airless; Titan haze in code)
     └── ceres/ … eris/         # asteroids / dwarf planets (airless)
@@ -50,16 +51,20 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
 - **Atmosphere / clouds:** none (airless pack in `body_appearance.py`)
 - **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/))
 
-## Sun (Sol)
+## Stars (Sol + α Centauri)
 
-Equirectangular photosphere map for the Blender star close-up (`kind=star`). Rendered emissive (not a matte ball under a key lamp); no fresnel atmosphere shell (that read as a hard ring).
+Equirectangular photosphere maps for Blender star close-ups (`kind=star`). Rendered emissive (not a matte ball under a key lamp); no fresnel atmosphere shell (that read as a hard ring).
 
 | Body | Pack notes | Primary source |
 |------|------------|----------------|
 | Sun | Photosphere granulation (emissive; no atmosphere shell) | [Solar System Scope](https://www.solarsystemscope.com/textures/) [`8k_sun.jpg`](https://www.solarsystemscope.com/textures/download/8k_sun.jpg) (4096×2048) |
+| Alpha Centauri A | G2V-ish spectral tint of Sol map (`bodies/alpha_centauri_a/`) | Derived from SSS Sol photosphere |
+| Alpha Centauri B | K1V warmer/orange tint (`bodies/alpha_centauri_b/`) | Derived from SSS Sol photosphere |
+| Proxima Centauri | M5.5Ve red tint (`bodies/proxima_centauri/`) | Derived from SSS Sol photosphere |
 
 - **SSS textures:** free with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/).
-- Sol only for now; α Cen A/B / Proxima packs are a follow-up.
+- α Cen / Proxima packs keep Sol granulation with a blackbody-style RGB balance shift until dedicated photosphere maps are packaged.
+- CLI: `render.py blender --body "Alpha Centauri A"` / `"Alpha Centauri B"` / `"Proxima Centauri"`.
 
 ## Sol planets (Mercury–Neptune + Pluto)
 
