@@ -102,6 +102,8 @@ class CinematicTransformTests(unittest.TestCase):
         self.assertAlmostEqual(halfWidth, SOL_EARTH_HALF_AU, places=6)
 
     def test_blender_camera_starts_earth_close_then_reveals_moon(self) -> None:
+        from animate.scenes.sol_centauri_cinematic import SOL_EARTH_BLENDER_DWELL_END
+
         paths = defaultDataPaths(REPO_ROOT)
         animator = SolCentauriCinematicAnimator(
             self.system,
@@ -119,6 +121,48 @@ class CinematicTransformTests(unittest.TestCase):
             revealFrame = int(SOL_EARTH_MOON_REVEAL_END * (animator.animationFrames - 1))
             _, revealHalf = animator._cameraState(revealFrame)
             self.assertAlmostEqual(revealHalf, SOL_EARTH_HALF_AU, places=6)
+            dwellFrame = int(SOL_EARTH_BLENDER_DWELL_END * (animator.animationFrames - 1)) - 1
+            _, dwellHalf = animator._cameraState(dwellFrame)
+            self.assertAlmostEqual(dwellHalf, SOL_EARTH_HALF_AU, places=6)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_blender_earth_moon_open_covers_full_lunar_orbit(self) -> None:
+        """Earth+Moon plateau should advance Luna by ~one sidereal month."""
+        from animate.scenes.sol_centauri_cinematic import (
+            LUNAR_OPEN_MOTION_SCALE,
+            SOL_EARTH_BLENDER_DWELL_END,
+            SOL_MOON_REVEAL_HALF_AU,
+        )
+
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            moon = animator.moonCatalog.moons['Moon']
+            frames = animator.animationFrames
+            revealFrame = int(np.ceil(SOL_EARTH_MOON_REVEAL_END * (frames - 1)))
+            dwellFrame = int(SOL_EARTH_BLENDER_DWELL_END * (frames - 1)) - 1
+            # First frame where Luna is on-screen (half-width past reveal gate).
+            visibleFrame = revealFrame
+            for frame in range(revealFrame, dwellFrame + 1):
+                _, halfWidth = animator._cameraState(frame)
+                if halfWidth >= SOL_MOON_REVEAL_HALF_AU - 1e-9:
+                    visibleFrame = frame
+                    break
+            daysStart = animator._lunarMotionDays(
+                moon, visibleFrame, SOL_EARTH_HALF_AU
+            )
+            daysEnd = animator._lunarMotionDays(moon, dwellFrame, SOL_EARTH_HALF_AU)
+            orbits = (daysEnd - daysStart) / moon.orbitalPeriodDays
+            self.assertGreaterEqual(orbits, 0.95)
+            self.assertLessEqual(orbits, 1.25)
+            self.assertAlmostEqual(LUNAR_OPEN_MOTION_SCALE, 0.067, places=3)
         finally:
             import matplotlib.pyplot as plt
 
@@ -292,6 +336,12 @@ class CinematicTransformTests(unittest.TestCase):
 
     def test_blender_sun_is_textured_on_first_on_screen_frame(self) -> None:
         """Leaving Earth must not show a scatter Sol before the photosphere billboard."""
+        from animate.scenes.sol_centauri_cinematic import (
+            SOL_BEAT_NEAR_SUN_ARRIVE,
+            SOL_EARTH_BLENDER_DWELL_END,
+            STAR_COLORS,
+        )
+
         paths = defaultDataPaths(REPO_ROOT)
         animator = SolCentauriCinematicAnimator(
             self.system,
@@ -299,8 +349,6 @@ class CinematicTransformTests(unittest.TestCase):
             useBlenderBodies=True,
         )
         try:
-            from animate.scenes.sol_centauri_cinematic import STAR_COLORS
-
             starFrames: list[int] = []
             queueFrames: list[int] = []
             origStar = animator._drawStarMarker
@@ -320,8 +368,11 @@ class CinematicTransformTests(unittest.TestCase):
             animator._drawStarMarker = starSpy  # type: ignore[method-assign]
             animator._queueBlenderBody = queueSpy  # type: ignore[method-assign]
 
+            frames = animator.animationFrames
+            scanStart = int(SOL_EARTH_BLENDER_DWELL_END * (frames - 1)) - 5
+            scanEnd = int(SOL_BEAT_NEAR_SUN_ARRIVE * (frames - 1)) + 5
             firstSunFrame: int | None = None
-            for frame in range(170, 230):
+            for frame in range(max(0, scanStart), min(frames, scanEnd)):
                 starBefore = len(starFrames)
                 queueBefore = len(queueFrames)
                 animator.update(frame)
