@@ -12,7 +12,7 @@ data/textures/
     │   └── clouds.png         # cloud layer (RGBA; alpha = coverage)
     ├── moon/
     │   └── color.png          # equirectangular color map (airless)
-    ├── jupiter/               # future
+    ├── mercury/ … pluto/      # Sol planet packs (color; rings where applicable)
     └── ceres/                 # future (asteroids use the same layout)
 ```
 
@@ -24,10 +24,11 @@ Optional maps per body (same filename convention when added):
 | `specular.png` | Ocean / metalness-style mask (optional) |
 | `clouds.png` | Cloud layer (optional; alpha or luminance = coverage) |
 | `normal.png` | Normal map (optional) |
+| `rings.png` | Azimuth × radius ring strip with alpha (Saturn / ice giants) |
 
 Host code resolves packs via `animate.scenes.blender.body_appearance` (catalog name → `bodyId` → paths). Bodies without a pack keep the flat catalog `colorRgba` fallback.
 
-Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `BodyAtmosphere` (Earth on; asteroids stay off). Clouds are a texture map on the same pack and mix over the surface color when present.
+Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `BodyAtmosphere` (Earth/Venus/Mars/gas giants on; Mercury/Moon/Pluto off). Clouds are a texture map on the same pack and mix over the surface color when present. Rings use `BodyRings` + optional `rings.png`.
 
 ## Earth
 
@@ -46,5 +47,24 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
   - **Credit:** NASA/GSFC Scientific Visualization Studio; LRO / LROC
 - **Atmosphere / clouds:** none (airless pack in `body_appearance.py`)
 - **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/))
+
+## Sol planets (Mercury–Neptune + Pluto)
+
+2k equirectangular color maps under `bodies/<bodyId>/color.png`, registered in `body_appearance.py`.
+
+| Body | Pack notes | Primary source |
+|------|------------|----------------|
+| Mercury | Airless, matte | [Solar System Scope](https://www.solarsystemscope.com/textures/) `2k_mercury.jpg` (based on NASA / USGS maps) |
+| Venus | Cloud-deck color + thick yellowish limb haze | SSS `2k_venus_atmosphere.jpg` |
+| Mars | Thin dusty atmosphere shell | SSS `2k_mars.jpg` |
+| Jupiter | Subtle cream limb haze | SSS `2k_jupiter.jpg` |
+| Saturn | Rings required (`rings.png` + `BodyRings` tilt 26.7°) | SSS `2k_saturn.jpg` + `2k_saturn_ring_alpha.png` |
+| Uranus | Subtler rings (synthetic strip) + cyan haze | SSS `2k_uranus.jpg`; rings generated for gallery readability |
+| Neptune | Subtler rings (synthetic strip) + blue haze | SSS `2k_neptune.jpg`; rings generated for gallery readability |
+| Pluto | Airless New Horizons color | [NASA 3D Resources](https://github.com/nasa/NASA-3D-Resources) `Images and Textures/Pluto/Pluto.jpg` |
+
+- **Solar System Scope textures:** free for personal and commercial use with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/) (underlying spacecraft data from NASA / USGS / ESA missions).
+- **NASA Pluto map:** U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/)).
+- Ice-giant `rings.png` files are lightweight synthetic azimuth×radius alpha strips (not spacecraft mosaics) so Uranus/Neptune show readable ring systems in EEVEE flybys.
 
 Do not replace vendor textures without updating this README attribution.

@@ -447,6 +447,244 @@ def _addAtmosphereShell(
     return shell
 
 
+def _createRingAnnulus(
+    bpy: Any,
+    name: str,
+    *,
+    innerRadius: float,
+    outerRadius: float,
+    segments: int = 128,
+) -> Any:
+    """Flat equatorial annulus; U = azimuth, V = inner→outer (ring strip maps)."""
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(f'{name}Mesh')
+    builder = bmesh.new()
+    uvLayer = builder.loops.layers.uv.new('UVMap')
+    innerVerts = []
+    outerVerts = []
+    for index in range(segments):
+        angle = (2.0 * math.pi * index) / segments
+        cosA = math.cos(angle)
+        sinA = math.sin(angle)
+        innerVerts.append(builder.verts.new((innerRadius * cosA, innerRadius * sinA, 0.0)))
+        outerVerts.append(builder.verts.new((outerRadius * cosA, outerRadius * sinA, 0.0)))
+    builder.verts.ensure_lookup_table()
+    for index in range(segments):
+        nextIndex = (index + 1) % segments
+        face = builder.faces.new(
+            (
+                innerVerts[index],
+                outerVerts[index],
+                outerVerts[nextIndex],
+                innerVerts[nextIndex],
+            )
+        )
+        u0 = index / segments
+        u1 = (index + 1) / segments
+        # loops follow the face vertex order above.
+        face.loops[0][uvLayer].uv = (u0, 0.0)
+        face.loops[1][uvLayer].uv = (u0, 1.0)
+        face.loops[2][uvLayer].uv = (u1, 1.0)
+        face.loops[3][uvLayer].uv = (u1, 0.0)
+    builder.to_mesh(mesh)
+    builder.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _screenMixColor(
+    nodeTree: Any,
+    colorSocket: Any,
+    tint: tuple[float, float, float, float],
+    *,
+    factor: float,
+) -> Any:
+    """SCREEN-mix ``colorSocket`` toward ``tint`` (Blender 4+/5 Mix, else MixRGB)."""
+    nodes = nodeTree.nodes
+    links = nodeTree.links
+    colorLift = nodes.new('ShaderNodeMix')
+    if hasattr(colorLift, 'data_type'):
+        colorLift.data_type = 'RGBA'
+        colorLift.blend_type = 'SCREEN'
+        colorLift.inputs['Factor'].default_value = factor
+        colorLift.inputs['B'].default_value = tint
+        colorLift.location = (-180, -80)
+        links.new(colorSocket, colorLift.inputs['A'])
+        return colorLift.outputs['Result']
+    nodes.remove(colorLift)
+    mixRgb = nodes.new('ShaderNodeMixRGB')
+    mixRgb.blend_type = 'SCREEN'
+    mixRgb.inputs['Fac'].default_value = factor
+    mixRgb.inputs['Color2'].default_value = tint
+    mixRgb.location = (-180, -80)
+    links.new(colorSocket, mixRgb.inputs['Color1'])
+    return mixRgb.outputs['Color']
+
+
+def _wireRingTexture(
+    bpy: Any,
+    nodeTree: Any,
+    *,
+    ringsPath: Path,
+    principled: Any,
+    mixFacInput: Any,
+    themeTint: tuple[float, float, float, float],
+    theme: str,
+    alphaValue: float,
+) -> None:
+    """Connect rings strip color/alpha into the ring principled + mix factor."""
+    textureNode = _loadImageTexture(bpy, nodeTree, ringsPath, label='rings')
+    if textureNode is None:
+        mixFacInput.default_value = alphaValue
+        return
+    textureNode.location = (-420, -40)
+    textureNode.extension = 'REPEAT'
+    lifted = _screenMixColor(
+        nodeTree,
+        textureNode.outputs['Color'],
+        themeTint,
+        factor=0.65 if theme == 'dark' else 0.35,
+    )
+    nodeTree.links.new(lifted, principled.inputs['Base Color'])
+    if 'Emission Color' in principled.inputs:
+        nodeTree.links.new(lifted, principled.inputs['Emission Color'])
+    if 'Alpha' in textureNode.outputs:
+        multiply = nodeTree.nodes.new('ShaderNodeMath')
+        multiply.operation = 'MULTIPLY'
+        multiply.location = (20, 40)
+        multiply.inputs[1].default_value = alphaValue
+        nodeTree.links.new(textureNode.outputs['Alpha'], multiply.inputs[0])
+        nodeTree.links.new(multiply.outputs['Value'], mixFacInput)
+    else:
+        mixFacInput.default_value = alphaValue
+
+
+def _enableTransparentBlend(material: Any) -> None:
+    if hasattr(material, 'surface_render_method'):
+        material.surface_render_method = 'BLENDED'
+    elif hasattr(material, 'blend_method'):
+        material.blend_method = 'BLEND'
+    if hasattr(material, 'use_backface_culling'):
+        material.use_backface_culling = False
+    if hasattr(material, 'show_transparent_back'):
+        material.show_transparent_back = True
+
+
+def _buildRingMaterial(
+    bpy: Any,
+    name: str,
+    *,
+    ringsPath: Path | None,
+    opacity: float,
+    theme: str,
+) -> Any:
+    """Transparent ring material; optional azimuth×radius strip with alpha."""
+    material = bpy.data.materials.new(name=name)
+    nodeTree = material.node_tree
+    if nodeTree is None:
+        return material
+    nodes = nodeTree.nodes
+    links = nodeTree.links
+    nodes.clear()
+
+    output = nodes.new('ShaderNodeOutputMaterial')
+    output.location = (420, 0)
+    mix = nodes.new('ShaderNodeMixShader')
+    mix.location = (220, 0)
+    transparent = nodes.new('ShaderNodeBsdfTransparent')
+    transparent.location = (20, 80)
+    principled = nodes.new('ShaderNodeBsdfPrincipled')
+    principled.location = (20, -80)
+    if 'Roughness' in principled.inputs:
+        principled.inputs['Roughness'].default_value = 0.55
+    for inputName in ('Specular IOR Level', 'Specular'):
+        if inputName in principled.inputs:
+            principled.inputs[inputName].default_value = 0.15
+            break
+
+    # Cream ice/rock albedo — dark SSS ring strips stay readable on black backdrops.
+    themeTint = (0.95, 0.90, 0.78, 1.0) if theme == 'light' else (0.92, 0.86, 0.72, 1.0)
+    principled.inputs['Base Color'].default_value = themeTint
+    alphaValue = max(0.05, min(opacity, 1.0))
+    if 'Emission Color' in principled.inputs:
+        principled.inputs['Emission Color'].default_value = themeTint
+        principled.inputs['Emission Strength'].default_value = 0.18 if theme == 'dark' else 0.06
+    elif 'Emission' in principled.inputs:
+        principled.inputs['Emission'].default_value = themeTint
+
+    if ringsPath is not None and ringsPath.is_file():
+        _wireRingTexture(
+            bpy,
+            nodeTree,
+            ringsPath=ringsPath,
+            principled=principled,
+            mixFacInput=mix.inputs['Fac'],
+            themeTint=themeTint,
+            theme=theme,
+            alphaValue=alphaValue,
+        )
+    else:
+        mix.inputs['Fac'].default_value = alphaValue * 0.35
+
+    links.new(transparent.outputs['BSDF'], mix.inputs[1])
+    links.new(principled.outputs['BSDF'], mix.inputs[2])
+    links.new(mix.outputs['Shader'], output.inputs['Surface'])
+    _enableTransparentBlend(material)
+    return material
+
+
+def _addRingSystem(
+    bpy: Any,
+    planet: Any,
+    *,
+    radius: float,
+    rings: dict[str, Any],
+    appearance: dict[str, Any] | None,
+    theme: str,
+) -> Any | None:
+    """Shared Saturn / ice-giant ring annulus parented to the body."""
+    if not rings.get('enabled'):
+        return None
+    innerScale = float(rings.get('innerScale', 1.2))
+    outerScale = float(rings.get('outerScale', 2.3))
+    if outerScale <= innerScale:
+        outerScale = innerScale + 0.5
+    tiltDeg = float(rings.get('tiltDeg', 0.0))
+    opacity = float(rings.get('opacity', 1.0))
+    textures = (appearance or {}).get('textures') or {}
+    ringsPathValue = textures.get('rings')
+    ringsPath = Path(ringsPathValue) if ringsPathValue else None
+
+    annulus = _createRingAnnulus(
+        bpy,
+        f'{planet.name}Rings',
+        innerRadius=radius * innerScale,
+        outerRadius=radius * outerScale,
+    )
+    annulus.parent = planet
+    # Equatorial rings: tilt about local X (obliquity).
+    annulus.rotation_euler = (math.radians(tiltDeg), 0.0, 0.0)
+    material = _buildRingMaterial(
+        bpy,
+        f'{planet.name}RingsMaterial',
+        ringsPath=ringsPath,
+        opacity=opacity,
+        theme=theme,
+    )
+    if annulus.data.materials:
+        annulus.data.materials[0] = material
+    else:
+        annulus.data.materials.append(material)
+    print(
+        f'Rings: inner={innerScale:.2f}R outer={outerScale:.2f}R '
+        f'tilt={tiltDeg:.1f}° opacity={opacity:.2f} '
+        f'texture={"on" if ringsPath and ringsPath.is_file() else "off"}'
+    )
+    return annulus
+
+
 def _configureWorld(bpy: Any, theme: str) -> None:
     """Theme backdrop + sparse ambient fill (not a second lamp).
 
@@ -516,7 +754,8 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
         print(
             f'Appearance: bodyId={appearanceDict.get("bodyId")} '
             f'textures={sorted((appearanceDict.get("textures") or {}).keys())} '
-            f'atmosphere={bool((appearanceDict.get("atmosphere") or {}).get("enabled"))}'
+            f'atmosphere={bool((appearanceDict.get("atmosphere") or {}).get("enabled"))} '
+            f'rings={bool((appearanceDict.get("rings") or {}).get("enabled"))}'
         )
     _applyBodyMaterial(
         bpy,
@@ -536,6 +775,15 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
             planet,
             radius=radius,
             atmosphere=appearanceDict['atmosphere'],
+            theme=theme,
+        )
+    if appearanceDict and isinstance(appearanceDict.get('rings'), dict):
+        _addRingSystem(
+            bpy,
+            planet,
+            radius=radius,
+            rings=appearanceDict['rings'],
+            appearance=appearanceDict,
             theme=theme,
         )
 
