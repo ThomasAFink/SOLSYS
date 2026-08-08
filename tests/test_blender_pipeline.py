@@ -17,9 +17,11 @@ from animate.scenes.blender.body_appearance import (
 from animate.scenes.blender.body_scene import (
     SCHEMA_ID,
     BodyScene,
+    buildAsteroidBodyScene,
     buildBodyScene,
     buildMoonBodyScene,
     buildPlanetBodyScene,
+    colorRgbaForName,
     loadBodyScene,
 )
 from animate.scenes.blender.export_body import exportBodyScene, exportPlanetBodyScene
@@ -69,6 +71,19 @@ class BodySceneBuildTests(unittest.TestCase):
     def test_unknown_body_raises(self) -> None:
         with self.assertRaises(ValueError):
             buildBodyScene('Nibiru')
+
+    def test_build_asteroid_and_dwarf_scenes(self) -> None:
+        ceres = buildAsteroidBodyScene('Ceres', frameCount=12)
+        self.assertEqual(ceres.body.name, 'Ceres')
+        self.assertEqual(ceres.body.kind, 'dwarf_planet')
+        self.assertEqual(len(ceres.keyframes), 12)
+        vesta = buildBodyScene('Vesta', frameCount=8)
+        self.assertEqual(vesta.body.kind, 'asteroid')
+        self.assertGreater(vesta.body.displayRadiusAu, 0.0)
+        # Hex catalog colors resolve (not the gray fallback).
+        rgba = colorRgbaForName('#C4A882')
+        self.assertAlmostEqual(rgba[0], 196 / 255.0, places=5)
+        self.assertAlmostEqual(rgba[1], 168 / 255.0, places=5)
 
     def test_round_trip_json(self) -> None:
         scene = buildPlanetBodyScene('Jupiter', frameCount=8)
@@ -242,6 +257,37 @@ class BodyAppearanceTests(unittest.TestCase):
         self.assertTrue(titan.atmosphere.enabled)
         self.assertIn('atmosphere', titan.toJobDict())
         self.assertGreater(titan.atmosphere.scale, 1.0)
+
+    def test_asteroid_and_dwarf_packs_airless(self) -> None:
+        from animate.scenes.blender.body_appearance import registeredAsteroidCatalogNames
+
+        expected = (
+            'Bennu',
+            'Ceres',
+            'Eris',
+            'Eros',
+            'Haumea',
+            'Makemake',
+            'Pallas',
+            'Psyche',
+            'Vesta',
+        )
+        self.assertEqual(registeredAsteroidCatalogNames(), expected)
+        for name in expected:
+            appearance = appearanceForCatalogName(name)
+            self.assertIsNotNone(appearance, name)
+            assert appearance is not None
+            self.assertIn(appearance.kind, {'asteroid', 'dwarf_planet'}, name)
+            self.assertFalse(appearance.atmosphere.enabled, name)
+            self.assertNotIn('atmosphere', appearance.toJobDict())
+            self.assertNotIn('clouds', appearance.textures.existingMaps())
+            self.assertIn('color', appearance.textures.existingMaps())
+            self.assertTrue(appearance.textures.existingMaps()['color'].is_file())
+        ceres = appearanceForCatalogName('Ceres')
+        vesta = appearanceForCatalogName('Vesta')
+        assert ceres is not None and vesta is not None
+        self.assertEqual(ceres.kind, 'dwarf_planet')
+        self.assertEqual(vesta.kind, 'asteroid')
 
 
 class FlybyPipelineTests(unittest.TestCase):

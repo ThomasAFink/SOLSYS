@@ -1,4 +1,4 @@
-"""Write Blender body-scene JSON under output/animate/blender/{planets,moons}/…"""
+"""Write Blender body-scene JSON under output/animate/blender/{planets,moons,asteroids,…}/…"""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def exportBodyScene(
     frameCount: int = 120,
     outputDirectory: Path | str = DEFAULT_OUTPUT_DIRECTORY,
 ) -> Path:
-    """Export one catalog planet or moon to JSON for Blender ingest."""
+    """Export one catalog planet, moon, or famous asteroid to JSON for Blender ingest."""
     scene = buildBodyScene(bodyName, frameCount=frameCount)
     return writeBodyScene(scene, outputDirectory=outputDirectory)
 
@@ -58,7 +58,7 @@ def writeBodyScene(
     *,
     outputDirectory: Path | str = DEFAULT_OUTPUT_DIRECTORY,
 ) -> Path:
-    """Write ``<stem>_body_scene.json`` under ``{root}/{planets|moons}/<stem>/``."""
+    """Write ``<stem>_body_scene.json`` under ``{root}/{planets|moons|asteroids|…}/<stem>/``."""
     directory = bodyOutputDirectory(scene.body.kind, scene.body.name, root=outputDirectory)
     directory.mkdir(parents=True, exist_ok=True)
     stem = bodyStem(scene.body.name)

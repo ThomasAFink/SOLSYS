@@ -44,7 +44,7 @@ output/animate/blender/
 └── moons/moon/
 ```
 
-Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth/` (see `data/textures/README.md`) plus a shared fresnel **atmosphere** shell from `BodyAtmosphere`. Luna and major moons use NASA 3D Resources color packs under `data/textures/bodies/<moon>/` (airless; Titan adds an orange haze shell). All Sol planets (+ Pluto) register in `body_appearance.py` with color packs; Saturn / Uranus / Neptune also enable a shared **ring** annulus (`BodyRings` + optional `rings.png`). Asteroid packs reuse the same folder layout later.
+Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth/` (see `data/textures/README.md`) plus a shared fresnel **atmosphere** shell from `BodyAtmosphere`. Luna and major moons use NASA 3D Resources color packs under `data/textures/bodies/<moon>/` (airless; Titan adds an orange haze shell). All Sol planets (+ Pluto) register in `body_appearance.py` with color packs; Saturn / Uranus / Neptune also enable a shared **ring** annulus (`BodyRings` + optional `rings.png`). Named asteroids / dwarf planets (`FamousAsteroidCatalog`) resolve via `--body Ceres` / `Vesta` / … into `output/animate/blender/{asteroids,dwarf_planets}/` (airless packs).
 
 ```bash
 .venv/bin/python render.py blender --body Moon --flyby
