@@ -217,7 +217,7 @@ def assembleGifFromPngs(
     if not framePaths:
         raise ValueError('No PNG frames to assemble into a GIF')
     outputGif.parent.mkdir(parents=True, exist_ok=True)
-    rgbFrames: list[Image.Image] = []
+    images: list[Image.Image] = []
     for path in framePaths:
         raw = Image.open(path)
         # RGBA spin frames: composite onto black. convert('RGB') would keep bright
@@ -234,17 +234,7 @@ def assembleGifFromPngs(
             resized = frame.resize((outputSize, outputSize), Image.Resampling.LANCZOS)
             frame.close()
             frame = resized
-        rgbFrames.append(frame)
-    # Shared adaptive palette + dither softens hard faculae banding without flicker.
-    palette = rgbFrames[0].quantize(
-        colors=256,
-        method=Image.Quantize.MEDIANCUT,
-        dither=Image.Dither.FLOYDSTEINBERG,
-    )
-    images = [palette] + [
-        frame.quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG)
-        for frame in rgbFrames[1:]
-    ]
+        images.append(frame)
     durationMs = max(int(round(1000 / fps)), 1)
     images[0].save(
         outputGif,
@@ -254,7 +244,7 @@ def assembleGifFromPngs(
         loop=0,
         optimize=True,
     )
-    for image in (*images, *rgbFrames):
+    for image in images:
         image.close()
     return outputGif
 
