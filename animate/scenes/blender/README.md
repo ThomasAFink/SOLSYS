@@ -44,7 +44,7 @@ output/animate/blender/
 └── moons/moon/
 ```
 
-Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth/` (see `data/textures/README.md`) plus a shared fresnel **atmosphere** shell from `BodyAtmosphere`. Moon uses an LRO LROC color pack under `data/textures/bodies/moon/` (airless). Future Jupiter / asteroid packs drop into the same folder layout and register in `body_appearance.py` (clouds/atmosphere optional per body).
+Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth/` (see `data/textures/README.md`) plus a shared fresnel **atmosphere** shell from `BodyAtmosphere`. Moon uses an LRO LROC color pack under `data/textures/bodies/moon/` (airless). All Sol planets (+ Pluto) register in `body_appearance.py` with color packs; Saturn / Uranus / Neptune also enable a shared **ring** annulus (`BodyRings` + optional `rings.png`). Asteroid packs reuse the same folder layout later.
 
 ```bash
 .venv/bin/python render.py blender --body Moon --flyby
