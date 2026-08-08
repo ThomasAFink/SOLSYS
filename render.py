@@ -136,8 +136,8 @@ def buildParser() -> argparse.ArgumentParser:
         '--blender-bodies',
         action='store_true',
         help=(
-            'For --system sol_centauri: replace Earth/Moon dots with Blender spin-loop '
-            'frames drawn each cinematic frame (requires prior: blender --spin)'
+            'For --system sol_centauri: composite Blender spin-loop frames for Sol '
+            'planets/moons/asteroids (lazy-loaded; requires prior: blender --spin)'
         ),
     )
 

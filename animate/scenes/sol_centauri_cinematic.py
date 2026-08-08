@@ -29,6 +29,7 @@ from solsys.physics.catalogs.system_catalog import (
 
 from animate.animation_styles import ASTEROID_RENDER_STYLES
 from animate.blender_body_sprites import BlenderBodySpriteAtlas
+from animate.scenes.blender.body_appearance import appearanceForCatalogName
 from animate.scenes.exoplanet_system import bodyPositionInOrbitalPlane, orbitPathInOrbitalPlane
 
 DEFAULT_FIGURE_SIZE_INCHES = (12.0, 12.0)
@@ -71,6 +72,53 @@ SOL_EARTH_CLOSE_HALF_AU = 0.042
 # Fixed world radii for textured globes (must NOT scale up with camera half-width).
 EARTH_GLOBE_RADIUS_AU = SOL_EARTH_HALF_AU * 0.18
 # Luna uses bodyScale 0.35 against this base in the billboard path.
+# Visual (not physical) billboard scales vs Earth — giants softened, moons exaggerated.
+BLENDER_PLANET_BODY_SCALE = {
+    'Mercury': 0.42,
+    'Venus': 0.92,
+    'Earth': 1.0,
+    'Mars': 0.58,
+    'Jupiter': 3.4,
+    'Saturn': 2.8,
+    'Uranus': 1.9,
+    'Neptune': 1.85,
+    'Pluto': 0.55,
+}
+BLENDER_MOON_BODY_SCALE = {
+    'Moon': 0.35,
+    'Phobos': 0.12,
+    'Deimos': 0.10,
+    'Io': 0.28,
+    'Europa': 0.26,
+    'Ganymede': 0.32,
+    'Callisto': 0.30,
+    'Titan': 0.33,
+    'Enceladus': 0.14,
+    'Rhea': 0.18,
+    'Titania': 0.18,
+    'Oberon': 0.17,
+    'Triton': 0.22,
+    'Charon': 0.20,
+}
+# Named asteroids / dwarfs — readable belt/Kuiper markers, not true scale.
+BLENDER_ASTEROID_BODY_SCALE = {
+    'Ceres': 0.40,
+    'Vesta': 0.32,
+    'Pallas': 0.30,
+    'Psyche': 0.28,
+    'Bennu': 0.18,
+    'Eros': 0.20,
+    'Haumea': 0.36,
+    'Makemake': 0.34,
+    'Eris': 0.38,
+}
+# Below this on-screen (floored) fraction, non-Earth/Moon packs fall back to catalog dots.
+# Matches the default paint floor so world-fixed disks stay textured through Sol zoom-out.
+BLENDER_MIN_BILLBOARD_FRAC = 0.0035
+# Ringed giants get a larger floor during the outer/Kuiper linger so rings stay readable.
+BLENDER_RING_LINGER_MIN_FRAC = 0.016
+# Named asteroids get a readable floor during the main-belt linger.
+BLENDER_ASTEROID_BELT_MIN_FRAC = 0.011
 # Hide Luna until the camera is wide enough that its exaggerated orbit fits.
 SOL_MOON_REVEAL_HALF_AU = 0.11
 SOL_NEAR_SUN_HALF_AU = 2.4
@@ -511,9 +559,10 @@ class SolCentauriCinematicAnimator:
             themeName = 'dark' if self.isDark else 'light'
             self.blenderSprites = BlenderBodySpriteAtlas(themeName)
             print(
-                'Blender spin loops: '
-                f'Earth={"on" if self.blenderSprites.hasEarth else "missing"} '
-                f'Moon={"on" if self.blenderSprites.hasMoon else "missing"}'
+                'Blender spin loops: lazy-load by zoom stage '
+                f'(theme={themeName}; Earth/Moon probed: '
+                f'Earth={"on" if self.blenderSprites.hasEarth else "missing"}, '
+                f'Moon={"on" if self.blenderSprites.hasMoon else "missing"})'
             )
 
     def _requireOrbit(self, role: str) -> StellarOrbit:
@@ -999,24 +1048,20 @@ class SolCentauriCinematicAnimator:
             return
         earthOpen = halfWidthAu <= SOL_EARTH_HALF_AU * 1.5
         plutoOuter = name == 'Pluto' and halfWidthAu >= 20.0
-        queuedBlenderEarth = False
-        blenderEarthAvailable = (
-            name == 'Earth'
-            and self.useBlenderBodies
-            and self.blenderSprites is not None
-            and self.blenderSprites.hasEarth
+        bodyScale = self._blenderPlanetBodyScale(name)
+        queuedBlender = self._queueBlenderBody(
+            name,
+            position,
+            frame,
+            halfWidthAu,
+            openCloseup=earthOpen and name == 'Earth',
+            bodyScale=bodyScale,
+            orbitalPhaseRad=None,
+            suppressDotFallback=name == 'Earth',
         )
-        if (
-            blenderEarthAvailable
-            and self._blenderBillboardRadiusAu(halfWidthAu, openCloseup=earthOpen, bodyScale=1.0)
-            is not None
-        ):
-            self._pendingBlenderBodies.append(
-                ('Earth', position.copy(), frame, halfWidthAu, earthOpen, 1.0, None)
-            )
-            queuedBlenderEarth = True
-        # Blender mode: never fall back to the catalog-blue Earth scatter marker.
-        if not queuedBlenderEarth and not blenderEarthAvailable:
+        # Earth: never fall back to the catalog-blue scatter when a spin pack exists.
+        # Other planets: dots when the pack is missing or the disk is too tiny.
+        if not queuedBlender and not (name == 'Earth' and self._blenderBodyAvailable(name)):
             self.axes.scatter(
                 [position[0]],
                 [position[1]],
@@ -1030,9 +1075,11 @@ class SolCentauriCinematicAnimator:
             halfWidthAu < SOL_INNER_HALF_AU and name in ('Mercury', 'Venus', 'Mars')
         ):
             fontsize = 12 if earthOpen and name == 'Earth' else (10 if plutoOuter else 8)
-            if name == 'Earth' and queuedBlenderEarth:
+            if queuedBlender:
                 # Overlay text above the spin billboard — axes labels sit under the disk.
-                self._pendingBlenderLabels.append((name, position.copy(), float(fontsize), 1.0))
+                self._pendingBlenderLabels.append(
+                    (name, position.copy(), float(fontsize), bodyScale)
+                )
             else:
                 self._label3d(
                     position,
@@ -1085,32 +1132,27 @@ class SolCentauriCinematicAnimator:
             moonScale,
         )
         moonPosition = np.array([float(moonX), float(moonY), float(moonZ)], dtype=float)
-        queuedBlenderMoon = False
-        blenderMoonAvailable = (
-            moon.name == 'Moon'
-            and self.useBlenderBodies
-            and self.blenderSprites is not None
-            and self.blenderSprites.hasMoon
+        bodyScale = BLENDER_MOON_BODY_SCALE.get(moon.name, 0.20)
+        # Major moons (not Luna): only billboard when the parent system is framed tightly.
+        moonTightEnough = moon.name == 'Moon' or halfWidthAu <= (
+            5.5 if moon.parentPlanet in ('Earth', 'Mars') else 11.0
         )
-        if (
-            blenderMoonAvailable
-            and self._blenderBillboardRadiusAu(halfWidthAu, openCloseup=moonOpen, bodyScale=0.35)
-            is not None
-        ):
-            self._pendingBlenderBodies.append(
-                (
-                    'Moon',
-                    moonPosition.copy(),
-                    frame,
-                    halfWidthAu,
-                    moonOpen,
-                    0.35,
-                    float(moonMeanAnomaly),
-                )
+        queuedBlenderMoon = False
+        if moonTightEnough:
+            queuedBlenderMoon = self._queueBlenderBody(
+                moon.name,
+                moonPosition,
+                frame,
+                halfWidthAu,
+                openCloseup=moonOpen,
+                bodyScale=bodyScale,
+                orbitalPhaseRad=float(moonMeanAnomaly),
+                suppressDotFallback=moon.name == 'Moon',
             )
-            queuedBlenderMoon = True
-        # Blender mode: never fall back to the catalog-gray Luna scatter marker.
-        if not queuedBlenderMoon and not blenderMoonAvailable:
+        # Luna: never fall back to the catalog-gray scatter when a spin pack exists.
+        if not queuedBlenderMoon and not (
+            moon.name == 'Moon' and self._blenderBodyAvailable(moon.name)
+        ):
             self.axes.scatter(
                 [moonPosition[0]],
                 [moonPosition[1]],
@@ -1128,7 +1170,9 @@ class SolCentauriCinematicAnimator:
             if moonOpen:
                 if queuedBlenderMoon:
                     # Overlay text above the spin billboard so the leading "M" isn't covered.
-                    self._pendingBlenderLabels.append((moon.name, moonPosition.copy(), 11.0, 0.35))
+                    self._pendingBlenderLabels.append(
+                        (moon.name, moonPosition.copy(), 11.0, bodyScale)
+                    )
                 else:
                     self._label3d(
                         moonPosition,
@@ -1137,12 +1181,15 @@ class SolCentauriCinematicAnimator:
                         fontsize=11,
                     )
         elif halfWidthAu < 4.0:
-            self._label3d(
-                moonPosition,
-                f'  {moon.name}',
-                color=self.labelColor,
-                fontsize=7,
-            )
+            if queuedBlenderMoon:
+                self._pendingBlenderLabels.append((moon.name, moonPosition.copy(), 7.0, bodyScale))
+            else:
+                self._label3d(
+                    moonPosition,
+                    f'  {moon.name}',
+                    color=self.labelColor,
+                    fontsize=7,
+                )
 
     def _lunarMotionDays(self, moon, frame: int, halfWidthAu: float) -> float:
         """Sol motion clock is too fast for a readable Earth–Moon opening orbit."""
@@ -1157,6 +1204,75 @@ class SolCentauriCinematicAnimator:
         blend = smootherstep((halfWidthAu - openHalf) / max(leaveHalf - openHalf, 1e-6))
         openScale = 0.015  # ≈0.05 d/frame vs sol's 3.5 d/frame near Earth
         return days * (openScale + (1.0 - openScale) * blend)
+
+    def _blenderBodyAvailable(self, catalogName: str) -> bool:
+        return (
+            self.useBlenderBodies
+            and self.blenderSprites is not None
+            and self.blenderSprites.hasBody(catalogName)
+        )
+
+    def _blenderPlanetBodyScale(self, planetName: str) -> float:
+        """World billboard scale vs Earth, padded when the spin loop includes rings."""
+        scale = BLENDER_PLANET_BODY_SCALE.get(planetName, 1.0)
+        appearance = appearanceForCatalogName(planetName)
+        if appearance is not None and appearance.rings.enabled:
+            # Spin PNGs already composite rings; enlarge the square so the annulus reads.
+            scale *= max(1.35, min(appearance.rings.outerScale, 2.3))
+        return scale
+
+    def _blenderRawFracRadius(self, halfWidthAu: float, bodyScale: float) -> float | None:
+        """Unfloored on-screen fraction (used for LOD / queue decisions)."""
+        radiusAu = self._blenderBillboardRadiusAu(
+            halfWidthAu, openCloseup=False, bodyScale=bodyScale
+        )
+        if radiusAu is None:
+            return None
+        return float(radiusAu / max(2.0 * halfWidthAu, 1e-9))
+
+    def _queueBlenderBody(
+        self,
+        catalogName: str,
+        position: np.ndarray,
+        frame: int,
+        halfWidthAu: float,
+        *,
+        openCloseup: bool,
+        bodyScale: float,
+        orbitalPhaseRad: float | None,
+        suppressDotFallback: bool,
+    ) -> bool:
+        """Queue a spin billboard when the pack exists and the disk is large enough."""
+        if not self._blenderBodyAvailable(catalogName):
+            return False
+        if (
+            self._blenderBillboardRadiusAu(
+                halfWidthAu, openCloseup=openCloseup, bodyScale=bodyScale
+            )
+            is None
+        ):
+            return False
+        fracRadius = self._blenderBillboardFracRadius(
+            halfWidthAu, bodyScale, catalogName=catalogName
+        )
+        if fracRadius is None:
+            return False
+        # Earth/Moon keep a painted disk through Sol zoom-out (floor handles tininess).
+        # Other packs fall back to catalog dots when they would be sub-pixel.
+        if not suppressDotFallback and fracRadius < BLENDER_MIN_BILLBOARD_FRAC:
+            return False
+        self._pendingBlenderBodies.append(
+            (
+                catalogName,
+                position.copy(),
+                frame,
+                halfWidthAu,
+                openCloseup,
+                bodyScale,
+                orbitalPhaseRad,
+            )
+        )
+        return True
 
     def _blenderBillboardRadiusAu(
         self,
@@ -1196,18 +1312,18 @@ class SolCentauriCinematicAnimator:
             )
             if radiusAu is None:
                 continue
-            fracRadius = self._blenderBillboardFracRadius(halfWidthAu, bodyScale)
+            fracRadius = self._blenderBillboardFracRadius(
+                halfWidthAu, bodyScale, catalogName=catalogName
+            )
             if fracRadius is None:
                 continue
             resolution = 384 if openCloseup else (64 if fracRadius <= 0.01 else 128)
-            if catalogName == 'Earth':
-                disk = self.blenderSprites.earthFrame(frame, resolution=resolution)
-            else:
-                disk = self.blenderSprites.moonFrame(
-                    frame,
-                    orbitalPhaseRad=orbitalPhaseRad,
-                    resolution=resolution,
-                )
+            disk = self.blenderSprites.bodyFrame(
+                catalogName,
+                frame,
+                orbitalPhaseRad=orbitalPhaseRad,
+                resolution=resolution,
+            )
             if disk is None:
                 continue
             x2, y2, _ = proj3d.proj_transform(
@@ -1237,15 +1353,26 @@ class SolCentauriCinematicAnimator:
         self.bodyOverlay.set_xlim(0.0, 1.0)
         self.bodyOverlay.set_ylim(0.0, 1.0)
 
-    def _blenderBillboardFracRadius(self, halfWidthAu: float, bodyScale: float) -> float | None:
+    def _blenderBillboardFracRadius(
+        self,
+        halfWidthAu: float,
+        bodyScale: float,
+        *,
+        catalogName: str | None = None,
+    ) -> float | None:
         """On-screen disk radius in figure fraction (matches overlay paint)."""
-        radiusAu = self._blenderBillboardRadiusAu(
-            halfWidthAu, openCloseup=False, bodyScale=bodyScale
-        )
-        if radiusAu is None:
+        rawFrac = self._blenderRawFracRadius(halfWidthAu, bodyScale)
+        if rawFrac is None:
             return None
-        # Same floor as _flushBlenderBodyOverlays so labels track the painted disk.
-        return max(float(radiusAu / max(2.0 * halfWidthAu, 1e-9)), 0.0035)
+        floor = 0.0035
+        if catalogName is not None:
+            appearance = appearanceForCatalogName(catalogName)
+            if appearance is not None and appearance.rings.enabled and 18.0 <= halfWidthAu <= 70.0:
+                floor = BLENDER_RING_LINGER_MIN_FRAC
+            elif catalogName in BLENDER_ASTEROID_BODY_SCALE and 3.5 <= halfWidthAu <= 14.0:
+                floor = BLENDER_ASTEROID_BELT_MIN_FRAC
+        # Same floor as overlay paint so labels track the painted disk.
+        return max(rawFrac, floor)
 
     def _blenderBodyLabelPad(self, fracRadius: float) -> float:
         """Gap from disk edge to label; shrinks with Earth as the camera pulls back."""
@@ -1269,7 +1396,9 @@ class SolCentauriCinematicAnimator:
             )
             display = self.axes.transData.transform((x2, y2))
             frac = self.figure.transFigure.inverted().transform(display)
-            fracRadius = self._blenderBillboardFracRadius(viewHalf, bodyScale) or 0.0035
+            fracRadius = (
+                self._blenderBillboardFracRadius(viewHalf, bodyScale, catalogName=name) or 0.0035
+            )
             pad = self._blenderBodyLabelPad(fracRadius)
             # Overlay text above the imshow disk. Figure-level text paints under this
             # axes (zorder 20) and gets covered by the globe.
@@ -1277,12 +1406,16 @@ class SolCentauriCinematicAnimator:
                 textX = min(frac[0] + fracRadius + pad, 0.94)
                 textY = frac[1]
                 va = 'center'
-            else:
+            elif name == 'Moon':
                 # Moon sits near the right edge; lower-right keeps the leading "M".
                 moonPad = max(0.004, min(0.016, pad * 0.55))
                 textX = min(frac[0] + fracRadius + moonPad, 0.90)
                 textY = max(frac[1] - fracRadius - moonPad, 0.08)
                 va = 'top'
+            else:
+                textX = min(frac[0] + fracRadius + pad, 0.94)
+                textY = frac[1]
+                va = 'center'
             self.bodyOverlay.text(
                 textX,
                 textY,
@@ -1491,31 +1624,49 @@ class SolCentauriCinematicAnimator:
             if not self._inView(position, margin=1.1):
                 continue
 
-            markerScale = 420.0 if halfWidthAu <= 14.0 else 700.0
-            markerSize = max(
-                10.0,
-                float(self.famousAsteroidCatalog.markerSize3d(asteroid, markerScale))
-                * (1.15 if halfWidthAu <= 14.0 else 1.0),
+            bodyScale = BLENDER_ASTEROID_BODY_SCALE.get(asteroid.name, 0.22)
+            queuedBlender = self._queueBlenderBody(
+                asteroid.name,
+                position,
+                frame,
+                halfWidthAu,
+                openCloseup=False,
+                bodyScale=bodyScale,
+                orbitalPhaseRad=None,
+                suppressDotFallback=False,
             )
-            self.axes.scatter(
-                [position[0]],
-                [position[1]],
-                [position[2]],
-                color=asteroid.color,
-                s=markerSize,
-                alpha=min(0.95, 0.55 + 0.45 * alpha),
-                depthshade=True,
-                zorder=6,
-            )
+            if not queuedBlender:
+                markerScale = 420.0 if halfWidthAu <= 14.0 else 700.0
+                markerSize = max(
+                    10.0,
+                    float(self.famousAsteroidCatalog.markerSize3d(asteroid, markerScale))
+                    * (1.15 if halfWidthAu <= 14.0 else 1.0),
+                )
+                self.axes.scatter(
+                    [position[0]],
+                    [position[1]],
+                    [position[2]],
+                    color=asteroid.color,
+                    s=markerSize,
+                    alpha=min(0.95, 0.55 + 0.45 * alpha),
+                    depthshade=True,
+                    zorder=6,
+                )
             # Label the larger / well-known bodies while their belt is the focus.
             if alpha >= 0.4 and asteroid.diameterKm >= 100.0:
-                self._label3d(
-                    position,
-                    f'  {asteroid.name}',
-                    color=asteroid.color,
-                    fontsize=8 if asteroid.diameterKm >= 400 else 7,
-                    alpha=min(0.95, 0.45 + 0.55 * alpha),
-                )
+                fontsize = 8 if asteroid.diameterKm >= 400 else 7
+                if queuedBlender:
+                    self._pendingBlenderLabels.append(
+                        (asteroid.name, position.copy(), float(fontsize), bodyScale)
+                    )
+                else:
+                    self._label3d(
+                        position,
+                        f'  {asteroid.name}',
+                        color=asteroid.color,
+                        fontsize=fontsize,
+                        alpha=min(0.95, 0.45 + 0.55 * alpha),
+                    )
 
     def _oortWorldPositions(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Fixed world-space Oort shell — pan out through it like the Kuiper Belt."""

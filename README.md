@@ -54,7 +54,7 @@ SOLSYS/
 │   ├── solar_system_animator.py                   # SolarSystemAnimator, renderAllAnimations
 │   ├── camera_controller.py                       # CameraController
 │   ├── animation_styles.py                        # Light/dark styles and timing constants
-│   ├── blender_body_sprites.py                    # Blender spin-loop frames for cinematic Earth/Moon
+│   ├── blender_body_sprites.py                    # Lazy Blender spin loops for cinematic Sol billboards
 │   └── scenes/
 │       ├── inner_system.py                        # Fixed 2D inner-system scene
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
@@ -374,7 +374,7 @@ Blender → cinematic workflow:
 .venv/bin/python render.py blender --pipeline
 ```
 
-Sol → Centauri cinematic with `--blender-bodies` (issue #42) keeps the same camera tour but composites those Blender spin frames at Earth/Moon **each `FuncAnimation` frame** (not GIF concat). Outputs go under `output/animate/sol_centauri/blender/` (classic dotted GIFs stay in `output/animate/sol_centauri/`).
+Sol → Centauri cinematic with `--blender-bodies` (issues #42 / #49) keeps the same camera tour but composites Blender spin frames **each `FuncAnimation` frame** (not GIF concat) for every Sol body that has a spin pack — planets (incl. ringed giants), major moons, and named asteroids/dwarfs. Loops are lazy-loaded by zoom stage; missing packs and tiny on-screen disks fall back to catalog dots (Earth/Moon keep the no-blue/gray-dot rule). Outputs go under `output/animate/sol_centauri/blender/` (classic dotted GIFs stay in `output/animate/sol_centauri/`).
 
 Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animations render to `output/animate/alpha_centauri/`:
 
@@ -385,7 +385,7 @@ Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animati
 Sol → Alpha Centauri cinematic (issue #10) flies from our solar system to the A–B close-up, zooms back out, then finishes on Proxima and its planets — all in Sol XYZ via `SolCentauriFrameTransform`:
 
 - `output/animate/sol_centauri/sol_centauri_cinematic_{light,dark}.gif` — classic scatter-dot bodies
-- `output/animate/sol_centauri/blender/sol_centauri_cinematic_blender_{light,dark}.gif` — Blender spin billboards on Earth/Moon (`--blender-bodies` or `blender --pipeline`)
+- `output/animate/sol_centauri/blender/sol_centauri_cinematic_blender_{light,dark}.gif` — Blender spin billboards for Sol planets/moons/rings/asteroids (`--blender-bodies` or `blender --pipeline`)
 
 Earth Blender close-up (issues #12 / #36) is a body-centered EEVEE view of Earth with NASA Blue Marble texture (light/dark). Render with `render.py blender --body Earth --flyby` / `--spin` to `output/animate/blender/planets/earth/`:
 
@@ -414,6 +414,13 @@ Asteroid / dwarf packs (issue #48) wire `FamousAsteroidCatalog` into the Blender
 - `dwarf_planets/ceres/` and `asteroids/vesta/` flyby + spin outputs
 - Also registered: Pallas, Psyche, Bennu, Eros, Haumea, Makemake, Eris
 - Airless (no atmosphere/clouds); sphere + texture for v1
+
+Cinematic billboards (issue #49) extend `--blender-bodies` beyond Earth/Moon:
+
+- Planets + Saturn/Uranus/Neptune ring spins during their Sol zoom stages
+- Major moons when the parent system is framed tightly enough
+- Named asteroids (Ceres/Vesta/…) during belt / Kuiper visibility windows
+- Requires `render.py blender --body <Name> --spin` assets under `output/animate/blender/`
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 
