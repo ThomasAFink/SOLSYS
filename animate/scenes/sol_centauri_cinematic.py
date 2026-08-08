@@ -483,7 +483,7 @@ class SolCentauriCinematicAnimator:
         self._viewHalfWidthAu = self.solEarthHalfWidthAu
         self.figure = plt.figure(figsize=figureSizeInches, dpi=dpi, layout='none')
         self.axes = self.figure.add_axes((0.0, 0.0, 1.0, 1.0), projection='3d')
-        # 2D overlay for crisp texture-pack globes (drawn after the 3D camera is set).
+        # 2D overlay for Blender spin-loop frames (drawn after the 3D camera is set).
         self.bodyOverlay = self.figure.add_axes((0.0, 0.0, 1.0, 1.0), facecolor='none', zorder=20)
         self.bodyOverlay.set_axis_off()
         self.bodyOverlay.patch.set_alpha(0.0)
@@ -1105,7 +1105,7 @@ class SolCentauriCinematicAnimator:
         return radiusAu
 
     def _flushBlenderBodyOverlays(self, halfWidthAu: float) -> None:
-        """Project queued bodies and paint texture-pack globes into this frame."""
+        """Project queued bodies and paint Blender spin-loop frames into this frame."""
         if not self._pendingBlenderBodies or self.blenderSprites is None:
             return
         for (
