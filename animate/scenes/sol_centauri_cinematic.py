@@ -136,11 +136,11 @@ SOL_OUTER_LINGER_HALF_AU = 42.0
 SOL_HALF_WIDTH_AU = SOL_OUTER_LINGER_HALF_AU
 # Leave Earth look-at and ease toward Sol before the Near-Sun plateau.
 SOL_LEAVE_EARTH_FOCUS_HALF_AU = 1.15
-# Textured Sol billboard from leaving Earth through the Sol tour; scatter after pullback.
-# Starts with the look-at ease to Sol (not the Earth close-up, where a billboard
-# would swallow the frame). World-scale only — size shrinks monotonically with zoom.
+# Textured Sol billboard through the Sol tour; scatter star-marker only after pullback.
+# Min is 0: as soon as Sol is on-screen in blender mode we use the photosphere spin
+# (the old ~1 AU gate left a few scatter-marker frames when Sol first entered view).
 BLENDER_STAR_BILLBOARD_HALF_AU = (
-    SOL_LEAVE_EARTH_FOCUS_HALF_AU,
+    0.0,
     min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2),
 )
 # Wide enough to bring most of the 30 ly catalog into the Sol neighborhood frame.
@@ -1069,12 +1069,16 @@ class SolCentauriCinematicAnimator:
         sunPosition = np.zeros(3)
         sunSize = 340.0 if halfWidthAu < 3.0 else (270.0 if halfWidthAu < 80.0 else 150.0)
         sunInView = self._inView(sunPosition, margin=1.05)
+        wantSun = sunInView or (SOL_NEAR_SUN_HALF_AU <= halfWidthAu < 5000.0)
         starBillboardMin, starBillboardMax = BLENDER_STAR_BILLBOARD_HALF_AU
-        nearSunBillboard = (
-            self.useBlenderBodies and starBillboardMin <= halfWidthAu <= starBillboardMax
-        )
         queuedSun = False
-        if nearSunBillboard:
+        # Blender mode: textured photosphere for every on-screen Sol during the Sol tour.
+        # Do not draw a scatter marker first — that reads as a non→textured pop.
+        if (
+            wantSun
+            and self.useBlenderBodies
+            and starBillboardMin <= halfWidthAu <= starBillboardMax
+        ):
             queuedSun = self._queueBlenderBody(
                 'Sun',
                 sunPosition,
@@ -1085,7 +1089,7 @@ class SolCentauriCinematicAnimator:
                 orbitalPhaseRad=None,
                 suppressDotFallback=True,
             )
-        if sunInView or (halfWidthAu >= SOL_NEAR_SUN_HALF_AU and halfWidthAu < 5000.0):
+        if wantSun:
             if not queuedSun:
                 self._drawStarMarker(sunPosition, STAR_COLORS['sun'], sunSize)
             if sunInView and halfWidthAu < 120.0:

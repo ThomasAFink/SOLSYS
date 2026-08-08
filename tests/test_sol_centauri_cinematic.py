@@ -223,6 +223,54 @@ class CinematicTransformTests(unittest.TestCase):
 
             plt.close(animator.figure)
 
+    def test_blender_sun_is_textured_on_first_on_screen_frame(self) -> None:
+        """Leaving Earth must not show a scatter Sol before the photosphere billboard."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            from animate.scenes.sol_centauri_cinematic import STAR_COLORS
+
+            starFrames: list[int] = []
+            queueFrames: list[int] = []
+            origStar = animator._drawStarMarker
+            origQueue = animator._queueBlenderBody
+
+            def starSpy(position, color, size, **kwargs):
+                if color == STAR_COLORS['sun']:
+                    starFrames.append(int(animator._viewHalfWidthAu * 1000))
+                return origStar(position, color, size, **kwargs)
+
+            def queueSpy(catalogName, position, frame, halfWidthAu, **kwargs):
+                ok = origQueue(catalogName, position, frame, halfWidthAu, **kwargs)
+                if catalogName == 'Sun' and ok:
+                    queueFrames.append(frame)
+                return ok
+
+            animator._drawStarMarker = starSpy  # type: ignore[method-assign]
+            animator._queueBlenderBody = queueSpy  # type: ignore[method-assign]
+
+            firstSunFrame: int | None = None
+            for frame in range(170, 230):
+                starBefore = len(starFrames)
+                queueBefore = len(queueFrames)
+                animator.update(frame)
+                sawStar = len(starFrames) > starBefore
+                sawQueue = len(queueFrames) > queueBefore
+                if sawStar or sawQueue:
+                    firstSunFrame = frame
+                    self.assertTrue(sawQueue, f'Sol first appeared as scatter at frame {frame}')
+                    self.assertFalse(sawStar, f'Sol scatter drawn at textured frame {frame}')
+                    break
+            self.assertIsNotNone(firstSunFrame)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
     def test_camera_ends_at_proxima(self) -> None:
         from animate.scenes.sol_centauri_cinematic import PROXIMA_INNER_HALF_AU
 
