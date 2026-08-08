@@ -66,9 +66,13 @@ SPECTRAL_FIELD_COLORS = {
 # Sol opening: Earth+Moon → near-Sun → inner → tighter outer linger, then interstellar pullback.
 # Moon display radius ≈ 0.128 AU (50× exaggerated); leave a little margin for the label.
 SOL_EARTH_HALF_AU = 0.16
+# Blender open: Earth-only frame (Moon orbit ≈ 0.128 AU stays off-screen).
+SOL_EARTH_CLOSE_HALF_AU = 0.042
 # Fixed world radii for textured globes (must NOT scale up with camera half-width).
 EARTH_GLOBE_RADIUS_AU = SOL_EARTH_HALF_AU * 0.18
 # Luna uses bodyScale 0.35 against this base in the billboard path.
+# Hide Luna until the camera is wide enough that its exaggerated orbit fits.
+SOL_MOON_REVEAL_HALF_AU = 0.11
 SOL_NEAR_SUN_HALF_AU = 2.4
 SOL_INNER_HALF_AU = 6.5
 # Linger on the main belt / Jupiter's orbit (same idea as the Kuiper hold).
@@ -123,6 +127,11 @@ PULLBACK_WAYPOINTS_AU = (
 PULLBACK_WEIGHTS = (1.4, 2.0, 2.4, 2.8, 3.0, 3.0, 2.6, 2.0, 1.6, 1.3, 1.0)
 # Timeline: Earth → belt linger → outer linger → Oort pullback.
 SOL_EARTH_DWELL_END = 0.03
+# Blender open: hold Earth-close for ~2 day/night spins (48 PNG samples/turn),
+# then ease out to Earth+Moon before the existing Sol dive.
+SOL_EARTH_SPIN_HOLD_END = 0.055
+SOL_EARTH_MOON_REVEAL_END = 0.085
+SOL_EARTH_BLENDER_DWELL_END = 0.10
 SOL_BELT_ARRIVE = 0.16
 SOL_BELT_HOLD_END = 0.28
 SOL_OUTER_ARRIVE = 0.40
@@ -141,6 +150,8 @@ CAMERA_ELEVATION_DEG = 22.0
 SOL_ELEVATION_DEG = 28.0
 # Top-down open so the Moon orbit fills the viewport (3D foreshortening shrinks it).
 EARTH_OPEN_ELEVATION_DEG = 62.0
+# Blender Earth-close: slightly flatter so the globe fills the frame cleanly.
+EARTH_CLOSE_ELEVATION_DEG = 48.0
 PROXIMA_ELEVATION_DEG = 58.0
 OUTPUT_DIRECTORY = 'output/animate/sol_centauri'
 BLENDER_OUTPUT_DIRECTORY = 'output/animate/sol_centauri/blender'
@@ -628,10 +639,27 @@ class SolCentauriCinematicAnimator:
         dive = segmentProgress(abProgress, AB_CRUISE_END, 1.0)
         return stagedLogDive(cruiseEndHalf, self.abHalfWidthAu, AB_DIVE_WAYPOINTS_AU, dive)
 
+    def _earthDwellEnd(self) -> float:
+        """Timeline fraction when the Earth(-Moon) open ends and the Sol dive begins."""
+        return SOL_EARTH_BLENDER_DWELL_END if self.useBlenderBodies else SOL_EARTH_DWELL_END
+
     def _solOpeningHalfWidthAu(self, linear: float) -> float:
         """Earth → belt/Jupiter linger → outer/Kuiper linger."""
+        dwellEnd = self._earthDwellEnd()
+        if self.useBlenderBodies and linear < dwellEnd:
+            # Earth-only day/night hold → reveal Luna → short Earth+Moon beat.
+            if linear < SOL_EARTH_SPIN_HOLD_END:
+                return SOL_EARTH_CLOSE_HALF_AU
+            if linear < SOL_EARTH_MOON_REVEAL_END:
+                reveal = segmentProgress(linear, SOL_EARTH_SPIN_HOLD_END, SOL_EARTH_MOON_REVEAL_END)
+                return logLerp(
+                    SOL_EARTH_CLOSE_HALF_AU,
+                    self.solEarthHalfWidthAu,
+                    smootherstep(reveal),
+                )
+            return self.solEarthHalfWidthAu
         if linear < SOL_BELT_ARRIVE:
-            dive = segmentProgress(linear, SOL_EARTH_DWELL_END, SOL_BELT_ARRIVE)
+            dive = segmentProgress(linear, dwellEnd, SOL_BELT_ARRIVE)
             if dive >= 1.0 - 1e-9:
                 return SOL_BELT_LINGER_HALF_AU
             return stagedLogDive(
@@ -1027,6 +1055,9 @@ class SolCentauriCinematicAnimator:
         moonScale: float,
         halfWidthAu: float,
     ) -> None:
+        # Earth-only open: keep Luna off-screen until the reveal zoom.
+        if moon.name == 'Moon' and self.useBlenderBodies and halfWidthAu < SOL_MOON_REVEAL_HALF_AU:
+            return
         orbitRadiusAu = self.moonCatalog.displayOrbitRadiusAu(moon, moonScale)
         ring = np.linspace(0.0, 2.0 * np.pi, 64)
         moonOpen = moon.name == 'Moon' and halfWidthAu <= SOL_EARTH_HALF_AU * 2.2
@@ -1766,6 +1797,8 @@ class SolCentauriCinematicAnimator:
         if linear >= PULLBACK_END:
             return None
         if halfWidthAu <= SOL_EARTH_HALF_AU * 2.2:
+            if self.useBlenderBodies and halfWidthAu < SOL_MOON_REVEAL_HALF_AU:
+                return ('Earth', 'A couple of day–night cycles before we find the Moon')
             return ('Earth and the Moon', 'Starting close to home before we pull back')
         if halfWidthAu <= SOL_NEAR_SUN_HALF_AU:
             return ('Inner solar system', 'Pulling back past Venus and Mars')
@@ -1844,14 +1877,24 @@ class SolCentauriCinematicAnimator:
 
         if linear < PULLBACK_END:
             if halfWidthAu <= SOL_NEAR_SUN_HALF_AU:
-                # Ease from top-down Earth open down to the usual Sol angle.
-                tilt = smootherstep(
-                    (halfWidthAu - SOL_EARTH_HALF_AU)
-                    / max(SOL_NEAR_SUN_HALF_AU - SOL_EARTH_HALF_AU, 1e-6)
-                )
-                elev = EARTH_OPEN_ELEVATION_DEG + tilt * (
-                    SOL_ELEVATION_DEG - EARTH_OPEN_ELEVATION_DEG
-                )
+                if self.useBlenderBodies and halfWidthAu < self.solEarthHalfWidthAu - 1e-9:
+                    # Earth-close → Earth+Moon open angle as Luna comes into frame.
+                    closeTilt = smootherstep(
+                        (halfWidthAu - SOL_EARTH_CLOSE_HALF_AU)
+                        / max(self.solEarthHalfWidthAu - SOL_EARTH_CLOSE_HALF_AU, 1e-6)
+                    )
+                    elev = EARTH_CLOSE_ELEVATION_DEG + closeTilt * (
+                        EARTH_OPEN_ELEVATION_DEG - EARTH_CLOSE_ELEVATION_DEG
+                    )
+                else:
+                    # Ease from top-down Earth open down to the usual Sol angle.
+                    tilt = smootherstep(
+                        (halfWidthAu - SOL_EARTH_HALF_AU)
+                        / max(SOL_NEAR_SUN_HALF_AU - SOL_EARTH_HALF_AU, 1e-6)
+                    )
+                    elev = EARTH_OPEN_ELEVATION_DEG + tilt * (
+                        SOL_ELEVATION_DEG - EARTH_OPEN_ELEVATION_DEG
+                    )
             else:
                 elev = SOL_ELEVATION_DEG
             azim = self.solAzimuthDeg
