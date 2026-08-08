@@ -64,8 +64,8 @@ SPECTRAL_FIELD_COLORS = {
     'D': '#D8E6FF',  # white dwarfs (class strings often start with D)
 }
 # Sol opening: Earth+Moon → near-Sun → inner → tighter outer linger, then interstellar pullback.
-# Moon display radius ≈ 0.128 AU (50× exaggerated); keep it nearly filling the frame.
-SOL_EARTH_HALF_AU = 0.14
+# Moon display radius ≈ 0.128 AU (50× exaggerated); leave a little margin for the label.
+SOL_EARTH_HALF_AU = 0.16
 # Fixed world radii for textured globes (must NOT scale up with camera half-width).
 EARTH_GLOBE_RADIUS_AU = SOL_EARTH_HALF_AU * 0.18
 # Luna uses bodyScale 0.35 against this base in the billboard path.
@@ -489,7 +489,11 @@ class SolCentauriCinematicAnimator:
         self.bodyOverlay.patch.set_alpha(0.0)
         self.bodyOverlay.set_xlim(0.0, 1.0)
         self.bodyOverlay.set_ylim(0.0, 1.0)
-        self._pendingBlenderBodies: list[tuple[str, np.ndarray, int, float, bool, float]] = []
+        # (name, center, frame, halfWidth, openCloseup, bodyScale, orbitalPhaseRad|None)
+        self._pendingBlenderBodies: list[
+            tuple[str, np.ndarray, int, float, bool, float, float | None]
+        ] = []
+        self._pendingBlenderLabels: list[tuple[str, np.ndarray, float]] = []
         self.blenderSprites: BlenderBodySpriteAtlas | None = None
         if self.useBlenderBodies:
             themeName = 'dark' if self.isDark else 'light'
@@ -777,6 +781,7 @@ class SolCentauriCinematicAnimator:
         self.bodyOverlay.set_xlim(0.0, 1.0)
         self.bodyOverlay.set_ylim(0.0, 1.0)
         self._pendingBlenderBodies = []
+        self._pendingBlenderLabels = []
         for textArtist in list(self.figure.texts):
             textArtist.remove()
         focus, halfWidthAu = self._cameraState(frame)
@@ -794,6 +799,7 @@ class SolCentauriCinematicAnimator:
         self._applyAxes(focus, halfWidthAu, abProgress, proximaProgress, linear)
         # Globes need a finished 3D projection — paint them into this frame now.
         self._flushBlenderBodyOverlays(halfWidthAu)
+        self._flushBlenderBodyLabels(halfWidthAu)
         return []
 
     def _inView(self, position: np.ndarray, margin: float = 0.95) -> bool:
@@ -811,6 +817,7 @@ class SolCentauriCinematicAnimator:
         color: str,
         fontsize: float = 8,
         alpha: float = 1.0,
+        clipOn: bool = True,
     ) -> None:
         if not self._inView(position):
             return
@@ -822,7 +829,7 @@ class SolCentauriCinematicAnimator:
             color=color,
             fontsize=fontsize,
             alpha=alpha,
-            clip_on=True,
+            clip_on=clipOn,
         )
 
     def _drawPath(
@@ -973,7 +980,7 @@ class SolCentauriCinematicAnimator:
             is not None
         ):
             self._pendingBlenderBodies.append(
-                ('Earth', position.copy(), frame, halfWidthAu, earthOpen, 1.0)
+                ('Earth', position.copy(), frame, halfWidthAu, earthOpen, 1.0, None)
             )
             queuedBlenderEarth = True
         if not queuedBlenderEarth:
@@ -1047,7 +1054,15 @@ class SolCentauriCinematicAnimator:
             is not None
         ):
             self._pendingBlenderBodies.append(
-                ('Moon', moonPosition.copy(), frame, halfWidthAu, moonOpen, 0.35)
+                (
+                    'Moon',
+                    moonPosition.copy(),
+                    frame,
+                    halfWidthAu,
+                    moonOpen,
+                    0.35,
+                    float(moonMeanAnomaly),
+                )
             )
             queuedBlenderMoon = True
         if not queuedBlenderMoon:
@@ -1062,12 +1077,26 @@ class SolCentauriCinematicAnimator:
                 depthshade=True,
                 zorder=6,
             )
-        if moon.name == 'Moon' or halfWidthAu < 4.0:
+        # Luna: only label in the Earth–Moon open — drop it once the camera
+        # reaches the inner system (Earth keeps its planet label as usual).
+        if moon.name == 'Moon':
+            if moonOpen:
+                if queuedBlenderMoon:
+                    # Figure text above the spin billboard so the leading "M" isn't covered.
+                    self._pendingBlenderLabels.append((moon.name, moonPosition.copy(), 11.0))
+                else:
+                    self._label3d(
+                        moonPosition,
+                        f'  {moon.name}',
+                        color=self.labelColor,
+                        fontsize=11,
+                    )
+        elif halfWidthAu < 4.0:
             self._label3d(
                 moonPosition,
                 f'  {moon.name}',
                 color=self.labelColor,
-                fontsize=11 if moonOpen else (9 if moon.name == 'Moon' else 7),
+                fontsize=7,
             )
 
     def _lunarMotionDays(self, moon, frame: int, halfWidthAu: float) -> float:
@@ -1115,6 +1144,7 @@ class SolCentauriCinematicAnimator:
             bodyHalfWidth,
             openCloseup,
             bodyScale,
+            orbitalPhaseRad,
         ) in self._pendingBlenderBodies:
             radiusAu = self._blenderBillboardRadiusAu(
                 bodyHalfWidth, openCloseup=openCloseup, bodyScale=bodyScale
@@ -1125,7 +1155,11 @@ class SolCentauriCinematicAnimator:
             if catalogName == 'Earth':
                 disk = self.blenderSprites.earthFrame(frame, resolution=resolution)
             else:
-                disk = self.blenderSprites.moonFrame(frame, resolution=resolution)
+                disk = self.blenderSprites.moonFrame(
+                    frame,
+                    orbitalPhaseRad=orbitalPhaseRad,
+                    resolution=resolution,
+                )
             if disk is None:
                 continue
             x2, y2, _ = proj3d.proj_transform(
@@ -1152,6 +1186,41 @@ class SolCentauriCinematicAnimator:
                 interpolation='bilinear',
                 zorder=5,
                 clip_on=False,
+            )
+
+    def _flushBlenderBodyLabels(self, halfWidthAu: float) -> None:
+        """Draw deferred body labels above spin billboards (figure fraction)."""
+        del halfWidthAu
+        if not self._pendingBlenderLabels:
+            return
+        for name, center, fontsize in self._pendingBlenderLabels:
+            x2, y2, _ = proj3d.proj_transform(
+                float(center[0]),
+                float(center[1]),
+                float(center[2]),
+                self.axes.get_proj(),
+            )
+            display = self.axes.transData.transform((x2, y2))
+            frac = self.figure.transFigure.inverted().transform(display)
+            radiusAu = self._blenderBillboardRadiusAu(
+                self._viewHalfWidthAu, openCloseup=True, bodyScale=0.35
+            )
+            fracRadius = float((radiusAu or 0.0) / max(2.0 * self._viewHalfWidthAu, 1e-9))
+            # Figure text (not axes): overlay axes were clipping the leading "M".
+            # Keep the whole word inside the frame to the lower-right of the disk.
+            textX = min(frac[0] + fracRadius + 0.02, 0.90)
+            textY = max(frac[1] - fracRadius - 0.02, 0.08)
+            self.figure.text(
+                textX,
+                textY,
+                name,
+                color=self.labelColor,
+                fontsize=fontsize,
+                ha='left',
+                va='top',
+                transform=self.figure.transFigure,
+                clip_on=False,
+                zorder=20,
             )
 
     def _drawSolAsteroidPopulations(self, frame: int, halfWidthAu: float) -> None:

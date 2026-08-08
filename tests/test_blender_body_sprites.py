@@ -6,7 +6,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from animate.blender_body_sprites import BlenderBodySpriteAtlas, loadSpinLoopFrames
+import numpy as np
+from animate.blender_body_sprites import (
+    BlenderBodySpriteAtlas,
+    _blendSpinFrames,
+    loadSpinLoopFrames,
+    tidalLockFrameIndex,
+    tidalLockFramePosition,
+)
 from animate.scenes.blender.flyby_camera import buildSpinCameraPath
 from animate.scenes.blender.flyby_scene import buildSpinJob, spinFramesDirectory
 from animate.scenes.sol_centauri_cinematic import SolCentauriCinematicAnimator
@@ -32,6 +39,44 @@ class SpinCameraTests(unittest.TestCase):
             self.assertEqual(job['mode'], 'spin')
             self.assertTrue(job['filmTransparent'])
             self.assertEqual(job['frames'][0]['cameraAu'], job['frames'][-1]['cameraAu'])
+
+
+class TidalLockTests(unittest.TestCase):
+    def test_tidal_lock_index_tracks_orbital_phase(self) -> None:
+        self.assertEqual(tidalLockFrameIndex(0.0, 48), 0)
+        self.assertEqual(tidalLockFrameIndex(np.pi, 48), 24)
+        self.assertEqual(tidalLockFrameIndex(2.0 * np.pi * 0.999, 48), 47)
+        # Full orbit wraps to the same face.
+        self.assertEqual(tidalLockFrameIndex(2.0 * np.pi, 48), 0)
+        self.assertAlmostEqual(tidalLockFramePosition(np.pi, 48), 24.0, places=9)
+
+    def test_blend_spin_frames_is_smooth_between_neighbors(self) -> None:
+        frames = [
+            np.zeros((2, 2, 4), dtype=np.float32),
+            np.ones((2, 2, 4), dtype=np.float32),
+        ]
+        mid = _blendSpinFrames(frames, 0.5)
+        np.testing.assert_allclose(mid, 0.5)
+
+    def test_moon_frame_uses_orbital_phase_not_wall_clock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporaryName:
+            temporary = Path(temporaryName)
+            moonDir = spinFramesDirectory('Moon', 'dark', outputDirectory=temporary)
+            moonDir.mkdir(parents=True)
+            for index in range(8):
+                Image.new('RGBA', (16, 16), (index * 30, 160, 160, 220)).save(
+                    moonDir / f'frame_{index:04d}.png'
+                )
+            earthDir = spinFramesDirectory('Earth', 'dark', outputDirectory=temporary)
+            earthDir.mkdir(parents=True)
+            Image.new('RGBA', (16, 16), (20, 90, 180, 230)).save(earthDir / 'frame_0000.png')
+            atlas = BlenderBodySpriteAtlas('dark', outputDirectory=temporary)
+            a = atlas.moonFrame(0, orbitalPhaseRad=0.0, resolution=16)
+            b = atlas.moonFrame(100, orbitalPhaseRad=0.0, resolution=16)
+            c = atlas.moonFrame(0, orbitalPhaseRad=np.pi, resolution=16)
+            assert a is not None and b is not None and c is not None
+            np.testing.assert_allclose(a, b)
+            self.assertFalse(np.allclose(a, c))
 
 
 class SpinAtlasTests(unittest.TestCase):
@@ -101,18 +146,14 @@ class BlenderBodyOverlayTests(unittest.TestCase):
             for body in ('Earth', 'Moon'):
                 directory = spinFramesDirectory(body, 'light', outputDirectory=temporary)
                 directory.mkdir(parents=True)
-                Image.new('RGBA', (48, 48), (20, 90, 180, 230)).save(
-                    directory / 'frame_0000.png'
-                )
+                Image.new('RGBA', (48, 48), (20, 90, 180, 230)).save(directory / 'frame_0000.png')
             animator = SolCentauriCinematicAnimator(
                 self.system,
                 style='default',
                 starsCsvPath=self.starsCsvPath,
                 useBlenderBodies=True,
             )
-            animator.blenderSprites = BlenderBodySpriteAtlas(
-                'light', outputDirectory=temporary
-            )
+            animator.blenderSprites = BlenderBodySpriteAtlas('light', outputDirectory=temporary)
             animator.update(0)
             self.assertGreaterEqual(len(animator.bodyOverlay.get_images()), 1)
 
