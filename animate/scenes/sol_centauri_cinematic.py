@@ -914,12 +914,10 @@ class SolCentauriCinematicAnimator:
             # Hold on the three-star view: A–B with Proxima on its wide orbit.
             return self.barycenterSolAu.copy(), self.wideHalfWidthAu
 
-        # After the triple pause, dive inward to Proxima. Do not re-run a Sol-framing
-        # "cruise" here — that pulled the camera back out to ~10⁵ AU before the dive.
-        focusT = smootherstep(min(1.0, proximaProgress / AB_FOCUS_ARRIVE))
-        focus = (1.0 - focusT) * self.barycenterSolAu + focusT * proximaSol
+        # After the triple pause, dive straight onto Proxima (not the AB–Proxima midpoint).
+        # Do not re-run a Sol-framing "cruise" — that pulled the camera back out to ~10⁵ AU.
         if linear <= PROXIMA_TRAVEL_END:
-            return focus, stagedLogDive(
+            return proximaSol.copy(), stagedLogDive(
                 self.wideHalfWidthAu,
                 self.proximaWideHalfWidthAu,
                 PROXIMA_DIVE_WAYPOINTS_AU,

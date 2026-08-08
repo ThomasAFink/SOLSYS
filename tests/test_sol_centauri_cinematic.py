@@ -449,6 +449,21 @@ class CinematicTransformTests(unittest.TestCase):
         self.assertLess(previousHalf, self.animator.wideHalfWidthAu)
         self.assertAlmostEqual(previousHalf, self.animator.proximaWideHalfWidthAu, places=2)
 
+    def test_proxima_dive_focuses_proxima_not_ab_midpoint(self) -> None:
+        """Zoom-in after the triple hold must look at Proxima, not AB↔Proxima midpoint."""
+        frames = self.animator.animationFrames
+        start = int(np.ceil(WIDE_OUT_END * (frames - 1))) + 1
+        mid = int(0.5 * (WIDE_OUT_END + PROXIMA_TRAVEL_END) * (frames - 1))
+        for frame in (start, mid, frames - 1):
+            focus, _ = self.animator._cameraState(frame)
+            proxima = self.animator._proximaPositionSol(frame)
+            midpoint = 0.5 * (self.animator.barycenterSolAu + proxima)
+            np.testing.assert_allclose(focus, proxima, atol=1e-6)
+            self.assertGreater(
+                float(np.linalg.norm(focus - midpoint)),
+                0.25 * float(np.linalg.norm(proxima - self.animator.barycenterSolAu)),
+            )
+
     def test_inner_belt_emphasis_is_continuous_at_peak(self) -> None:
         style = ASTEROID_RENDER_STYLES['dark']
         peak = SOL_BELT_LINGER_HALF_AU
