@@ -70,7 +70,7 @@ output/animate/blender/{planets,moons}/<body>/
   *_flyby_{light,dark}.gif          # gallery close-ups
   *_spin_{light,dark}/frame_*.png   # cinematic spin loops (transparent)
   *_spin_{light,dark}.gif           # preview of the spin loop
-output/animate/sol_centauri/blender/  # cinematic with Earth/Moon spin billboards
+output/animate/sol_centauri/blender/  # cinematic with Sol body spin billboards (--blender-bodies)
 ```
 
 Local debug leftovers (`.blend`, `*_smoke_*`, `overlay_probe.png`) are gitignored / not products.
