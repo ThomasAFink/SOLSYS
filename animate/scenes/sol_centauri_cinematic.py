@@ -134,15 +134,15 @@ SOL_SATURN_LINGER_HALF_AU = 18.0
 # Outer linger frames Neptune/Pluto with Kuiper just coming into view.
 SOL_OUTER_LINGER_HALF_AU = 42.0
 SOL_HALF_WIDTH_AU = SOL_OUTER_LINGER_HALF_AU
-# Textured Sol billboard through the Sol tour; scatter star-marker after pullback.
-# Start near the Near-Sun hold so the disk does not pop in oversized then pulse
-# through stepped floors. Cap below the generic billboard drop (halfWidth > 100).
-BLENDER_STAR_BILLBOARD_HALF_AU = (
-    SOL_NEAR_SUN_HALF_AU * 0.88,
-    min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2),
-)
 # Leave Earth look-at and ease toward Sol before the Near-Sun plateau.
 SOL_LEAVE_EARTH_FOCUS_HALF_AU = 1.15
+# Textured Sol billboard from leaving Earth through the Sol tour; scatter after pullback.
+# Starts with the look-at ease to Sol (not the Earth close-up, where a billboard
+# would swallow the frame). World-scale only — size shrinks monotonically with zoom.
+BLENDER_STAR_BILLBOARD_HALF_AU = (
+    SOL_LEAVE_EARTH_FOCUS_HALF_AU,
+    min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2),
+)
 # Wide enough to bring most of the 30 ly catalog into the Sol neighborhood frame.
 START_HALF_WIDTH_LY = 25.0
 AB_HALF_WIDTH_AU = 32.0
