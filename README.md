@@ -174,6 +174,18 @@ solsys.motion    → moving asteroid fields for animation frames
 |-------|------|
 | ![Moon close-up light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/moon/moon_flyby_light.gif?raw=true) | ![Moon close-up dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/moons/moon/moon_flyby_dark.gif?raw=true) |
 
+**Jupiter Blender close-up**
+
+| Light | Dark |
+|-------|------|
+| ![Jupiter close-up light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/jupiter/jupiter_flyby_light.gif?raw=true) | ![Jupiter close-up dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/jupiter/jupiter_flyby_dark.gif?raw=true) |
+
+**Saturn Blender close-up (rings)**
+
+| Light | Dark |
+|-------|------|
+| ![Saturn close-up light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/saturn/saturn_flyby_light.gif?raw=true) | ![Saturn close-up dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/saturn/saturn_flyby_dark.gif?raw=true) |
+
 ### Static zoom views (side)
 
 **Inner Solar System With Jupiter**
@@ -321,12 +333,15 @@ Or render by product:
 .venv/bin/python render.py blender --body Earth --load    # optional debug ingest
 .venv/bin/python render.py blender --body Earth --flyby   # light/dark close-up GIFs
 .venv/bin/python render.py blender --body Moon --flyby    # Moon close-up GIFs
+.venv/bin/python render.py blender --body Jupiter --flyby # textured gas giant
+.venv/bin/python render.py blender --body Saturn --flyby  # rings + textured globe
+.venv/bin/python render.py blender --body Saturn --spin   # RGBA spin (rings) for cinematic
 .venv/bin/python render.py blender --body Earth --spin    # RGBA day/night loop for cinematic
 .venv/bin/python render.py blender --body Moon --spin     # Moon spin loop for cinematic
 .venv/bin/python render.py blender --pipeline             # Earth+Moon spins + blender cinematic
 ```
 
-Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`) to `output/animate/blender/{planets,moons}/<body>/` (`*_flyby_{light,dark}.gif`). `render.py blender --spin` writes a fixed-camera transparent PNG day/night loop (`*_spin_<theme>/frame_*.png`) for cinematic reuse. Texture packs live under `data/textures/bodies/`.
+Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`/`#46`) to `output/animate/blender/{planets,moons}/<body>/` (`*_flyby_{light,dark}.gif`). `render.py blender --spin` writes a fixed-camera transparent PNG day/night loop (`*_spin_<theme>/frame_*.png`) for cinematic reuse. Texture packs for all Sol planets (+ Pluto) live under `data/textures/bodies/` (Saturn/Uranus/Neptune include rings).
 
 Blender → cinematic workflow:
 
@@ -360,6 +375,12 @@ Moon Blender close-up (issue #41) uses the shared pack path with an LRO LROC col
 
 - `moon_flyby_{light,dark}.gif` — textured lunar sphere, elevated turntable camera + spin
 - `moon_spin_{light,dark}/frame_*.png` — fixed-camera RGBA spin loop for the cinematic (`--spin`)
+
+Sol planet packs (issue #46) extend the same path to Mercury–Neptune + Pluto (color maps; atmosphere where it helps). Saturn/Uranus/Neptune add a shared ring annulus:
+
+- `jupiter_flyby_{light,dark}.gif` — textured Jupiter + subtle limb haze
+- `saturn_flyby_{light,dark}.gif` / `saturn_spin_{light,dark}/` — rings + globe
+- Other bodies: `render.py blender --body <Name> --flyby`
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 

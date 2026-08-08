@@ -106,7 +106,17 @@ def buildFlybyJob(
 ) -> dict:
     """Build a Blender flyby job dict from PlanetCatalog/MoonCatalog + camera path."""
     bodyScene = buildBodyScene(bodyName, frameCount=max(frameCount, 2))
-    cameraPath = buildFlybyCameraPath(bodyScene.body.displayRadiusAu, frameCount=frameCount)
+    appearance = appearanceForCatalogName(bodyScene.body.name)
+    # Pull back / elevate when rings are present so the annulus opens and fits.
+    ringed = appearance is not None and appearance.rings.enabled
+    distanceScale = 5.8 if ringed else 4.4
+    elevationDeg = 28.0 if ringed else 16.0
+    cameraPath = buildFlybyCameraPath(
+        bodyScene.body.displayRadiusAu,
+        frameCount=frameCount,
+        distanceScale=distanceScale,
+        elevationDeg=elevationDeg,
+    )
     return _bodyJobSkeleton(
         bodyName,
         theme=theme,
@@ -131,7 +141,16 @@ def buildSpinJob(
 ) -> dict:
     """Fixed-camera full-rotation job (transparent PNGs for cinematic reuse)."""
     bodyScene = buildBodyScene(bodyName, frameCount=max(frameCount, 2))
-    cameraPath = buildSpinCameraPath(bodyScene.body.displayRadiusAu, frameCount=frameCount)
+    appearance = appearanceForCatalogName(bodyScene.body.name)
+    ringed = appearance is not None and appearance.rings.enabled
+    distanceScale = 5.8 if ringed else 4.4
+    elevationDeg = 28.0 if ringed else 18.0
+    cameraPath = buildSpinCameraPath(
+        bodyScene.body.displayRadiusAu,
+        frameCount=frameCount,
+        distanceScale=distanceScale,
+        elevationDeg=elevationDeg,
+    )
     return _bodyJobSkeleton(
         bodyName,
         theme=theme,

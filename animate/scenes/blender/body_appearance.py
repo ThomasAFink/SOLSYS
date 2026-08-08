@@ -21,6 +21,7 @@ class BodyTextureMaps:
     specular: Path | None = None
     clouds: Path | None = None
     normal: Path | None = None
+    rings: Path | None = None
 
     def existingMaps(self) -> dict[str, Path]:
         maps: dict[str, Path] = {}
@@ -29,6 +30,7 @@ class BodyTextureMaps:
             ('specular', self.specular),
             ('clouds', self.clouds),
             ('normal', self.normal),
+            ('rings', self.rings),
         ):
             if path is not None and path.is_file():
                 maps[key] = path.resolve()
@@ -56,6 +58,26 @@ class BodyAtmosphere:
 
 
 @dataclass(frozen=True)
+class BodyRings:
+    """Equatorial ring annulus (Saturn / ice giants). Scales are × body radius."""
+
+    enabled: bool = False
+    innerScale: float = 1.2
+    outerScale: float = 2.3
+    tiltDeg: float = 0.0
+    opacity: float = 1.0
+
+    def toJobDict(self) -> dict:
+        return {
+            'enabled': self.enabled,
+            'innerScale': self.innerScale,
+            'outerScale': self.outerScale,
+            'tiltDeg': self.tiltDeg,
+            'opacity': self.opacity,
+        }
+
+
+@dataclass(frozen=True)
 class BodyAppearance:
     """Visual pack for one body id, linked to one or more catalog names."""
 
@@ -66,6 +88,7 @@ class BodyAppearance:
     roughness: float = 0.55
     specular: float = 0.25
     atmosphere: BodyAtmosphere = BodyAtmosphere()
+    rings: BodyRings = BodyRings()
 
     def toJobDict(self) -> dict:
         maps = {key: str(path) for key, path in self.textures.existingMaps().items()}
@@ -78,6 +101,8 @@ class BodyAppearance:
         }
         if self.atmosphere.enabled:
             payload['atmosphere'] = self.atmosphere.toJobDict()
+        if self.rings.enabled:
+            payload['rings'] = self.rings.toJobDict()
         return payload
 
 
@@ -100,11 +125,52 @@ def _mapsForBodyId(bodyId: str) -> BodyTextureMaps:
         specular=_optionalMap(bodyId, 'specular'),
         clouds=_optionalMap(bodyId, 'clouds'),
         normal=_optionalMap(bodyId, 'normal'),
+        rings=_optionalMap(bodyId, 'rings'),
     )
 
 
-# Registry: add Jupiter / Ceres / other moons here as packs land under data/textures/bodies/.
+def _planet(
+    bodyId: str,
+    catalogName: str,
+    *,
+    roughness: float,
+    specular: float,
+    atmosphere: BodyAtmosphere | None = None,
+    rings: BodyRings | None = None,
+) -> BodyAppearance:
+    return BodyAppearance(
+        bodyId=bodyId,
+        kind='planet',
+        catalogNames=(catalogName,),
+        textures=_mapsForBodyId(bodyId),
+        roughness=roughness,
+        specular=specular,
+        atmosphere=atmosphere or BodyAtmosphere(enabled=False),
+        rings=rings or BodyRings(enabled=False),
+    )
+
+
+# Registry: Sol planets + Earth/Moon. Asteroids / extra moons land in later issues.
 _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
+    _planet(
+        'mercury',
+        'Mercury',
+        roughness=0.78,
+        specular=0.06,
+    ),
+    _planet(
+        'venus',
+        'Venus',
+        roughness=0.62,
+        specular=0.12,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.055,
+            colorRgba=(0.95, 0.85, 0.45, 1.0),
+            strength=1.35,
+            fresnelBlend=0.22,
+        ),
+    ),
     BodyAppearance(
         bodyId='earth',
         kind='planet',
@@ -120,6 +186,98 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
             strength=0.85,
             fresnelBlend=0.14,
         ),
+    ),
+    _planet(
+        'mars',
+        'Mars',
+        roughness=0.72,
+        specular=0.08,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.028,
+            colorRgba=(0.85, 0.55, 0.35, 1.0),
+            strength=0.45,
+            fresnelBlend=0.12,
+        ),
+    ),
+    _planet(
+        'jupiter',
+        'Jupiter',
+        roughness=0.48,
+        specular=0.22,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.02,
+            colorRgba=(0.75, 0.70, 0.55, 1.0),
+            strength=0.55,
+            fresnelBlend=0.16,
+        ),
+    ),
+    _planet(
+        'saturn',
+        'Saturn',
+        roughness=0.50,
+        specular=0.20,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.018,
+            colorRgba=(0.85, 0.78, 0.55, 1.0),
+            strength=0.50,
+            fresnelBlend=0.15,
+        ),
+        rings=BodyRings(
+            enabled=True,
+            innerScale=1.15,
+            outerScale=2.25,
+            tiltDeg=26.7,
+            opacity=1.0,
+        ),
+    ),
+    _planet(
+        'uranus',
+        'Uranus',
+        roughness=0.45,
+        specular=0.18,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.02,
+            colorRgba=(0.55, 0.85, 0.90, 1.0),
+            strength=0.60,
+            fresnelBlend=0.16,
+        ),
+        rings=BodyRings(
+            enabled=True,
+            innerScale=1.55,
+            outerScale=2.05,
+            tiltDeg=97.8,
+            opacity=0.55,
+        ),
+    ),
+    _planet(
+        'neptune',
+        'Neptune',
+        roughness=0.45,
+        specular=0.20,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.022,
+            colorRgba=(0.35, 0.50, 0.95, 1.0),
+            strength=0.70,
+            fresnelBlend=0.17,
+        ),
+        rings=BodyRings(
+            enabled=True,
+            innerScale=1.45,
+            outerScale=2.35,
+            tiltDeg=28.3,
+            opacity=0.65,
+        ),
+    ),
+    _planet(
+        'pluto',
+        'Pluto',
+        roughness=0.80,
+        specular=0.05,
     ),
     BodyAppearance(
         bodyId='moon',
@@ -146,6 +304,7 @@ def _catalogIndex() -> dict[str, BodyAppearance]:
             roughness=appearance.roughness,
             specular=appearance.specular,
             atmosphere=appearance.atmosphere,
+            rings=appearance.rings,
         )
         for catalogName in appearance.catalogNames:
             index[catalogName] = resolved
@@ -159,3 +318,15 @@ def appearanceForCatalogName(catalogName: str) -> BodyAppearance | None:
 
 def registeredCatalogNames() -> tuple[str, ...]:
     return tuple(sorted(_catalogIndex()))
+
+
+def registeredPlanetCatalogNames() -> tuple[str, ...]:
+    """PlanetCatalog-facing packs (excludes moons)."""
+    return tuple(
+        sorted(
+            name
+            for appearance in _catalogIndex().values()
+            for name in appearance.catalogNames
+            if appearance.kind == 'planet'
+        )
+    )
