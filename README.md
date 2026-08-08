@@ -54,6 +54,7 @@ SOLSYS/
 │   ├── solar_system_animator.py                   # SolarSystemAnimator, renderAllAnimations
 │   ├── camera_controller.py                       # CameraController
 │   ├── animation_styles.py                        # Light/dark styles and timing constants
+│   ├── blender_body_sprites.py                    # Blender spin-loop frames for cinematic Earth/Moon
 │   └── scenes/
 │       ├── inner_system.py                        # Fixed 2D inner-system scene
 │       ├── zoom_tour.py                          # Staged 3D Oort → inner zoom
@@ -84,6 +85,7 @@ SOLSYS/
 ├── tests/                                         # Unit tests (stdlib unittest)
 │   ├── test_frame_transform.py                    # Sol ↔ α Cen frame transform
 │   ├── test_sol_centauri_cinematic.py             # Sol → α Cen cinematic helpers
+│   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
 ├── solsys/                                        # Shared libraries (no plotting)
@@ -111,7 +113,8 @@ SOLSYS/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
     │   ├── 3d/                                    # solar_system_{light,dark}.gif
 │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
-│   ├── sol_centauri/                          # sol_centauri_cinematic_{light,dark}.gif
+│   ├── sol_centauri/                          # classic cinematic GIFs
+│   │   └── blender/                           # cinematic with textured Earth/Moon
 │   ├── barnards_star/                         # barnards_star_planets_{light,dark}.gif
 │   ├── trappist_1/                            # trappist_1_planets_{light,dark}.gif
 │   ├── tabbys_star/                           # tabbys_star_dust_{light,dark}.gif
@@ -305,6 +308,7 @@ Or render by product:
 .venv/bin/python render.py animate --dimension 3d
 .venv/bin/python render.py animate --system alpha_centauri
 .venv/bin/python render.py animate --system sol_centauri
+.venv/bin/python render.py animate --system sol_centauri --blender-bodies
 .venv/bin/python render.py animate --system barnards_star
 .venv/bin/python render.py animate --system trappist_1
 .venv/bin/python render.py animate --system tabbys_star
@@ -314,12 +318,27 @@ Or render by product:
 .venv/bin/python render.py static --dimension 2d
 .venv/bin/python render.py neighborhood --ly 10
 .venv/bin/python render.py blender --body Earth
-.venv/bin/python render.py blender --body Moon --flyby    # Moon close-up GIFs
 .venv/bin/python render.py blender --body Earth --load    # optional debug ingest
 .venv/bin/python render.py blender --body Earth --flyby   # light/dark close-up GIFs
+.venv/bin/python render.py blender --body Moon --flyby    # Moon close-up GIFs
+.venv/bin/python render.py blender --body Earth --spin    # RGBA day/night loop for cinematic
+.venv/bin/python render.py blender --body Moon --spin     # Moon spin loop for cinematic
+.venv/bin/python render.py blender --pipeline             # Earth+Moon spins + blender cinematic
 ```
 
-Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`) to `output/animate/blender/{planets,moons}/<body>/` (`*_flyby_{light,dark}.gif`). Texture packs live under `data/textures/bodies/`.
+Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`) to `output/animate/blender/{planets,moons}/<body>/` (`*_flyby_{light,dark}.gif`). `render.py blender --spin` writes a fixed-camera transparent PNG day/night loop (`*_spin_<theme>/frame_*.png`) for cinematic reuse. Texture packs live under `data/textures/bodies/`.
+
+Blender → cinematic workflow:
+
+```bash
+.venv/bin/python render.py blender --body Earth --spin
+.venv/bin/python render.py blender --body Moon --spin
+.venv/bin/python render.py animate --system sol_centauri --blender-bodies
+# or one-shot:
+.venv/bin/python render.py blender --pipeline
+```
+
+Sol → Centauri cinematic with `--blender-bodies` (issue #42) keeps the same camera tour but composites those Blender spin frames at Earth/Moon **each `FuncAnimation` frame** (not GIF concat). Outputs go under `output/animate/sol_centauri/blender/` (classic dotted GIFs stay in `output/animate/sol_centauri/`).
 
 Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animations render to `output/animate/alpha_centauri/`:
 
@@ -327,17 +346,20 @@ Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animati
 - `alpha_centauri_system_{light,dark}.gif` — wide triple with Proxima (~8.7 kau)
 - `proxima_planets_{light,dark}.gif` — confirmed Proxima planets (via shared `exoplanet_system` animator)
 
-Sol → Alpha Centauri cinematic (issue #10) flies from our solar system to the A–B close-up, zooms back out, then finishes on Proxima and its planets — all in Sol XYZ via `SolCentauriFrameTransform`. Animations render to `output/animate/sol_centauri/`:
+Sol → Alpha Centauri cinematic (issue #10) flies from our solar system to the A–B close-up, zooms back out, then finishes on Proxima and its planets — all in Sol XYZ via `SolCentauriFrameTransform`:
 
-- `sol_centauri_cinematic_{light,dark}.gif` — Sol → AB → wide → Proxima planets
+- `output/animate/sol_centauri/sol_centauri_cinematic_{light,dark}.gif` — classic scatter-dot bodies
+- `output/animate/sol_centauri/blender/sol_centauri_cinematic_blender_{light,dark}.gif` — Blender spin billboards on Earth/Moon (`--blender-bodies` or `blender --pipeline`)
 
-Earth Blender close-up (issues #12 / #36) is a body-centered EEVEE view of Earth with NASA Blue Marble texture (light/dark). Render with `render.py blender --body Earth --flyby` to `output/animate/blender/planets/earth/`:
+Earth Blender close-up (issues #12 / #36) is a body-centered EEVEE view of Earth with NASA Blue Marble texture (light/dark). Render with `render.py blender --body Earth --flyby` / `--spin` to `output/animate/blender/planets/earth/`:
 
 - `earth_flyby_{light,dark}.gif` — textured sphere, clouds, thin atmosphere limb, elevated turntable camera + spin
+- `earth_spin_{light,dark}/frame_*.png` — fixed-camera RGBA day/night loop for the cinematic (`--spin`)
 
 Moon Blender close-up (issue #41) uses the shared pack path with an LRO LROC color map (airless — no atmosphere/clouds) under `output/animate/blender/moons/moon/`:
 
 - `moon_flyby_{light,dark}.gif` — textured lunar sphere, elevated turntable camera + spin
+- `moon_spin_{light,dark}/frame_*.png` — fixed-camera RGBA spin loop for the cinematic (`--spin`)
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 

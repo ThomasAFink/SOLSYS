@@ -13,7 +13,7 @@ from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
 from animate.scenes.barnards_star import renderBarnardsStarAnimations
 from animate.scenes.blender.export_body import exportBodyScene
-from animate.scenes.blender.flyby_scene import renderPlanetFlyby
+from animate.scenes.blender.flyby_scene import renderPlanetFlyby, renderPlanetSpin
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
 from animate.scenes.tabbys_star import renderTabbysStarAnimations
@@ -132,6 +132,14 @@ def buildParser() -> argparse.ArgumentParser:
         default='data/nearby_stars_30.csv',
         help='Path to nearby-stars CSV (for multi-star systems)',
     )
+    animateParser.add_argument(
+        '--blender-bodies',
+        action='store_true',
+        help=(
+            'For --system sol_centauri: replace Earth/Moon dots with Blender spin-loop '
+            'frames drawn each cinematic frame (requires prior: blender --spin)'
+        ),
+    )
 
     allParser = subparsers.add_parser(
         'all',
@@ -207,10 +215,26 @@ def buildParser() -> argparse.ArgumentParser:
         help='Render polished light/dark flyby GIFs via Blender (requires blender on PATH)',
     )
     blenderParser.add_argument(
+        '--spin',
+        action='store_true',
+        help=(
+            'Render fixed-camera RGBA day/night spin loops for cinematic reuse '
+            '(requires blender on PATH)'
+        ),
+    )
+    blenderParser.add_argument(
         '--theme',
         choices=('light', 'dark', 'all'),
         default='all',
-        help='Flyby theme when using --flyby (default: all)',
+        help='Theme when using --flyby / --spin (default: all)',
+    )
+    blenderParser.add_argument(
+        '--pipeline',
+        action='store_true',
+        help=(
+            'End-to-end: Earth+Moon Blender spin loops, then Sol→Centauri cinematic '
+            'with --blender-bodies. Ignores --body.'
+        ),
     )
 
     return parser
@@ -238,11 +262,43 @@ def _runBlenderLoad(scenePath: Path) -> None:
         raise SystemExit(f'Blender ingest failed with exit code {completed.returncode}')
 
 
+def _runBlenderCinematicPipeline(
+    *,
+    theme: str,
+    frames: int,
+    outputDirectory: str,
+    starsCsvPath: str,
+) -> None:
+    """Earth+Moon spin loops, then Sol→Centauri cinematic compositing those frames."""
+    spinFrames = 48 if frames == 120 else frames
+    for bodyName in ('Earth', 'Moon'):
+        print(f'[pipeline] Blender spin loop → {bodyName}')
+        paths = renderPlanetSpin(
+            bodyName,
+            theme=theme,
+            frameCount=spinFrames,
+            outputDirectory=outputDirectory,
+        )
+        for path in paths:
+            print(f'Spin ready → {path}')
+
+    print('[pipeline] Sol→Centauri cinematic with Blender spin billboards')
+    renderSolCentauriCinematicAnimations(
+        figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+        dpi=ANIMATE_DPI_CINEMATIC,
+        starsCsvPath=starsCsvPath,
+        useBlenderBodies=True,
+    )
+    print('[pipeline] done')
+
+
 def _renderAnimations(
     systemChoice: str,
     dimensions: tuple[Dimension, ...],
     starsCsvPath: str,
     objectChoice: str,
+    *,
+    useBlenderBodies: bool = False,
 ) -> None:
     if systemChoice in ('sol', 'all'):
         for dimension in dimensions:
@@ -263,6 +319,7 @@ def _renderAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_CINEMATIC,
             starsCsvPath=starsCsvPath,
+            useBlenderBodies=useBlenderBodies,
         )
     if systemChoice in ('barnards_star', 'all'):
         renderBarnardsStarAnimations(
@@ -297,6 +354,63 @@ def _renderAnimations(
         )
 
 
+def _handleBlenderCommand(args: argparse.Namespace) -> None:
+    if args.pipeline:
+        _runBlenderCinematicPipeline(
+            theme=args.theme,
+            frames=args.frames,
+            outputDirectory=args.output_dir,
+            starsCsvPath='data/nearby_stars_30.csv',
+        )
+        return
+
+    if args.spin:
+        spinFrames = 48 if args.frames == 120 else args.frames
+        paths = renderPlanetSpin(
+            args.body,
+            theme=args.theme,
+            frameCount=spinFrames,
+            outputDirectory=args.output_dir,
+        )
+        for path in paths:
+            print(f'Spin ready → {path}')
+        return
+
+    if args.flyby:
+        flybyFrames = 72 if args.frames == 120 else args.frames
+        gifPaths = renderPlanetFlyby(
+            args.body,
+            theme=args.theme,
+            frameCount=flybyFrames,
+            outputDirectory=args.output_dir,
+        )
+        for gifPath in gifPaths:
+            print(f'Flyby ready → {gifPath}')
+        return
+
+    scenePath = exportBodyScene(
+        args.body,
+        frameCount=args.frames,
+        outputDirectory=args.output_dir,
+    )
+    print(f'Exported Blender body scene → {scenePath}')
+    if args.load:
+        _runBlenderLoad(scenePath)
+        return
+    print(
+        'Next: dry-run validate with\n'
+        f'  {sys.executable} {BLENDER_LOAD_SCRIPT} {scenePath}\n'
+        'or ingest with\n'
+        f'  blender --background --python {BLENDER_LOAD_SCRIPT} -- {scenePath}\n'
+        'or render flybys with\n'
+        f'  {sys.executable} render.py blender --body {args.body} --flyby\n'
+        'or render spin loops with\n'
+        f'  {sys.executable} render.py blender --body {args.body} --spin\n'
+        'or run the full Earth/Moon → cinematic pipeline with\n'
+        f'  {sys.executable} render.py blender --pipeline'
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = buildParser()
     args = parser.parse_args(argv)
@@ -313,35 +427,7 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == 'blender':
-        if args.flyby:
-            flybyFrames = 72 if args.frames == 120 else args.frames
-            gifPaths = renderPlanetFlyby(
-                args.body,
-                theme=args.theme,
-                frameCount=flybyFrames,
-                outputDirectory=args.output_dir,
-            )
-            for gifPath in gifPaths:
-                print(f'Flyby ready → {gifPath}')
-            return
-
-        scenePath = exportBodyScene(
-            args.body,
-            frameCount=args.frames,
-            outputDirectory=args.output_dir,
-        )
-        print(f'Exported Blender body scene → {scenePath}')
-        if args.load:
-            _runBlenderLoad(scenePath)
-        else:
-            print(
-                'Next: dry-run validate with\n'
-                f'  {sys.executable} {BLENDER_LOAD_SCRIPT} {scenePath}\n'
-                'or ingest with\n'
-                f'  blender --background --python {BLENDER_LOAD_SCRIPT} -- {scenePath}\n'
-                'or render flybys with\n'
-                f'  {sys.executable} render.py blender --body {args.body} --flyby'
-            )
+        _handleBlenderCommand(args)
         return
 
     dimensions = _parseDimensions(args.dimension)
@@ -354,6 +440,7 @@ def main(argv: list[str] | None = None) -> None:
             dimensions,
             starsCsvPath=getattr(args, 'stars', 'data/nearby_stars_30.csv'),
             objectChoice=getattr(args, 'object', 'all'),
+            useBlenderBodies=bool(getattr(args, 'blender_bodies', False)),
         )
 
     if args.command in ('static', 'all'):

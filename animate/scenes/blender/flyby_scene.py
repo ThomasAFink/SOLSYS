@@ -13,8 +13,13 @@ from PIL import Image
 
 from animate.scenes.blender.body_appearance import appearanceForCatalogName
 from animate.scenes.blender.body_scene import buildBodyScene
-from animate.scenes.blender.export_body import DEFAULT_OUTPUT_DIRECTORY, bodyStem, exportBodyScene
-from animate.scenes.blender.flyby_camera import buildFlybyCameraPath
+from animate.scenes.blender.export_body import (
+    DEFAULT_OUTPUT_DIRECTORY,
+    bodyOutputDirectory,
+    bodyStem,
+    exportBodyScene,
+)
+from animate.scenes.blender.flyby_camera import buildFlybyCameraPath, buildSpinCameraPath
 from animate.scenes.blender.render_flyby import JOB_SCHEMA_ID
 
 FLYBY_EXTENSION_POINT = 'animate.scenes.blender.flyby_scene.renderPlanetFlyby'
@@ -24,6 +29,9 @@ Theme = Literal['light', 'dark']
 DEFAULT_FLYBY_FRAMES = 72
 DEFAULT_FLYBY_RESOLUTION = 640
 DEFAULT_FLYBY_FPS = 18
+DEFAULT_SPIN_FRAMES = 48
+DEFAULT_SPIN_RESOLUTION = 512
+DEFAULT_SPIN_FPS = 20
 
 
 def preparePlanetFlybyExport(
@@ -40,24 +48,26 @@ def preparePlanetFlybyExport(
     )
 
 
-def buildFlybyJob(
-    bodyName: str = 'Earth',
+def _bodyJobSkeleton(
+    bodyName: str,
     *,
-    theme: Theme = 'dark',
-    frameCount: int = DEFAULT_FLYBY_FRAMES,
-    resolution: int = DEFAULT_FLYBY_RESOLUTION,
-    fps: int = DEFAULT_FLYBY_FPS,
+    theme: Theme,
+    frameCount: int,
+    resolution: int,
+    fps: int,
     framesDirectory: Path | str,
+    cameraPath,
+    filmTransparent: bool = False,
+    mode: str = 'flyby',
 ) -> dict:
-    """Build a Blender flyby job dict from PlanetCatalog/MoonCatalog + camera path."""
     if theme not in ('light', 'dark'):
         raise ValueError(f'theme must be light or dark, got {theme!r}')
     bodyScene = buildBodyScene(bodyName, frameCount=max(frameCount, 2))
-    cameraPath = buildFlybyCameraPath(bodyScene.body.displayRadiusAu, frameCount=frameCount)
     appearance = appearanceForCatalogName(bodyScene.body.name)
     job: dict = {
         'schema': JOB_SCHEMA_ID,
         'theme': theme,
+        'mode': mode,
         'body': {
             'name': bodyScene.body.name,
             'kind': bodyScene.body.kind,
@@ -78,10 +88,76 @@ def buildFlybyJob(
         'outputDirectory': str(Path(framesDirectory)),
         'resolution': resolution,
         'fps': fps,
+        'filmTransparent': filmTransparent,
     }
     if appearance is not None:
         job['appearance'] = appearance.toJobDict()
     return job
+
+
+def buildFlybyJob(
+    bodyName: str = 'Earth',
+    *,
+    theme: Theme = 'dark',
+    frameCount: int = DEFAULT_FLYBY_FRAMES,
+    resolution: int = DEFAULT_FLYBY_RESOLUTION,
+    fps: int = DEFAULT_FLYBY_FPS,
+    framesDirectory: Path | str,
+) -> dict:
+    """Build a Blender flyby job dict from PlanetCatalog/MoonCatalog + camera path."""
+    bodyScene = buildBodyScene(bodyName, frameCount=max(frameCount, 2))
+    cameraPath = buildFlybyCameraPath(bodyScene.body.displayRadiusAu, frameCount=frameCount)
+    return _bodyJobSkeleton(
+        bodyName,
+        theme=theme,
+        frameCount=frameCount,
+        resolution=resolution,
+        fps=fps,
+        framesDirectory=framesDirectory,
+        cameraPath=cameraPath,
+        filmTransparent=False,
+        mode='flyby',
+    )
+
+
+def buildSpinJob(
+    bodyName: str = 'Earth',
+    *,
+    theme: Theme = 'dark',
+    frameCount: int = DEFAULT_SPIN_FRAMES,
+    resolution: int = DEFAULT_SPIN_RESOLUTION,
+    fps: int = DEFAULT_SPIN_FPS,
+    framesDirectory: Path | str,
+) -> dict:
+    """Fixed-camera full-rotation job (transparent PNGs for cinematic reuse)."""
+    bodyScene = buildBodyScene(bodyName, frameCount=max(frameCount, 2))
+    cameraPath = buildSpinCameraPath(bodyScene.body.displayRadiusAu, frameCount=frameCount)
+    return _bodyJobSkeleton(
+        bodyName,
+        theme=theme,
+        frameCount=frameCount,
+        resolution=resolution,
+        fps=fps,
+        framesDirectory=framesDirectory,
+        cameraPath=cameraPath,
+        filmTransparent=True,
+        mode='spin',
+    )
+
+
+def spinFramesDirectory(
+    bodyName: str,
+    theme: Theme,
+    *,
+    outputDirectory: Path | str = DEFAULT_OUTPUT_DIRECTORY,
+) -> Path:
+    """Persistent PNG loop: ``…/planets/earth/earth_spin_dark/frame_*.png``."""
+    bodyScene = buildBodyScene(bodyName, frameCount=2)
+    stem = bodyStem(bodyName)
+    return (
+        bodyOutputDirectory(bodyScene.body.kind, bodyName, root=outputDirectory)
+        / f'{stem}_spin_{theme}'
+    )
 
 
 def writeFlybyJob(job: dict, path: Path | str) -> Path:
@@ -184,4 +260,56 @@ def renderPlanetFlyby(
             assembleGifFromPngs(framePaths, gifPath, fps=fps)
             written.append(gifPath)
             print(f'Wrote flyby GIF → {gifPath}')
+    return tuple(written)
+
+
+def renderPlanetSpin(
+    bodyName: str = 'Earth',
+    *,
+    theme: Theme | Literal['all'] = 'all',
+    frameCount: int = DEFAULT_SPIN_FRAMES,
+    resolution: int = DEFAULT_SPIN_RESOLUTION,
+    fps: int = DEFAULT_SPIN_FPS,
+    outputDirectory: Path | str = DEFAULT_OUTPUT_DIRECTORY,
+) -> tuple[Path, ...]:
+    """Render fixed-camera RGBA spin loops for cinematic body billboards."""
+    themes: tuple[Theme, ...]
+    if theme == 'all':
+        themes = ('light', 'dark')
+    elif theme in ('light', 'dark'):
+        themes = (theme,)
+    else:
+        raise ValueError(f'theme must be light, dark, or all, got {theme!r}')
+
+    outputRoot = Path(outputDirectory)
+    outputRoot.mkdir(parents=True, exist_ok=True)
+    bodyDirectory = preparePlanetFlybyExport(bodyName, outputDirectory=outputRoot).parent
+    stem = bodyStem(bodyName)
+    written: list[Path] = []
+
+    for themeName in themes:
+        framesDirectory = spinFramesDirectory(bodyName, themeName, outputDirectory=outputRoot)
+        if framesDirectory.exists():
+            shutil.rmtree(framesDirectory)
+        framesDirectory.mkdir(parents=True, exist_ok=True)
+        job = buildSpinJob(
+            bodyName,
+            theme=themeName,
+            frameCount=frameCount,
+            resolution=resolution,
+            fps=fps,
+            framesDirectory=framesDirectory,
+        )
+        jobPath = bodyDirectory / f'{stem}_spin_{themeName}_job.json'
+        writeFlybyJob(job, jobPath)
+        _runBlenderFlybyJob(jobPath)
+        framePaths = sorted(framesDirectory.glob('frame_*.png'))
+        if not framePaths:
+            raise RuntimeError(f'No spin frames rendered for theme={themeName}')
+        # Preview GIF (RGB) for the gallery; cinematic loads the RGBA PNGs.
+        gifPath = bodyDirectory / f'{stem}_spin_{themeName}.gif'
+        assembleGifFromPngs(framePaths, gifPath, fps=fps)
+        written.append(framesDirectory)
+        print(f'Wrote spin loop → {framesDirectory} ({len(framePaths)} frames)')
+        print(f'Wrote spin preview GIF → {gifPath}')
     return tuple(written)
