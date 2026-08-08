@@ -362,7 +362,7 @@ Or render by product:
 .venv/bin/python render.py blender --body Titan --flyby   # Titan + haze shell
 .venv/bin/python render.py blender --body Ceres --flyby   # dwarf planet
 .venv/bin/python render.py blender --body Vesta --flyby   # main-belt asteroid
-.venv/bin/python render.py blender --body Sun --flyby     # emissive photosphere + limb
+.venv/bin/python render.py blender --body Sun --flyby     # emissive photosphere
 .venv/bin/python render.py blender --body Saturn --spin   # RGBA spin (rings) for cinematic
 .venv/bin/python render.py blender --body Earth --spin    # RGBA day/night loop for cinematic
 .venv/bin/python render.py blender --body Moon --spin     # Moon spin loop for cinematic
@@ -432,7 +432,7 @@ Cinematic billboards (issue #49) extend `--blender-bodies` beyond Earth/Moon:
 Sun close-up (issue #50) is Sol-only for now (`kind=star`):
 
 - `render.py blender --body Sun --flyby` / `--spin` → `output/animate/blender/stars/sun/`
-- Emissive photosphere + warm limb shell (not a yellow diffuse planet under a key lamp)
+- Emissive photosphere (not a yellow diffuse planet under a key lamp; no atmosphere shell)
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 

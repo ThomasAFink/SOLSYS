@@ -293,6 +293,42 @@ def _mixCloudLayer(
     return mixRgb.outputs['Color']
 
 
+def _starPhotosphereColorSocket(bpy: Any, nodeTree: Any, colorPath: Path) -> Any:
+    """Filtered equirect photosphere → graded color socket (Environment Texture)."""
+    loadPath = _featherEquirectEdges(colorPath)
+    image = bpy.data.images.load(str(loadPath), check_existing=True)
+    envNode = nodeTree.nodes.new('ShaderNodeTexEnvironment')
+    envNode.image = image
+    envNode.label = 'color'
+    envNode.location = (-720, 200)
+    # Cubic/Linear — Closest turns SSS JPEG faculae into brick pixels.
+    for interpolationName in ('Cubic', 'Linear', 'Smart'):
+        try:
+            envNode.interpolation = interpolationName
+            break
+        except (TypeError, ValueError):
+            continue
+    if hasattr(image, 'interpolation_method'):
+        try:
+            image.interpolation_method = 'Linear'
+        except (TypeError, ValueError):
+            pass
+    texCoord = nodeTree.nodes.new('ShaderNodeTexCoord')
+    texCoord.location = (-920, 200)
+    nodeTree.links.new(texCoord.outputs['Normal'], envNode.inputs['Vector'])
+    hueSat = nodeTree.nodes.new('ShaderNodeHueSaturation')
+    hueSat.location = (-480, 200)
+    hueSat.inputs['Saturation'].default_value = 0.88
+    hueSat.inputs['Value'].default_value = 0.90
+    nodeTree.links.new(envNode.outputs['Color'], hueSat.inputs['Color'])
+    gamma = nodeTree.nodes.new('ShaderNodeGamma')
+    gamma.location = (-260, 200)
+    gamma.inputs['Gamma'].default_value = 1.28
+    nodeTree.links.new(hueSat.outputs['Color'], gamma.inputs['Color'])
+    print(f'Star texture: env interpolation={getattr(envNode, "interpolation", "?")}')
+    return gamma.outputs['Color']
+
+
 def _applyStarMaterial(
     bpy: Any,
     material: Any,
@@ -319,41 +355,13 @@ def _applyStarMaterial(
             principled.inputs[inputName].default_value = 0.0
             break
 
-    # Moderate emission + Standard view (below) keeps SSS yellow-gold from washing peach/white.
-    emissionStrength = 3.2 if theme == 'dark' else 2.6
+    emissionStrength = 1.9 if theme == 'dark' else 1.55
     textures = (appearance or {}).get('textures') or {}
     colorPath = textures.get('color')
     surfaceColor = None
     if colorPath:
-        colorNode = _loadBodyColorTexture(bpy, nodeTree, Path(colorPath))
-        if colorNode is not None:
-            colorNode.location = (-980, 200)
-            # SSS 8k_sun midtones lean orange; lift G / crush B toward yellow-gold.
-            sep = nodeTree.nodes.new('ShaderNodeSeparateColor')
-            sep.location = (-780, 200)
-            nodeTree.links.new(colorNode.outputs['Color'], sep.inputs['Color'])
-            gBoost = nodeTree.nodes.new('ShaderNodeMath')
-            gBoost.operation = 'MULTIPLY'
-            gBoost.location = (-600, 240)
-            gBoost.inputs[1].default_value = 1.48
-            nodeTree.links.new(sep.outputs['Green'], gBoost.inputs[0])
-            bCrush = nodeTree.nodes.new('ShaderNodeMath')
-            bCrush.operation = 'MULTIPLY'
-            bCrush.location = (-600, 140)
-            bCrush.inputs[1].default_value = 0.40
-            nodeTree.links.new(sep.outputs['Blue'], bCrush.inputs[0])
-            combine = nodeTree.nodes.new('ShaderNodeCombineColor')
-            combine.location = (-420, 200)
-            nodeTree.links.new(sep.outputs['Red'], combine.inputs['Red'])
-            nodeTree.links.new(gBoost.outputs['Value'], combine.inputs['Green'])
-            nodeTree.links.new(bCrush.outputs['Value'], combine.inputs['Blue'])
-            hueSat = nodeTree.nodes.new('ShaderNodeHueSaturation')
-            hueSat.location = (-240, 200)
-            hueSat.inputs['Saturation'].default_value = 1.20
-            hueSat.inputs['Value'].default_value = 1.02
-            nodeTree.links.new(combine.outputs['Color'], hueSat.inputs['Color'])
-            surfaceColor = hueSat.outputs['Color']
-            nodeTree.links.new(surfaceColor, principled.inputs['Base Color'])
+        surfaceColor = _starPhotosphereColorSocket(bpy, nodeTree, Path(colorPath))
+        nodeTree.links.new(surfaceColor, principled.inputs['Base Color'])
 
     if 'Emission Color' in principled.inputs:
         if surfaceColor is not None:

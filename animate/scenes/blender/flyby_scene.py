@@ -113,6 +113,9 @@ def buildFlybyJob(
     if isStar:
         distanceScale = 5.2
         elevationDeg = 12.0
+        # Hot faculae alias hard at 640; render sharper then GIF downscales cleanly.
+        if resolution == DEFAULT_FLYBY_RESOLUTION:
+            resolution = 960
     elif ringed:
         distanceScale = 5.8
         elevationDeg = 28.0
@@ -155,6 +158,8 @@ def buildSpinJob(
     if isStar:
         distanceScale = 5.0
         elevationDeg = 14.0
+        if resolution == DEFAULT_SPIN_RESOLUTION:
+            resolution = 768
     elif ringed:
         distanceScale = 5.8
         elevationDeg = 28.0
@@ -207,11 +212,39 @@ def assembleGifFromPngs(
     outputGif: Path,
     *,
     fps: int = DEFAULT_FLYBY_FPS,
+    outputSize: int | None = None,
 ) -> Path:
     if not framePaths:
         raise ValueError('No PNG frames to assemble into a GIF')
     outputGif.parent.mkdir(parents=True, exist_ok=True)
-    images = [Image.open(path).convert('RGB') for path in framePaths]
+    rgbFrames: list[Image.Image] = []
+    for path in framePaths:
+        raw = Image.open(path)
+        # RGBA spin frames: composite onto black. convert('RGB') would keep bright
+        # premultiplied edge texels and look like a solid pixelated atmosphere ring.
+        if raw.mode == 'RGBA':
+            background = Image.new('RGBA', raw.size, (0, 0, 0, 255))
+            frame = Image.alpha_composite(background, raw).convert('RGB')
+            raw.close()
+        else:
+            frame = raw.convert('RGB')
+            if frame is not raw:
+                raw.close()
+        if outputSize is not None and (frame.width != outputSize or frame.height != outputSize):
+            resized = frame.resize((outputSize, outputSize), Image.Resampling.LANCZOS)
+            frame.close()
+            frame = resized
+        rgbFrames.append(frame)
+    # Shared adaptive palette + dither softens hard faculae banding without flicker.
+    palette = rgbFrames[0].quantize(
+        colors=256,
+        method=Image.Quantize.MEDIANCUT,
+        dither=Image.Dither.FLOYDSTEINBERG,
+    )
+    images = [palette] + [
+        frame.quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG)
+        for frame in rgbFrames[1:]
+    ]
     durationMs = max(int(round(1000 / fps)), 1)
     images[0].save(
         outputGif,
@@ -221,7 +254,7 @@ def assembleGifFromPngs(
         loop=0,
         optimize=True,
     )
-    for image in images:
+    for image in (*images, *rgbFrames):
         image.close()
     return outputGif
 
@@ -292,7 +325,14 @@ def renderPlanetFlyby(
             if not framePaths:
                 raise RuntimeError(f'No frames rendered for theme={themeName}')
             gifPath = bodyDirectory / f'{stem}_flyby_{themeName}.gif'
-            assembleGifFromPngs(framePaths, gifPath, fps=fps)
+            # Stars render supersampled; Lanczos down to gallery size softens faculae.
+            gifSize = (
+                DEFAULT_FLYBY_RESOLUTION
+                if str(job.get('body', {}).get('kind') or '') == 'star'
+                and int(job.get('resolution', 0)) > DEFAULT_FLYBY_RESOLUTION
+                else None
+            )
+            assembleGifFromPngs(framePaths, gifPath, fps=fps, outputSize=gifSize)
             written.append(gifPath)
             print(f'Wrote flyby GIF → {gifPath}')
     return tuple(written)

@@ -666,8 +666,8 @@
       "bodyRotationDeg": 140.0
     }
   ],
-  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_sun_dark_fyagc2z_/frames",
-  "resolution": 640,
+  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_sun_dark_6p9xsqfj/frames",
+  "resolution": 960,
   "fps": 18,
   "filmTransparent": false,
   "appearance": {
@@ -677,18 +677,6 @@
       "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/sun/color.png"
     },
     "roughness": 0.95,
-    "specular": 0.0,
-    "atmosphere": {
-      "enabled": true,
-      "scale": 1.06,
-      "colorRgba": [
-        1.0,
-        0.88,
-        0.22,
-        1.0
-      ],
-      "strength": 2.2,
-      "fresnelBlend": 0.38
-    }
+    "specular": 0.0
   }
 }
