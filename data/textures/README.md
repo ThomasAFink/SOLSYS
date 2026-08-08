@@ -56,7 +56,7 @@ Equirectangular photosphere map for the Blender star close-up (`kind=star`). Ren
 
 | Body | Pack notes | Primary source |
 |------|------------|----------------|
-| Sun | Photosphere granulation + limb haze in code | [Solar System Scope](https://www.solarsystemscope.com/textures/) `2k_sun.jpg` |
+| Sun | Photosphere granulation + limb haze in code | [Solar System Scope](https://www.solarsystemscope.com/textures/) [`8k_sun.jpg`](https://www.solarsystemscope.com/textures/download/8k_sun.jpg) (4096×2048) |
 
 - **SSS textures:** free with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/).
 - Sol only for now; α Cen A/B / Proxima packs are a follow-up.
