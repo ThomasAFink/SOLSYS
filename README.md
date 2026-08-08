@@ -439,7 +439,7 @@ Staged Sol zoom-out beats (issue #51) — blender mode only (`--blender-bodies`)
 | Beat | Approx. scale | Notes |
 |------|---------------|--------|
 | Earth → Moon | 0.04 → 0.16 AU | Day/night hold, then reveal Luna |
-| Near-Sun | ~2.4 AU | Sol photosphere billboard + look-at Sol |
+| Near-Sun | ~2.4 AU | Large Sol photosphere billboard + look-at Sol (kept through Inner planets) |
 | Inner planets | ~6.5 AU | Mercury / Venus / Mars pass |
 | Belt + Jupiter | ~7.8 AU | Ceres hero + Jupiter system |
 | Saturn | ~18 AU | Rings linger floor |

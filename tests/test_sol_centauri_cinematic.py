@@ -12,6 +12,8 @@ from animate.scenes.sol_centauri_cinematic import (
     AB_TRAVEL_END,
     ANIMATION_SPEED_AB,
     ANIMATION_SPEED_SOL_NEAR,
+    BLENDER_STAR_BODY_SCALE,
+    BLENDER_STAR_NEAR_SUN_MIN_FRAC,
     PROXIMA_TRAVEL_END,
     PULLBACK_END,
     SOL_BEAT_BELT_ARRIVE,
@@ -172,6 +174,34 @@ class CinematicTransformTests(unittest.TestCase):
         arrive = int(np.ceil(SOL_BELT_ARRIVE * (frames - 1)))
         _, arriveHalf = self.animator._cameraState(arrive)
         self.assertAlmostEqual(arriveHalf, SOL_BELT_LINGER_HALF_AU, places=4)
+
+    def test_blender_sun_billboard_stays_large_through_inner_hold(self) -> None:
+        """Sol photosphere disk stays floored/large so inner-system frames are not speckled."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            sunScale = BLENDER_STAR_BODY_SCALE['Sun']
+            nearFrac = animator._blenderBillboardFracRadius(
+                SOL_NEAR_SUN_HALF_AU, sunScale, catalogName='Sun'
+            )
+            innerFrac = animator._blenderBillboardFracRadius(
+                SOL_INNER_HALF_AU, sunScale, catalogName='Sun'
+            )
+            self.assertIsNotNone(nearFrac)
+            self.assertIsNotNone(innerFrac)
+            assert nearFrac is not None and innerFrac is not None
+            self.assertGreaterEqual(nearFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC)
+            self.assertGreaterEqual(innerFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC)
+            # Near-Sun should read clearly larger than the floor (not a min-size speck).
+            self.assertGreater(nearFrac, BLENDER_STAR_NEAR_SUN_MIN_FRAC * 1.2)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
 
     def test_camera_ends_at_proxima(self) -> None:
         from animate.scenes.sol_centauri_cinematic import PROXIMA_INNER_HALF_AU
