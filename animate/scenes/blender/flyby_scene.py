@@ -109,8 +109,19 @@ def buildFlybyJob(
     appearance = appearanceForCatalogName(bodyScene.body.name)
     # Pull back / elevate when rings are present so the annulus opens and fits.
     ringed = appearance is not None and appearance.rings.enabled
-    distanceScale = 5.8 if ringed else 4.4
-    elevationDeg = 28.0 if ringed else 16.0
+    isStar = bodyScene.body.kind == 'star'
+    if isStar:
+        distanceScale = 5.2
+        elevationDeg = 12.0
+        # Hot faculae alias hard at 640; render sharper then GIF downscales cleanly.
+        if resolution == DEFAULT_FLYBY_RESOLUTION:
+            resolution = 960
+    elif ringed:
+        distanceScale = 5.8
+        elevationDeg = 28.0
+    else:
+        distanceScale = 4.4
+        elevationDeg = 16.0
     cameraPath = buildFlybyCameraPath(
         bodyScene.body.displayRadiusAu,
         frameCount=frameCount,
@@ -143,8 +154,18 @@ def buildSpinJob(
     bodyScene = buildBodyScene(bodyName, frameCount=max(frameCount, 2))
     appearance = appearanceForCatalogName(bodyScene.body.name)
     ringed = appearance is not None and appearance.rings.enabled
-    distanceScale = 5.8 if ringed else 4.4
-    elevationDeg = 28.0 if ringed else 18.0
+    isStar = bodyScene.body.kind == 'star'
+    if isStar:
+        distanceScale = 5.0
+        elevationDeg = 14.0
+        if resolution == DEFAULT_SPIN_RESOLUTION:
+            resolution = 768
+    elif ringed:
+        distanceScale = 5.8
+        elevationDeg = 28.0
+    else:
+        distanceScale = 4.4
+        elevationDeg = 18.0
     cameraPath = buildSpinCameraPath(
         bodyScene.body.displayRadiusAu,
         frameCount=frameCount,
@@ -191,11 +212,29 @@ def assembleGifFromPngs(
     outputGif: Path,
     *,
     fps: int = DEFAULT_FLYBY_FPS,
+    outputSize: int | None = None,
 ) -> Path:
     if not framePaths:
         raise ValueError('No PNG frames to assemble into a GIF')
     outputGif.parent.mkdir(parents=True, exist_ok=True)
-    images = [Image.open(path).convert('RGB') for path in framePaths]
+    images: list[Image.Image] = []
+    for path in framePaths:
+        raw = Image.open(path)
+        # RGBA spin frames: composite onto black. convert('RGB') would keep bright
+        # premultiplied edge texels and look like a solid pixelated atmosphere ring.
+        if raw.mode == 'RGBA':
+            background = Image.new('RGBA', raw.size, (0, 0, 0, 255))
+            frame = Image.alpha_composite(background, raw).convert('RGB')
+            raw.close()
+        else:
+            frame = raw.convert('RGB')
+            if frame is not raw:
+                raw.close()
+        if outputSize is not None and (frame.width != outputSize or frame.height != outputSize):
+            resized = frame.resize((outputSize, outputSize), Image.Resampling.LANCZOS)
+            frame.close()
+            frame = resized
+        images.append(frame)
     durationMs = max(int(round(1000 / fps)), 1)
     images[0].save(
         outputGif,
@@ -276,7 +315,14 @@ def renderPlanetFlyby(
             if not framePaths:
                 raise RuntimeError(f'No frames rendered for theme={themeName}')
             gifPath = bodyDirectory / f'{stem}_flyby_{themeName}.gif'
-            assembleGifFromPngs(framePaths, gifPath, fps=fps)
+            # Stars render supersampled; Lanczos down to gallery size softens faculae.
+            gifSize = (
+                DEFAULT_FLYBY_RESOLUTION
+                if str(job.get('body', {}).get('kind') or '') == 'star'
+                and int(job.get('resolution', 0)) > DEFAULT_FLYBY_RESOLUTION
+                else None
+            )
+            assembleGifFromPngs(framePaths, gifPath, fps=fps, outputSize=gifSize)
             written.append(gifPath)
             print(f'Wrote flyby GIF → {gifPath}')
     return tuple(written)

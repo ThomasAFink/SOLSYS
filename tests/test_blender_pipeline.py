@@ -21,6 +21,7 @@ from animate.scenes.blender.body_scene import (
     buildBodyScene,
     buildMoonBodyScene,
     buildPlanetBodyScene,
+    buildSunBodyScene,
     colorRgbaForName,
     loadBodyScene,
 )
@@ -85,6 +86,18 @@ class BodySceneBuildTests(unittest.TestCase):
         self.assertAlmostEqual(rgba[0], 196 / 255.0, places=5)
         self.assertAlmostEqual(rgba[1], 168 / 255.0, places=5)
 
+    def test_build_sun_scene(self) -> None:
+        scene = buildSunBodyScene(frameCount=12)
+        self.assertEqual(scene.body.name, 'Sun')
+        self.assertEqual(scene.body.kind, 'star')
+        self.assertEqual(scene.body.semiMajorAxisAu, 0.0)
+        self.assertEqual(len(scene.keyframes), 12)
+        self.assertEqual(scene.keyframes[0].positionAu, (0.0, 0.0, 0.0))
+        self.assertEqual(scene.keyframes[-1].positionAu, (0.0, 0.0, 0.0))
+        viaDispatch = buildBodyScene('Sun', frameCount=8)
+        self.assertEqual(viaDispatch.body.kind, 'star')
+        self.assertGreater(viaDispatch.body.displayRadiusAu, 0.0)
+
     def test_round_trip_json(self) -> None:
         scene = buildPlanetBodyScene('Jupiter', frameCount=8)
         restored = BodyScene.fromDict(json.loads(scene.toJson()))
@@ -122,6 +135,30 @@ class ExportAndLoadTests(unittest.TestCase):
 
 
 class BodyAppearanceTests(unittest.TestCase):
+    def test_sun_pack_is_emissive_star_without_atmosphere_shell(self) -> None:
+        from animate.scenes.blender.body_appearance import registeredStarCatalogNames
+        from animate.scenes.blender.export_body import bodyOutputDirectory
+
+        self.assertEqual(registeredStarCatalogNames(), ('Sun',))
+        appearance = appearanceForCatalogName('Sun')
+        self.assertIsNotNone(appearance)
+        assert appearance is not None
+        self.assertEqual(appearance.kind, 'star')
+        # Fresnel atmosphere shell reads as a hard pixelated ring on emissive stars.
+        self.assertFalse(appearance.atmosphere.enabled)
+        maps = appearance.textures.existingMaps()
+        self.assertIn('color', maps)
+        self.assertTrue(maps['color'].is_file())
+        job = buildFlybyJob('Sun', theme='dark', framesDirectory=Path('/tmp/sun_frames'))
+        self.assertEqual(job['body']['kind'], 'star')
+        self.assertEqual(job['appearance']['kind'], 'star')
+        self.assertNotIn('atmosphere', job['appearance'])
+        self.assertTrue((TEXTURE_BODIES_ROOT / 'sun' / 'color.png').is_file())
+        self.assertEqual(
+            bodyOutputDirectory('star', 'Sun').as_posix().endswith('stars/sun'),
+            True,
+        )
+
     def test_earth_pack_resolves_color_map(self) -> None:
         appearance = appearanceForCatalogName('Earth')
         self.assertIsNotNone(appearance)
