@@ -195,6 +195,19 @@ class BlenderBodyOverlayTests(unittest.TestCase):
             animator.update(0)
             self.assertGreaterEqual(len(animator.bodyOverlay.get_images()), 1)
 
+    def test_asteroid_and_giant_billboard_scales_stay_modest(self) -> None:
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=self.starsCsvPath,
+            useBlenderBodies=False,
+        )
+        self.assertLess(animator._blenderPlanetBodyScale('Jupiter'), 2.2)
+        self.assertLess(animator._blenderPlanetBodyScale('Saturn'), 2.2)
+        from animate.scenes.sol_centauri_cinematic import BLENDER_ASTEROID_BODY_SCALE
+
+        self.assertLess(BLENDER_ASTEROID_BODY_SCALE['Ceres'], 0.2)
+        self.assertLess(BLENDER_ASTEROID_BODY_SCALE['Vesta'], 0.15)
+
     def test_missing_planet_pack_falls_back_to_scatter(self) -> None:
         animator = SolCentauriCinematicAnimator(
             self.system,

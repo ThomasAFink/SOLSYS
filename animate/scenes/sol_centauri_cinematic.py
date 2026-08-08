@@ -72,53 +72,52 @@ SOL_EARTH_CLOSE_HALF_AU = 0.042
 # Fixed world radii for textured globes (must NOT scale up with camera half-width).
 EARTH_GLOBE_RADIUS_AU = SOL_EARTH_HALF_AU * 0.18
 # Luna uses bodyScale 0.35 against this base in the billboard path.
-# Visual (not physical) billboard scales vs Earth — giants softened, moons exaggerated.
+# Visual (not physical) billboard scales vs Earth — keep giants/asteroids modest.
 BLENDER_PLANET_BODY_SCALE = {
-    'Mercury': 0.42,
-    'Venus': 0.92,
+    'Mercury': 0.34,
+    'Venus': 0.78,
     'Earth': 1.0,
-    'Mars': 0.58,
-    'Jupiter': 3.4,
-    'Saturn': 2.8,
-    'Uranus': 1.9,
-    'Neptune': 1.85,
-    'Pluto': 0.55,
+    'Mars': 0.45,
+    'Jupiter': 1.65,
+    'Saturn': 1.35,
+    'Uranus': 1.05,
+    'Neptune': 1.0,
+    'Pluto': 0.32,
 }
 BLENDER_MOON_BODY_SCALE = {
     'Moon': 0.35,
-    'Phobos': 0.12,
-    'Deimos': 0.10,
-    'Io': 0.28,
-    'Europa': 0.26,
-    'Ganymede': 0.32,
-    'Callisto': 0.30,
-    'Titan': 0.33,
-    'Enceladus': 0.14,
-    'Rhea': 0.18,
-    'Titania': 0.18,
-    'Oberon': 0.17,
-    'Triton': 0.22,
-    'Charon': 0.20,
+    'Phobos': 0.10,
+    'Deimos': 0.08,
+    'Io': 0.20,
+    'Europa': 0.18,
+    'Ganymede': 0.22,
+    'Callisto': 0.20,
+    'Titan': 0.22,
+    'Enceladus': 0.10,
+    'Rhea': 0.12,
+    'Titania': 0.12,
+    'Oberon': 0.12,
+    'Triton': 0.14,
+    'Charon': 0.14,
 }
-# Named asteroids / dwarfs — readable belt/Kuiper markers, not true scale.
+# Named asteroids / dwarfs — small belt markers (not Earth-class disks).
 BLENDER_ASTEROID_BODY_SCALE = {
-    'Ceres': 0.40,
-    'Vesta': 0.32,
-    'Pallas': 0.30,
-    'Psyche': 0.28,
-    'Bennu': 0.18,
-    'Eros': 0.20,
-    'Haumea': 0.36,
-    'Makemake': 0.34,
-    'Eris': 0.38,
+    'Ceres': 0.12,
+    'Vesta': 0.09,
+    'Pallas': 0.08,
+    'Psyche': 0.08,
+    'Bennu': 0.05,
+    'Eros': 0.06,
+    'Haumea': 0.10,
+    'Makemake': 0.10,
+    'Eris': 0.11,
 }
 # Below this on-screen (floored) fraction, non-Earth/Moon packs fall back to catalog dots.
 # Matches the default paint floor so world-fixed disks stay textured through Sol zoom-out.
 BLENDER_MIN_BILLBOARD_FRAC = 0.0035
-# Ringed giants get a larger floor during the outer/Kuiper linger so rings stay readable.
-BLENDER_RING_LINGER_MIN_FRAC = 0.016
-# Named asteroids get a readable floor during the main-belt linger.
-BLENDER_ASTEROID_BELT_MIN_FRAC = 0.011
+# Soft floors so rings/asteroids stay barely readable without dominating the frame.
+BLENDER_RING_LINGER_MIN_FRAC = 0.008
+BLENDER_ASTEROID_BELT_MIN_FRAC = 0.004
 # Hide Luna until the camera is wide enough that its exaggerated orbit fits.
 SOL_MOON_REVEAL_HALF_AU = 0.11
 SOL_NEAR_SUN_HALF_AU = 2.4
@@ -1213,12 +1212,14 @@ class SolCentauriCinematicAnimator:
         )
 
     def _blenderPlanetBodyScale(self, planetName: str) -> float:
-        """World billboard scale vs Earth, padded when the spin loop includes rings."""
+        """World billboard scale vs Earth, lightly padded when the spin includes rings."""
         scale = BLENDER_PLANET_BODY_SCALE.get(planetName, 1.0)
         appearance = appearanceForCatalogName(planetName)
         if appearance is not None and appearance.rings.enabled:
-            # Spin PNGs already composite rings; enlarge the square so the annulus reads.
-            scale *= max(1.35, min(appearance.rings.outerScale, 2.3))
+            # Spin PNGs already composite rings; modest pad so the annulus fits
+            # without turning Saturn into an Earth-dwarfing disk.
+            outer = max(1.0, min(appearance.rings.outerScale, 2.4))
+            scale *= 1.0 + 0.35 * (outer - 1.0)
         return scale
 
     def _blenderRawFracRadius(self, halfWidthAu: float, bodyScale: float) -> float | None:

@@ -315,6 +315,8 @@ def _applyBodyMaterial(
         roughness = max(roughness, 0.60)
         specular = min(specular, 0.12)
     principled.inputs['Base Color'].default_value = color
+    if 'Alpha' in principled.inputs:
+        principled.inputs['Alpha'].default_value = 1.0
     if 'Roughness' in principled.inputs:
         principled.inputs['Roughness'].default_value = roughness
     for inputName in ('Specular IOR Level', 'Specular'):
@@ -326,8 +328,27 @@ def _applyBodyMaterial(
     colorPath = textures.get('color')
     if not colorPath:
         return
+    _wireBodyTextures(
+        bpy,
+        nodeTree,
+        principled,
+        textures=textures,
+        colorPath=Path(colorPath),
+        theme=theme,
+    )
 
-    colorNode = _loadBodyColorTexture(bpy, nodeTree, Path(colorPath))
+
+def _wireBodyTextures(
+    bpy: Any,
+    nodeTree: Any,
+    principled: Any,
+    *,
+    textures: dict[str, Any],
+    colorPath: Path,
+    theme: str,
+) -> None:
+    """Connect color / clouds / specular maps into an opaque body Principled."""
+    colorNode = _loadBodyColorTexture(bpy, nodeTree, colorPath)
     if colorNode is None:
         return
     colorNode.location = (-820, 200)
@@ -455,7 +476,12 @@ def _createRingAnnulus(
     outerRadius: float,
     segments: int = 128,
 ) -> Any:
-    """Flat equatorial annulus; U = azimuth, V = inner→outer (ring strip maps)."""
+    """Flat equatorial annulus for radial ring-strip maps.
+
+    Pack ``rings.png`` files are **radius × strip** profiles (long axis = inner→outer
+    opacity/color). UVs put that profile on **U**; V is a mid-row sample so azimuth
+    does not scramble the Cassini gaps into spokes.
+    """
     import bmesh  # type: ignore[import-not-found]
 
     mesh = bpy.data.meshes.new(f'{name}Mesh')
@@ -480,13 +506,12 @@ def _createRingAnnulus(
                 innerVerts[nextIndex],
             )
         )
-        u0 = index / segments
-        u1 = (index + 1) / segments
-        # loops follow the face vertex order above.
-        face.loops[0][uvLayer].uv = (u0, 0.0)
-        face.loops[1][uvLayer].uv = (u0, 1.0)
-        face.loops[2][uvLayer].uv = (u1, 1.0)
-        face.loops[3][uvLayer].uv = (u1, 0.0)
+        # loops follow the face vertex order above: inner, outer, outerNext, innerNext.
+        # U = radius (0=inner, 1=outer); V = mid-row of the 1D strip texture.
+        face.loops[0][uvLayer].uv = (0.0, 0.5)
+        face.loops[1][uvLayer].uv = (1.0, 0.5)
+        face.loops[2][uvLayer].uv = (1.0, 0.5)
+        face.loops[3][uvLayer].uv = (0.0, 0.5)
     builder.to_mesh(mesh)
     builder.free()
     obj = bpy.data.objects.new(name, mesh)
@@ -529,18 +554,20 @@ def _wireRingTexture(
     *,
     ringsPath: Path,
     principled: Any,
-    mixFacInput: Any,
+    mixFacInput: Any | None,
     themeTint: tuple[float, float, float, float],
     theme: str,
     alphaValue: float,
 ) -> None:
-    """Connect rings strip color/alpha into the ring principled + mix factor."""
+    """Connect radial ring-strip color/alpha into the ring Principled shader."""
     textureNode = _loadImageTexture(bpy, nodeTree, ringsPath, label='rings')
     if textureNode is None:
-        mixFacInput.default_value = alphaValue
+        if mixFacInput is not None:
+            mixFacInput.default_value = alphaValue
         return
     textureNode.location = (-420, -40)
-    textureNode.extension = 'REPEAT'
+    # Radial profile: clamp ends so transparent margins don't wrap into the annulus.
+    textureNode.extension = 'EXTEND'
     lifted = _screenMixColor(
         nodeTree,
         textureNode.outputs['Color'],
@@ -550,6 +577,8 @@ def _wireRingTexture(
     nodeTree.links.new(lifted, principled.inputs['Base Color'])
     if 'Emission Color' in principled.inputs:
         nodeTree.links.new(lifted, principled.inputs['Emission Color'])
+    if mixFacInput is None:
+        return
     if 'Alpha' in textureNode.outputs:
         multiply = nodeTree.nodes.new('ShaderNodeMath')
         multiply.operation = 'MULTIPLY'
@@ -562,14 +591,16 @@ def _wireRingTexture(
 
 
 def _enableTransparentBlend(material: Any) -> None:
+    # Dithered/hashed sorts against the opaque globe; blended often paints the
+    # far ring half through the planet as a grey midplane.
     if hasattr(material, 'surface_render_method'):
-        material.surface_render_method = 'BLENDED'
+        material.surface_render_method = 'DITHERED'
     elif hasattr(material, 'blend_method'):
-        material.blend_method = 'BLEND'
+        material.blend_method = 'HASHED'
     if hasattr(material, 'use_backface_culling'):
-        material.use_backface_culling = False
+        material.use_backface_culling = True
     if hasattr(material, 'show_transparent_back'):
-        material.show_transparent_back = True
+        material.show_transparent_back = False
 
 
 def _buildRingMaterial(
@@ -580,7 +611,11 @@ def _buildRingMaterial(
     opacity: float,
     theme: str,
 ) -> Any:
-    """Transparent ring material; optional azimuth×radius strip with alpha."""
+    """Transparent ring material; optional radial strip with alpha on Principled.
+
+    Uses Principled Alpha (not MixShader) so EEVEE dithered transparency can
+    depth-test against the opaque globe instead of painting a grey midplane.
+    """
     material = bpy.data.materials.new(name=name)
     nodeTree = material.node_tree
     if nodeTree is None:
@@ -591,17 +626,13 @@ def _buildRingMaterial(
 
     output = nodes.new('ShaderNodeOutputMaterial')
     output.location = (420, 0)
-    mix = nodes.new('ShaderNodeMixShader')
-    mix.location = (220, 0)
-    transparent = nodes.new('ShaderNodeBsdfTransparent')
-    transparent.location = (20, 80)
     principled = nodes.new('ShaderNodeBsdfPrincipled')
-    principled.location = (20, -80)
+    principled.location = (20, -40)
     if 'Roughness' in principled.inputs:
         principled.inputs['Roughness'].default_value = 0.55
     for inputName in ('Specular IOR Level', 'Specular'):
         if inputName in principled.inputs:
-            principled.inputs[inputName].default_value = 0.15
+            principled.inputs[inputName].default_value = 0.12
             break
 
     # Cream ice/rock albedo — dark SSS ring strips stay readable on black backdrops.
@@ -610,9 +641,12 @@ def _buildRingMaterial(
     alphaValue = max(0.05, min(opacity, 1.0))
     if 'Emission Color' in principled.inputs:
         principled.inputs['Emission Color'].default_value = themeTint
-        principled.inputs['Emission Strength'].default_value = 0.18 if theme == 'dark' else 0.06
+        principled.inputs['Emission Strength'].default_value = 0.14 if theme == 'dark' else 0.05
     elif 'Emission' in principled.inputs:
         principled.inputs['Emission'].default_value = themeTint
+
+    if 'Alpha' in principled.inputs:
+        principled.inputs['Alpha'].default_value = alphaValue * (0.55 if ringsPath else 0.35)
 
     if ringsPath is not None and ringsPath.is_file():
         _wireRingTexture(
@@ -620,17 +654,12 @@ def _buildRingMaterial(
             nodeTree,
             ringsPath=ringsPath,
             principled=principled,
-            mixFacInput=mix.inputs['Fac'],
+            mixFacInput=principled.inputs['Alpha'] if 'Alpha' in principled.inputs else None,
             themeTint=themeTint,
             theme=theme,
             alphaValue=alphaValue,
         )
-    else:
-        mix.inputs['Fac'].default_value = alphaValue * 0.35
-
-    links.new(transparent.outputs['BSDF'], mix.inputs[1])
-    links.new(principled.outputs['BSDF'], mix.inputs[2])
-    links.new(mix.outputs['Shader'], output.inputs['Surface'])
+    links.new(principled.outputs['BSDF'], output.inputs['Surface'])
     _enableTransparentBlend(material)
     return material
 
@@ -732,6 +761,94 @@ def _configureWorld(bpy: Any, theme: str) -> None:
     links.new(background.outputs['Background'], output.inputs['Surface'])
 
 
+def _ringsEnabled(appearance: dict[str, Any] | None) -> bool:
+    return bool(
+        appearance
+        and isinstance(appearance.get('rings'), dict)
+        and appearance['rings'].get('enabled')
+    )
+
+
+def _attachAppearanceExtras(
+    bpy: Any,
+    planet: Any,
+    *,
+    radius: float,
+    appearance: dict[str, Any] | None,
+    theme: str,
+) -> bool:
+    """Atmosphere / rings. Returns whether rings were attached."""
+    ringsOn = _ringsEnabled(appearance)
+    # Limb-haze shells fight ring depth sorting; skip when rings are on.
+    if appearance and isinstance(appearance.get('atmosphere'), dict) and not ringsOn:
+        _addAtmosphereShell(
+            bpy,
+            planet,
+            radius=radius,
+            atmosphere=appearance['atmosphere'],
+            theme=theme,
+        )
+    if ringsOn:
+        _addRingSystem(
+            bpy,
+            planet,
+            radius=radius,
+            rings=appearance['rings'],
+            appearance=appearance,
+            theme=theme,
+        )
+    return ringsOn
+
+
+def _configureFlybyRenderer(
+    scene: Any,
+    *,
+    ringsEnabled: bool,
+    resolution: int,
+    fps: int,
+    filmTransparent: bool,
+    theme: str,
+    outputDirectory: Path,
+) -> None:
+    """EEVEE by default; Cycles when rings need correct occlusion."""
+    if ringsEnabled:
+        scene.render.engine = 'CYCLES'
+        cycles = scene.cycles
+        cycles.samples = 48
+        cycles.use_denoising = True
+        if hasattr(cycles, 'preview_samples'):
+            cycles.preview_samples = 24
+        if hasattr(cycles, 'device'):
+            try:
+                cycles.device = 'GPU'
+            except TypeError:
+                pass
+        print('Renderer: Cycles (rings occlusion)')
+    else:
+        try:
+            scene.render.engine = 'BLENDER_EEVEE_NEXT'
+        except TypeError:
+            scene.render.engine = 'BLENDER_EEVEE'
+        print('Renderer: EEVEE')
+    scene.render.resolution_x = resolution
+    scene.render.resolution_y = resolution
+    scene.render.resolution_percentage = 100
+    scene.render.fps = fps
+    scene.render.image_settings.file_format = 'PNG'
+    scene.render.image_settings.color_mode = 'RGBA' if filmTransparent else 'RGB'
+    scene.render.filepath = str(outputDirectory / 'frame_')
+    scene.render.use_file_extension = True
+    scene.render.film_transparent = filmTransparent
+    viewSettings = getattr(scene, 'view_settings', None)
+    if viewSettings is not None:
+        if theme == 'light':
+            viewSettings.exposure = 0.55
+            viewSettings.gamma = 1.05
+        else:
+            viewSettings.exposure = 0.0
+            viewSettings.gamma = 1.0
+
+
 def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
     import bpy  # type: ignore[import-not-found]
 
@@ -769,23 +886,9 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
     else:
         planet.data.materials.append(material)
 
-    if appearanceDict and isinstance(appearanceDict.get('atmosphere'), dict):
-        _addAtmosphereShell(
-            bpy,
-            planet,
-            radius=radius,
-            atmosphere=appearanceDict['atmosphere'],
-            theme=theme,
-        )
-    if appearanceDict and isinstance(appearanceDict.get('rings'), dict):
-        _addRingSystem(
-            bpy,
-            planet,
-            radius=radius,
-            rings=appearanceDict['rings'],
-            appearance=appearanceDict,
-            theme=theme,
-        )
+    ringsEnabled = _attachAppearanceExtras(
+        bpy, planet, radius=radius, appearance=appearanceDict, theme=theme
+    )
 
     scene = bpy.context.scene
     scene.frame_start = int(frames[0]['frame'])
@@ -822,13 +925,10 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
     if theme == 'dark':
         lightData.energy = 2.8
         lightData.angle = math.radians(5.0)
-        # Bias the sun off camera-forward so a clear night crescent stays in frame.
         sunLocation = (radius * 14.0, -radius * 8.0, radius * 6.0)
     else:
-        # Punchy day side on a pale backdrop; specular stays matte in the material.
         lightData.energy = 4.2
         lightData.angle = math.radians(3.0)
-        # More camera-facing key so the lit hemisphere dominates the frame.
         sunLocation = (radius * 10.0, -radius * 3.5, radius * 9.0)
     light = bpy.data.objects.new(f'{name}KeySun', lightData)
     light.location = sunLocation
@@ -839,31 +939,15 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
     sunTrack.up_axis = 'UP_Y'
 
     _configureWorld(bpy, theme)
-
-    # EEVEE for fast local GIF frames (Blender 4.2+/5.x).
-    try:
-        scene.render.engine = 'BLENDER_EEVEE_NEXT'
-    except TypeError:
-        scene.render.engine = 'BLENDER_EEVEE'
-    scene.render.resolution_x = resolution
-    scene.render.resolution_y = resolution
-    scene.render.resolution_percentage = 100
-    scene.render.fps = int(job.get('fps', 18))
-    filmTransparent = bool(job.get('filmTransparent', False))
-    scene.render.image_settings.file_format = 'PNG'
-    scene.render.image_settings.color_mode = 'RGBA' if filmTransparent else 'RGB'
-    scene.render.filepath = str(outputDirectory / 'frame_')
-    scene.render.use_file_extension = True
-    scene.render.film_transparent = filmTransparent
-    # Light theme was reading muddy under Filmic — lift exposure for day-side punch.
-    viewSettings = getattr(scene, 'view_settings', None)
-    if viewSettings is not None:
-        if theme == 'light':
-            viewSettings.exposure = 0.55
-            viewSettings.gamma = 1.05
-        else:
-            viewSettings.exposure = 0.0
-            viewSettings.gamma = 1.0
+    _configureFlybyRenderer(
+        scene,
+        ringsEnabled=ringsEnabled,
+        resolution=resolution,
+        fps=int(job.get('fps', 18)),
+        filmTransparent=bool(job.get('filmTransparent', False)),
+        theme=theme,
+        outputDirectory=outputDirectory,
+    )
 
     bpy.ops.render.render(animation=True)
 
