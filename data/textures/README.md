@@ -25,7 +25,7 @@ Optional maps per body (same filename convention when added):
 | `specular.png` | Ocean / metalness-style mask (optional) |
 | `clouds.png` | Cloud layer (optional; alpha or luminance = coverage) |
 | `normal.png` | Normal map (optional) |
-| `rings.png` | Azimuth × radius ring strip with alpha (Saturn / ice giants) |
+| `rings.png` | Radial ring strip with alpha (long axis = inner→outer; Saturn / ice giants) |
 
 Host code resolves packs via `animate.scenes.blender.body_appearance` (catalog name → `bodyId` → paths). Bodies without a pack keep the flat catalog `colorRgba` fallback.
 
@@ -66,7 +66,7 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
 
 - **Solar System Scope textures:** free for personal and commercial use with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/) (underlying spacecraft data from NASA / USGS / ESA missions).
 - **NASA Pluto map:** U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/)).
-- Ice-giant `rings.png` files are lightweight synthetic azimuth×radius alpha strips (not spacecraft mosaics) so Uranus/Neptune show readable ring systems in EEVEE flybys.
+- Ice-giant `rings.png` files are lightweight synthetic radial alpha strips (not spacecraft mosaics) so Uranus/Neptune show readable ring systems in EEVEE flybys.
 
 ## Major moons
 
