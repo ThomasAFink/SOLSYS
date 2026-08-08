@@ -190,18 +190,26 @@ def _asteroid(
     )
 
 
-# Registry: Sol (star), planets, major moons, named asteroids / dwarfs.
-_BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
-    BodyAppearance(
-        bodyId='sun',
+def _star(bodyId: str, *catalogNames: str) -> BodyAppearance:
+    """Emissive photosphere (no key lamp, no fresnel atmosphere shell)."""
+    return BodyAppearance(
+        bodyId=bodyId,
         kind='star',
-        catalogNames=('Sun',),
-        textures=_mapsForBodyId('sun'),
+        catalogNames=catalogNames,
+        textures=_mapsForBodyId(bodyId),
         # Emission-driven in render_flyby; no fresnel shell (reads as a hard pixelated ring).
         roughness=0.95,
         specular=0.0,
         atmosphere=BodyAtmosphere(enabled=False),
-    ),
+    )
+
+
+# Registry: stars, planets, major moons, named asteroids / dwarfs.
+_BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
+    _star('sun', 'Sun'),
+    _star('alpha_centauri_a', 'Alpha Centauri A'),
+    _star('alpha_centauri_b', 'Alpha Centauri B'),
+    _star('proxima_centauri', 'Proxima Centauri'),
     _planet(
         'mercury',
         'Mercury',
@@ -394,13 +402,15 @@ def appearanceForCatalogName(catalogName: str) -> BodyAppearance | None:
 
 
 def registeredStarCatalogNames() -> tuple[str, ...]:
-    """Star packs (Sol only for now)."""
+    """Star packs (Sol, α Cen A/B, Proxima)."""
     return tuple(
         sorted(
-            name
-            for appearance in _catalogIndex().values()
-            for name in appearance.catalogNames
-            if appearance.kind == 'star'
+            {
+                name
+                for appearance in _catalogIndex().values()
+                for name in appearance.catalogNames
+                if appearance.kind == 'star'
+            }
         )
     )
 

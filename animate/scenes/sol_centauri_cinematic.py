@@ -112,10 +112,20 @@ BLENDER_ASTEROID_BODY_SCALE = {
     'Makemake': 0.10,
     'Eris': 0.11,
 }
-# Sol photosphere billboard (world scale vs Earth globe). Large enough that the
-# Near-Sun / inner holds read as a clear textured disk, not a ~40px speck.
+# Star photosphere billboards (world scale vs Earth globe).
+# Sol: Near-Sun / inner holds read as a clear textured disk, not a ~40px speck.
+# α Cen A/B: readable at AB hold (~32 AU). Proxima: readable on the wide→dive approach.
 BLENDER_STAR_BODY_SCALE = {
     'Sun': 8.0,
+    'Alpha Centauri A': 48.0,
+    'Alpha Centauri B': 40.0,
+    'Proxima Centauri': 6.0,
+}
+# Cap on-screen size for non-Sol stars so the Proxima dive does not fill the frame.
+BLENDER_STAR_MAX_FRAC = {
+    'Alpha Centauri A': 0.055,
+    'Alpha Centauri B': 0.048,
+    'Proxima Centauri': 0.09,
 }
 # Below this on-screen (floored) fraction, non-Earth/Moon packs fall back to catalog dots.
 # Matches the default paint floor so world-fixed disks stay textured through Sol zoom-out.
@@ -136,13 +146,16 @@ SOL_OUTER_LINGER_HALF_AU = 42.0
 SOL_HALF_WIDTH_AU = SOL_OUTER_LINGER_HALF_AU
 # Leave Earth look-at and ease toward Sol before the Near-Sun plateau.
 SOL_LEAVE_EARTH_FOCUS_HALF_AU = 1.15
-# Textured Sol billboard through the Sol tour; scatter star-marker only after pullback.
-# Min is 0: as soon as Sol is on-screen in blender mode we use the photosphere spin
-# (the old ~1 AU gate left a few scatter-marker frames when Sol first entered view).
-BLENDER_STAR_BILLBOARD_HALF_AU = (
-    0.0,
-    min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2),
-)
+# Textured star billboards by body (half-width AU window). Outside → scatter marker.
+# Sol min is 0: as soon as Sol is on-screen in blender mode we use the photosphere spin.
+BLENDER_STAR_BILLBOARD_HALF_AU_BY_BODY = {
+    'Sun': (0.0, min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2)),
+    'Alpha Centauri A': (8.0, 140.0),
+    'Alpha Centauri B': (8.0, 140.0),
+    'Proxima Centauri': (0.08, 80.0),
+}
+# Back-compat alias used by Sol-draw path + tests (Sol window).
+BLENDER_STAR_BILLBOARD_HALF_AU = BLENDER_STAR_BILLBOARD_HALF_AU_BY_BODY['Sun']
 # Wide enough to bring most of the 30 ly catalog into the Sol neighborhood frame.
 START_HALF_WIDTH_LY = 25.0
 AB_HALF_WIDTH_AU = 32.0
@@ -1416,9 +1429,12 @@ class SolCentauriCinematicAnimator:
         # camera is well past the outer system (never swap to catalog blue/gray).
         # Sol's photosphere billboard may run a little past that generic planet cutoff.
         dropAbove = 100.0
+        dropBelow = 0.0
         if catalogName in BLENDER_STAR_BODY_SCALE:
-            dropAbove = BLENDER_STAR_BILLBOARD_HALF_AU[1]
-        if halfWidthAu > dropAbove:
+            dropBelow, dropAbove = BLENDER_STAR_BILLBOARD_HALF_AU_BY_BODY.get(
+                catalogName, BLENDER_STAR_BILLBOARD_HALF_AU
+            )
+        if halfWidthAu > dropAbove or halfWidthAu < dropBelow:
             return None
         return radiusAu
 
@@ -1501,9 +1517,11 @@ class SolCentauriCinematicAnimator:
         rawFrac = self._blenderRawFracRadius(halfWidthAu, bodyScale, catalogName=catalogName)
         if rawFrac is None:
             return None
-        # Sol uses pure world scale (no stepped floors) so zoom-out is monotonic.
+        # Stars use pure world scale (no stepped floors) so zoom is monotonic.
+        # Non-Sol stars may cap max frac so a dive does not swallow the frame.
         if catalogName in BLENDER_STAR_BODY_SCALE:
-            return rawFrac
+            maxFrac = BLENDER_STAR_MAX_FRAC.get(catalogName)
+            return min(rawFrac, maxFrac) if maxFrac is not None else rawFrac
         floor = 0.0035
         if catalogName is not None:
             appearance = appearanceForCatalogName(catalogName)
@@ -1556,10 +1574,15 @@ class SolCentauriCinematicAnimator:
                 textX = min(frac[0] + fracRadius + pad, 0.94)
                 textY = frac[1]
                 va = 'center'
+            labelText = {
+                'Alpha Centauri A': 'α Cen A',
+                'Alpha Centauri B': 'α Cen B',
+                'Proxima Centauri': 'Proxima Centauri',
+            }.get(name, name)
             self.bodyOverlay.text(
                 textX,
                 textY,
-                name,
+                labelText,
                 color=self.labelColor,
                 fontsize=fontsize,
                 ha='left',
@@ -1991,11 +2014,7 @@ class SolCentauriCinematicAnimator:
         if abProgress < 0.15:
             return
 
-        markerScale = np.clip(110.0 * (32.0 / max(halfWidthAu, 1.0)), 50.0, 300.0)
-        self._drawStarMarker(primary, STAR_COLORS['primary'], markerScale)
-        self._drawStarMarker(secondary, STAR_COLORS['secondary'], markerScale * 0.8)
-        self._label3d(primary, '  α Cen A', color=self.labelColor, fontsize=9)
-        self._label3d(secondary, '  α Cen B', color=self.labelColor, fontsize=9)
+        self._drawAbResolvedPair(primary, secondary, frame, halfWidthAu)
         if abProgress > 0.5:
             self.axes.scatter(
                 [self.barycenterSolAu[0]],
@@ -2014,6 +2033,69 @@ class SolCentauriCinematicAnimator:
                 fontsize=7,
                 alpha=0.85,
             )
+
+    def _drawAbResolvedPair(
+        self,
+        primary: np.ndarray,
+        secondary: np.ndarray,
+        frame: int,
+        halfWidthAu: float,
+    ) -> None:
+        """A/B photosphere billboards (or scatter markers) once the binary is resolved."""
+        markerScale = np.clip(110.0 * (32.0 / max(halfWidthAu, 1.0)), 50.0, 300.0)
+        self._drawNamedStar(
+            'Alpha Centauri A',
+            primary,
+            frame,
+            halfWidthAu,
+            markerColor=STAR_COLORS['primary'],
+            markerSize=markerScale,
+            classicLabel='  α Cen A',
+            labelSize=9.0,
+        )
+        self._drawNamedStar(
+            'Alpha Centauri B',
+            secondary,
+            frame,
+            halfWidthAu,
+            markerColor=STAR_COLORS['secondary'],
+            markerSize=markerScale * 0.8,
+            classicLabel='  α Cen B',
+            labelSize=9.0,
+        )
+
+    def _drawNamedStar(
+        self,
+        catalogName: str,
+        position: np.ndarray,
+        frame: int,
+        halfWidthAu: float,
+        *,
+        markerColor: str,
+        markerSize: float,
+        classicLabel: str,
+        labelSize: float,
+    ) -> None:
+        """Queue a star spin billboard when available; otherwise scatter + 3D label."""
+        queued = False
+        if self.useBlenderBodies and catalogName in BLENDER_STAR_BODY_SCALE:
+            queued = self._queueBlenderBody(
+                catalogName,
+                position,
+                frame,
+                halfWidthAu,
+                openCloseup=True,
+                bodyScale=BLENDER_STAR_BODY_SCALE[catalogName],
+                orbitalPhaseRad=None,
+                suppressDotFallback=True,
+            )
+        if not queued:
+            self._drawStarMarker(position, markerColor, markerSize)
+            self._label3d(position, classicLabel, color=self.labelColor, fontsize=int(labelSize))
+            return
+        self._pendingBlenderLabels.append(
+            (catalogName, position.copy(), labelSize, BLENDER_STAR_BODY_SCALE[catalogName])
+        )
 
     def _drawAbUnresolved(self, halfWidthAu: float, linear: float) -> None:
         marker = self.barycenterSolAu
@@ -2042,12 +2124,15 @@ class SolCentauriCinematicAnimator:
         proximaSol = self._proximaPositionSol(frame)
         innerCloseup = halfWidthAu <= PROXIMA_WIDE_HALF_AU * 1.05
         starSize = 480.0 if halfWidthAu <= PROXIMA_INNER_HALF_AU * 1.6 else 300.0
-        self._drawStarMarker(proximaSol, STAR_COLORS['proxima'], starSize)
-        self._label3d(
+        self._drawNamedStar(
+            'Proxima Centauri',
             proximaSol,
-            '  Proxima Centauri',
-            color=self.labelColor,
-            fontsize=11 if innerCloseup else 10,
+            frame,
+            halfWidthAu,
+            markerColor=STAR_COLORS['proxima'],
+            markerSize=starSize,
+            classicLabel='  Proxima Centauri',
+            labelSize=11.0 if innerCloseup else 10.0,
         )
 
         proximaLocalX, proximaLocalY = bodyPositionInOrbitalPlane(
