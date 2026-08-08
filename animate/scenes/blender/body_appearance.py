@@ -202,10 +202,11 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
         specular=0.0,
         atmosphere=BodyAtmosphere(
             enabled=True,
-            scale=1.10,
-            colorRgba=(1.0, 0.78, 0.32, 1.0),
-            strength=3.6,
-            fresnelBlend=0.50,
+            scale=1.06,
+            # Yellow-gold limb matching SSS 8k_sun (avoid peach / brown rim).
+            colorRgba=(1.0, 0.88, 0.22, 1.0),
+            strength=2.2,
+            fresnelBlend=0.38,
         ),
     ),
     _planet(

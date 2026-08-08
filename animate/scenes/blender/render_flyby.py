@@ -319,28 +319,40 @@ def _applyStarMaterial(
             principled.inputs[inputName].default_value = 0.0
             break
 
-    emissionStrength = 12.0 if theme == 'dark' else 8.5
+    # Moderate emission + Standard view (below) keeps SSS yellow-gold from washing peach/white.
+    emissionStrength = 3.2 if theme == 'dark' else 2.6
     textures = (appearance or {}).get('textures') or {}
     colorPath = textures.get('color')
     surfaceColor = None
     if colorPath:
         colorNode = _loadBodyColorTexture(bpy, nodeTree, Path(colorPath))
         if colorNode is not None:
-            colorNode.location = (-820, 200)
+            colorNode.location = (-980, 200)
+            # SSS 8k_sun midtones lean orange; lift G / crush B toward yellow-gold.
+            sep = nodeTree.nodes.new('ShaderNodeSeparateColor')
+            sep.location = (-780, 200)
+            nodeTree.links.new(colorNode.outputs['Color'], sep.inputs['Color'])
+            gBoost = nodeTree.nodes.new('ShaderNodeMath')
+            gBoost.operation = 'MULTIPLY'
+            gBoost.location = (-600, 240)
+            gBoost.inputs[1].default_value = 1.48
+            nodeTree.links.new(sep.outputs['Green'], gBoost.inputs[0])
+            bCrush = nodeTree.nodes.new('ShaderNodeMath')
+            bCrush.operation = 'MULTIPLY'
+            bCrush.location = (-600, 140)
+            bCrush.inputs[1].default_value = 0.40
+            nodeTree.links.new(sep.outputs['Blue'], bCrush.inputs[0])
+            combine = nodeTree.nodes.new('ShaderNodeCombineColor')
+            combine.location = (-420, 200)
+            nodeTree.links.new(sep.outputs['Red'], combine.inputs['Red'])
+            nodeTree.links.new(gBoost.outputs['Value'], combine.inputs['Green'])
+            nodeTree.links.new(bCrush.outputs['Value'], combine.inputs['Blue'])
             hueSat = nodeTree.nodes.new('ShaderNodeHueSaturation')
-            hueSat.location = (-720, 200)
-            # Brighten granulation; SSS map is already warm.
-            hueSat.inputs['Saturation'].default_value = 0.92
-            hueSat.inputs['Value'].default_value = 1.45 if theme == 'light' else 1.65
-            nodeTree.links.new(colorNode.outputs['Color'], hueSat.inputs['Color'])
-            # SCREEN toward solar gold so the disk reads as a star, not a peach planet.
-            solarTint = (1.0, 0.92, 0.55, 1.0) if theme == 'light' else (1.0, 0.88, 0.45, 1.0)
-            surfaceColor = _screenMixColor(
-                nodeTree,
-                hueSat.outputs['Color'],
-                solarTint,
-                factor=0.45 if theme == 'light' else 0.55,
-            )
+            hueSat.location = (-240, 200)
+            hueSat.inputs['Saturation'].default_value = 1.20
+            hueSat.inputs['Value'].default_value = 1.02
+            nodeTree.links.new(combine.outputs['Color'], hueSat.inputs['Color'])
+            surfaceColor = hueSat.outputs['Color']
             nodeTree.links.new(surfaceColor, principled.inputs['Base Color'])
 
     if 'Emission Color' in principled.inputs:
@@ -884,6 +896,7 @@ def _configureFlybyRenderer(
     filmTransparent: bool,
     theme: str,
     outputDirectory: Path,
+    isStar: bool = False,
 ) -> None:
     """EEVEE by default; Cycles when rings need correct occlusion."""
     if ringsEnabled:
@@ -916,7 +929,20 @@ def _configureFlybyRenderer(
     scene.render.film_transparent = filmTransparent
     viewSettings = getattr(scene, 'view_settings', None)
     if viewSettings is not None:
-        if theme == 'light':
+        if isStar:
+            # AgX/Filmic lifts blue in bright emitters → peach Sun; Standard keeps gold.
+            try:
+                viewSettings.view_transform = 'Standard'
+            except TypeError:
+                pass
+            if hasattr(viewSettings, 'look'):
+                try:
+                    viewSettings.look = 'None'
+                except TypeError:
+                    pass
+            viewSettings.exposure = 0.0
+            viewSettings.gamma = 1.0
+        elif theme == 'light':
             viewSettings.exposure = 0.55
             viewSettings.gamma = 1.05
         else:
@@ -1027,6 +1053,7 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
         filmTransparent=bool(job.get('filmTransparent', False)),
         theme=theme,
         outputDirectory=outputDirectory,
+        isStar=isStar,
     )
 
     bpy.ops.render.render(animation=True)
