@@ -461,11 +461,12 @@ def applyFlybyJobInBlender(job: dict[str, Any]) -> Path:
     scene.render.resolution_y = resolution
     scene.render.resolution_percentage = 100
     scene.render.fps = int(job.get('fps', 18))
+    filmTransparent = bool(job.get('filmTransparent', False))
     scene.render.image_settings.file_format = 'PNG'
-    scene.render.image_settings.color_mode = 'RGB'
+    scene.render.image_settings.color_mode = 'RGBA' if filmTransparent else 'RGB'
     scene.render.filepath = str(outputDirectory / 'frame_')
     scene.render.use_file_extension = True
-    scene.render.film_transparent = False
+    scene.render.film_transparent = filmTransparent
     # Light theme was reading muddy under Filmic — lift exposure for day-side punch.
     viewSettings = getattr(scene, 'view_settings', None)
     if viewSettings is not None:

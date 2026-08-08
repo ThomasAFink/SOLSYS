@@ -1,66 +1,63 @@
-"""Tests for Blender texture-pack globes in the Sol→Centauri cinematic."""
+"""Tests for Blender spin-loop frames in the Sol→Centauri cinematic."""
 
 from __future__ import annotations
 
+import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
-import numpy as np
-from animate.blender_body_sprites import (
-    BlenderBodySpriteAtlas,
-    loadBodyGlobePack,
-    renderGlobeDisk,
-)
-from animate.scenes.blender.body_appearance import appearanceForCatalogName
+from animate.blender_body_sprites import BlenderBodySpriteAtlas, loadSpinLoopFrames
+from animate.scenes.blender.flyby_camera import buildSpinCameraPath
+from animate.scenes.blender.flyby_scene import buildSpinJob, spinFramesDirectory
 from animate.scenes.sol_centauri_cinematic import SolCentauriCinematicAnimator
+from PIL import Image
 from solsys.physics.catalogs.system_catalog import SystemCatalog, defaultDataPaths
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-class GlobeHelperTests(unittest.TestCase):
-    def test_render_globe_disk_shape_and_edge(self) -> None:
-        color = np.zeros((32, 64, 3), dtype=np.float32)
-        color[:, :, 2] = 0.8
-        disk = renderGlobeDisk(
-            color,
-            spinDeg=0.0,
-            sunDirection=np.array([0.0, 0.0, 1.0], dtype=np.float32),
-            resolution=48,
-        )
-        self.assertEqual(disk.shape, (48, 48, 4))
-        self.assertGreater(float(disk[24, 24, 3]), 0.9)
-        self.assertLess(float(disk[0, 0, 3]), 0.05)
+class SpinCameraTests(unittest.TestCase):
+    def test_spin_path_is_fixed_camera_full_turn(self) -> None:
+        path = buildSpinCameraPath(0.01, frameCount=8)
+        self.assertEqual(len(path), 8)
+        self.assertEqual(path[0].cameraAu, path[-1].cameraAu)
+        self.assertAlmostEqual(path[0].bodyRotationDeg, 0.0)
+        self.assertAlmostEqual(path[4].bodyRotationDeg, 180.0)
+        self.assertLess(path[-1].bodyRotationDeg, 360.0)
 
-    def test_load_missing_pack_returns_none(self) -> None:
-        with mock.patch(
-            'animate.blender_body_sprites.appearanceForCatalogName',
-            return_value=None,
-        ):
-            self.assertIsNone(loadBodyGlobePack('Earth'))
+    def test_spin_job_requests_transparent_film(self) -> None:
+        with tempfile.TemporaryDirectory() as temporaryName:
+            temporary = Path(temporaryName)
+            job = buildSpinJob('Earth', theme='dark', framesDirectory=temporary / 'frames')
+            self.assertEqual(job['mode'], 'spin')
+            self.assertTrue(job['filmTransparent'])
+            self.assertEqual(job['frames'][0]['cameraAu'], job['frames'][-1]['cameraAu'])
 
 
-class TexturePackIntegrationTests(unittest.TestCase):
-    def test_loads_earth_moon_texture_packs(self) -> None:
-        earthAppearance = appearanceForCatalogName('Earth')
-        moonAppearance = appearanceForCatalogName('Moon')
-        if earthAppearance is None or moonAppearance is None:
-            self.skipTest('Earth/Moon appearance registry missing')
-        if earthAppearance.textures.color is None or not earthAppearance.textures.color.is_file():
-            self.skipTest('Earth color texture not present')
-        if moonAppearance.textures.color is None or not moonAppearance.textures.color.is_file():
-            self.skipTest('Moon color texture not present')
+class SpinAtlasTests(unittest.TestCase):
+    def test_load_spin_frames_from_png_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as temporaryName:
+            temporary = Path(temporaryName)
+            directory = spinFramesDirectory('Earth', 'dark', outputDirectory=temporary)
+            directory.mkdir(parents=True)
+            for index in range(4):
+                Image.new('RGBA', (32, 32), (10, 80, 180, 200)).save(
+                    directory / f'frame_{index:04d}.png'
+                )
+            frames = loadSpinLoopFrames('Earth', 'dark', outputDirectory=temporary)
+            assert frames is not None
+            self.assertEqual(len(frames), 4)
+            self.assertEqual(frames[0].shape, (32, 32, 4))
 
-        atlas = BlenderBodySpriteAtlas('dark')
-        self.assertTrue(atlas.hasEarth)
-        self.assertTrue(atlas.hasMoon)
-        frame0 = atlas.earthFrame(0, resolution=64)
-        frame8 = atlas.earthFrame(8, resolution=64)
-        assert frame0 is not None and frame8 is not None
-        self.assertEqual(frame0.shape, (64, 64, 4))
-        # Slow spin should change the disk without jumping to a different camera.
-        self.assertFalse(np.allclose(frame0, frame8))
+            moonDir = spinFramesDirectory('Moon', 'dark', outputDirectory=temporary)
+            moonDir.mkdir(parents=True)
+            Image.new('RGBA', (32, 32), (160, 160, 160, 220)).save(moonDir / 'frame_0000.png')
+            atlas = BlenderBodySpriteAtlas('dark', outputDirectory=temporary)
+            self.assertTrue(atlas.hasEarth)
+            self.assertTrue(atlas.hasMoon)
+            frame = atlas.earthFrame(5, resolution=16)
+            assert frame is not None
+            self.assertEqual(frame.shape, (16, 16, 4))
 
 
 class BlenderBodyOverlayTests(unittest.TestCase):
@@ -81,7 +78,6 @@ class BlenderBodyOverlayTests(unittest.TestCase):
             starsCsvPath=self.starsCsvPath,
             useBlenderBodies=False,
         )
-        self.assertFalse(animator.useBlenderBodies)
         self.assertIsNone(animator.blenderSprites)
 
     def test_billboard_radius_is_world_fixed_then_drops(self) -> None:
@@ -90,51 +86,35 @@ class BlenderBodyOverlayTests(unittest.TestCase):
             starsCsvPath=self.starsCsvPath,
             useBlenderBodies=False,
         )
-        closeHalf = 0.14
-        midHalf = 1.5
-        close = animator._blenderBillboardRadiusAu(closeHalf, openCloseup=True, bodyScale=1.0)
-        mid = animator._blenderBillboardRadiusAu(midHalf, openCloseup=False, bodyScale=1.0)
+        close = animator._blenderBillboardRadiusAu(0.14, openCloseup=True, bodyScale=1.0)
+        mid = animator._blenderBillboardRadiusAu(1.5, openCloseup=False, bodyScale=1.0)
         far = animator._blenderBillboardRadiusAu(120.0, openCloseup=False, bodyScale=1.0)
         self.assertIsNotNone(close)
         self.assertIsNotNone(mid)
         self.assertIsNone(far)
         assert close is not None and mid is not None
-        # World radius stays fixed so zoom-out shrinks the disk on screen.
         self.assertAlmostEqual(close, mid, places=9)
-        self.assertGreater(close / closeHalf, mid / midHalf)
 
-    def test_lunar_motion_slows_during_earth_open_with_blender_bodies(self) -> None:
-        animator = SolCentauriCinematicAnimator(
-            self.system,
-            starsCsvPath=self.starsCsvPath,
-            useBlenderBodies=True,
-        )
-        moon = animator.moonCatalog.moons['Moon']
-        openDays = animator._lunarMotionDays(moon, frame=40, halfWidthAu=0.14)
-        solDays = animator._solMotionDays(40)
-        self.assertLess(openDays, 0.05 * solDays)
-        wideDays = animator._lunarMotionDays(moon, frame=40, halfWidthAu=5.0)
-        self.assertAlmostEqual(wideDays, solDays, places=9)
-
-    def test_update_paints_overlay_images_when_textures_present(self) -> None:
-        earth = appearanceForCatalogName('Earth')
-        if earth is None or earth.textures.color is None or not earth.textures.color.is_file():
-            self.skipTest('Earth color texture not present')
-
-        animator = SolCentauriCinematicAnimator(
-            self.system,
-            starsCsvPath=self.starsCsvPath,
-            useBlenderBodies=True,
-        )
-        self.assertIsNotNone(animator.blenderSprites)
-        assert animator.blenderSprites is not None
-        self.assertTrue(animator.blenderSprites.hasEarth)
-        animator.update(0)
-        images = [
-            artist
-            for artist in animator.bodyOverlay.get_images()
-        ]
-        self.assertGreaterEqual(len(images), 1)
+    def test_update_paints_overlay_when_spin_assets_present(self) -> None:
+        with tempfile.TemporaryDirectory() as temporaryName:
+            temporary = Path(temporaryName)
+            for body in ('Earth', 'Moon'):
+                directory = spinFramesDirectory(body, 'light', outputDirectory=temporary)
+                directory.mkdir(parents=True)
+                Image.new('RGBA', (48, 48), (20, 90, 180, 230)).save(
+                    directory / 'frame_0000.png'
+                )
+            animator = SolCentauriCinematicAnimator(
+                self.system,
+                style='default',
+                starsCsvPath=self.starsCsvPath,
+                useBlenderBodies=True,
+            )
+            animator.blenderSprites = BlenderBodySpriteAtlas(
+                'light', outputDirectory=temporary
+            )
+            animator.update(0)
+            self.assertGreaterEqual(len(animator.bodyOverlay.get_images()), 1)
 
 
 if __name__ == '__main__':

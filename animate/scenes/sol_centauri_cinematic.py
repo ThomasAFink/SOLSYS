@@ -495,7 +495,7 @@ class SolCentauriCinematicAnimator:
             themeName = 'dark' if self.isDark else 'light'
             self.blenderSprites = BlenderBodySpriteAtlas(themeName)
             print(
-                'Blender body textures: '
+                'Blender spin loops: '
                 f'Earth={"on" if self.blenderSprites.hasEarth else "missing"} '
                 f'Moon={"on" if self.blenderSprites.hasMoon else "missing"}'
             )

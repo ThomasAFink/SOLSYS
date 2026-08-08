@@ -50,7 +50,14 @@ Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth
 .venv/bin/python render.py blender --body Moon --flyby
 ```
 
-End-to-end (Earth + Moon flybys, then Sol→Centauri cinematic with textured bodies):
+Fixed-camera day/night spin loops (RGBA PNGs for cinematic reuse):
+
+```bash
+.venv/bin/python render.py blender --body Earth --spin
+.venv/bin/python render.py blender --body Moon --spin
+```
+
+End-to-end (Earth + Moon spins, then Sol→Centauri cinematic compositing those frames):
 
 ```bash
 .venv/bin/python render.py blender --pipeline
@@ -59,8 +66,11 @@ End-to-end (Earth + Moon flybys, then Sol→Centauri cinematic with textured bod
 Products land in:
 
 ```text
-output/animate/blender/{planets,moons}/<body>/   # flyby GIFs + JSON
-output/animate/sol_centauri/blender/             # cinematic with Earth/Moon globes
+output/animate/blender/{planets,moons}/<body>/
+  *_flyby_{light,dark}.gif          # gallery close-ups
+  *_spin_{light,dark}/frame_*.png   # cinematic spin loops (transparent)
+  *_spin_{light,dark}.gif           # preview of the spin loop
+output/animate/sol_centauri/blender/  # cinematic with Earth/Moon spin billboards
 ```
 
 Local debug leftovers (`.blend`, `*_smoke_*`, `overlay_probe.png`) are gitignored / not products.
