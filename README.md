@@ -203,6 +203,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Ceres | ![Ceres light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/dwarf_planets/ceres/ceres_flyby_light.gif?raw=true) | ![Ceres dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/dwarf_planets/ceres/ceres_flyby_dark.gif?raw=true) |
 | Vesta | ![Vesta light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/asteroids/vesta/vesta_flyby_light.gif?raw=true) | ![Vesta dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/asteroids/vesta/vesta_flyby_dark.gif?raw=true) |
 
+**Sun**
+
+| Body | Light | Dark |
+|------|-------|------|
+| Sun | ![Sun light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/sun/sun_flyby_light.gif?raw=true) | ![Sun dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/sun/sun_flyby_dark.gif?raw=true) |
+
 ### Static zoom views (side)
 
 **Inner Solar System With Jupiter**
@@ -356,13 +362,14 @@ Or render by product:
 .venv/bin/python render.py blender --body Titan --flyby   # Titan + haze shell
 .venv/bin/python render.py blender --body Ceres --flyby   # dwarf planet
 .venv/bin/python render.py blender --body Vesta --flyby   # main-belt asteroid
+.venv/bin/python render.py blender --body Sun --flyby     # emissive photosphere + limb
 .venv/bin/python render.py blender --body Saturn --spin   # RGBA spin (rings) for cinematic
 .venv/bin/python render.py blender --body Earth --spin    # RGBA day/night loop for cinematic
 .venv/bin/python render.py blender --body Moon --spin     # Moon spin loop for cinematic
 .venv/bin/python render.py blender --pipeline             # Earth+Moon spins + blender cinematic
 ```
 
-Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`/`#46`/`#47`/`#48`) to `output/animate/blender/{planets,moons,asteroids,dwarf_planets}/<body>/` (`*_flyby_{light,dark}.gif`). `render.py blender --spin` writes a fixed-camera transparent PNG day/night loop (`*_spin_<theme>/frame_*.png`) for cinematic reuse. Texture packs for Sol planets, major moons, and named asteroids/dwarfs live under `data/textures/bodies/`.
+Blender close-ups: `render.py blender` exports Keplerian body-scene JSON (`#11`). `render.py blender --flyby` renders a body-centered close-up via EEVEE (`#12`/`#36`/`#41`/`#46`/`#47`/`#48`/`#50`) to `output/animate/blender/{planets,moons,asteroids,dwarf_planets,stars}/<body>/` (`*_flyby_{light,dark}.gif`). `render.py blender --spin` writes a fixed-camera transparent PNG day/night loop (`*_spin_<theme>/frame_*.png`) for cinematic reuse. Texture packs for Sol, planets, major moons, and named asteroids/dwarfs live under `data/textures/bodies/`.
 
 Blender → cinematic workflow:
 
@@ -421,6 +428,11 @@ Cinematic billboards (issue #49) extend `--blender-bodies` beyond Earth/Moon:
 - Major moons when the parent system is framed tightly enough
 - Named asteroids (Ceres/Vesta/…) during belt / Kuiper visibility windows
 - Requires `render.py blender --body <Name> --spin` assets under `output/animate/blender/`
+
+Sun close-up (issue #50) is Sol-only for now (`kind=star`):
+
+- `render.py blender --body Sun --flyby` / `--spin` → `output/animate/blender/stars/sun/`
+- Emissive photosphere + warm limb shell (not a yellow diffuse planet under a key lamp)
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
 

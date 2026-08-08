@@ -109,8 +109,16 @@ def buildFlybyJob(
     appearance = appearanceForCatalogName(bodyScene.body.name)
     # Pull back / elevate when rings are present so the annulus opens and fits.
     ringed = appearance is not None and appearance.rings.enabled
-    distanceScale = 5.8 if ringed else 4.4
-    elevationDeg = 28.0 if ringed else 16.0
+    isStar = bodyScene.body.kind == 'star'
+    if isStar:
+        distanceScale = 5.2
+        elevationDeg = 12.0
+    elif ringed:
+        distanceScale = 5.8
+        elevationDeg = 28.0
+    else:
+        distanceScale = 4.4
+        elevationDeg = 16.0
     cameraPath = buildFlybyCameraPath(
         bodyScene.body.displayRadiusAu,
         frameCount=frameCount,
@@ -143,8 +151,16 @@ def buildSpinJob(
     bodyScene = buildBodyScene(bodyName, frameCount=max(frameCount, 2))
     appearance = appearanceForCatalogName(bodyScene.body.name)
     ringed = appearance is not None and appearance.rings.enabled
-    distanceScale = 5.8 if ringed else 4.4
-    elevationDeg = 28.0 if ringed else 18.0
+    isStar = bodyScene.body.kind == 'star'
+    if isStar:
+        distanceScale = 5.0
+        elevationDeg = 14.0
+    elif ringed:
+        distanceScale = 5.8
+        elevationDeg = 28.0
+    else:
+        distanceScale = 4.4
+        elevationDeg = 18.0
     cameraPath = buildSpinCameraPath(
         bodyScene.body.displayRadiusAu,
         frameCount=frameCount,
