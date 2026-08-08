@@ -204,20 +204,24 @@ PULLBACK_WEIGHTS = (1.4, 2.0, 2.4, 2.8, 3.0, 3.0, 2.6, 2.0, 1.6, 1.3, 1.0)
 # Timeline: Earth → belt linger → outer linger → Oort pullback (classic dotted mode).
 SOL_EARTH_DWELL_END = 0.03
 # Blender open: hold Earth-close for ~2 day/night spins (48 PNG samples/turn),
-# then ease out to Earth+Moon before the staged Sol zoom-out beats (#51).
+# ease out to Earth+Moon, then hold for ~1 full lunar orbit before Sol beats (#51).
 SOL_EARTH_SPIN_HOLD_END = 0.055
-SOL_EARTH_MOON_REVEAL_END = 0.085
-SOL_EARTH_BLENDER_DWELL_END = 0.10
+SOL_EARTH_MOON_REVEAL_END = 0.095
+SOL_EARTH_BLENDER_DWELL_END = 0.16
+# Lunar clock scale at Earth+Moon open (× Sol motion days). Tuned so the
+# Earth+Moon plateau covers ~one sidereal month before the Sol pullback.
+LUNAR_OPEN_MOTION_SCALE = 0.067
 # Blender-only Sol beats (classic mode keeps SOL_BELT_* / SOL_OUTER_* below).
-SOL_BEAT_NEAR_SUN_ARRIVE = 0.125
-SOL_BEAT_NEAR_SUN_HOLD_END = 0.155
-SOL_BEAT_INNER_ARRIVE = 0.175
-SOL_BEAT_INNER_HOLD_END = 0.20
-SOL_BEAT_BELT_ARRIVE = 0.225
-SOL_BEAT_BELT_HOLD_END = 0.325
-SOL_BEAT_SATURN_ARRIVE = 0.365
-SOL_BEAT_SATURN_HOLD_END = 0.405
-SOL_BEAT_OUTER_ARRIVE = 0.46
+# Shifted later to make room for the longer Earth+Moon hold; belt hold shortened.
+SOL_BEAT_NEAR_SUN_ARRIVE = 0.185
+SOL_BEAT_NEAR_SUN_HOLD_END = 0.210
+SOL_BEAT_INNER_ARRIVE = 0.230
+SOL_BEAT_INNER_HOLD_END = 0.250
+SOL_BEAT_BELT_ARRIVE = 0.275
+SOL_BEAT_BELT_HOLD_END = 0.355
+SOL_BEAT_SATURN_ARRIVE = 0.390
+SOL_BEAT_SATURN_HOLD_END = 0.425
+SOL_BEAT_OUTER_ARRIVE = 0.48
 SOL_BELT_ARRIVE = 0.16
 SOL_BELT_HOLD_END = 0.28
 SOL_OUTER_ARRIVE = 0.40
@@ -1316,13 +1320,14 @@ class SolCentauriCinematicAnimator:
         days = self._solMotionDays(frame)
         if moon.name != 'Moon' or not self.useBlenderBodies:
             return days
-        # At open (~0.05 d/frame) Luna crawls; blend back to the sol clock by ~2 AU.
+        # At open Luna would crawl on the Sol clock; use a slower open scale, then
+        # blend back to full Sol motion by ~2 AU after leaving the Earth+Moon frame.
         openHalf = SOL_EARTH_HALF_AU
         leaveHalf = 2.0
         if halfWidthAu >= leaveHalf:
             return days
         blend = smootherstep((halfWidthAu - openHalf) / max(leaveHalf - openHalf, 1e-6))
-        openScale = 0.015  # ≈0.05 d/frame vs sol's 3.5 d/frame near Earth
+        openScale = LUNAR_OPEN_MOTION_SCALE
         return days * (openScale + (1.0 - openScale) * blend)
 
     def _blenderBodyAvailable(self, catalogName: str) -> bool:
@@ -2207,7 +2212,7 @@ class SolCentauriCinematicAnimator:
         if halfWidthAu <= SOL_EARTH_HALF_AU * 2.2:
             if self.useBlenderBodies and halfWidthAu < SOL_MOON_REVEAL_HALF_AU:
                 return ('Earth', 'A couple of day–night cycles before we find the Moon')
-            return ('Earth and the Moon', 'Starting close to home before we pull back')
+            return ('Earth and the Moon', 'One full lunar orbit before we leave home')
         if halfWidthAu <= SOL_NEAR_SUN_HALF_AU:
             return ('Inner solar system', 'Pulling back past Venus and Mars')
         beltFramed = (
@@ -2238,7 +2243,7 @@ class SolCentauriCinematicAnimator:
         if linear < SOL_EARTH_BLENDER_DWELL_END:
             if halfWidthAu < SOL_MOON_REVEAL_HALF_AU:
                 return ('Earth', 'A couple of day–night cycles before we find the Moon')
-            return ('Earth and the Moon', 'Starting close to home before we pull back')
+            return ('Earth and the Moon', 'One full lunar orbit before we leave home')
         if linear < SOL_BEAT_NEAR_SUN_HOLD_END:
             return ('The Sun', 'Our star up close — then we leave the inner system')
         if linear < SOL_BEAT_INNER_HOLD_END:
