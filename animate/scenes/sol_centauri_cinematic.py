@@ -112,9 +112,10 @@ BLENDER_ASTEROID_BODY_SCALE = {
     'Makemake': 0.10,
     'Eris': 0.11,
 }
-# Sol photosphere billboard during the Near-Sun beat (world scale vs Earth globe).
+# Sol photosphere billboard (world scale vs Earth globe). Large enough that the
+# Near-Sun / inner holds read as a smooth disk, not a ~40px GIF-quantized speck.
 BLENDER_STAR_BODY_SCALE = {
-    'Sun': 2.8,
+    'Sun': 6.0,
 }
 # Below this on-screen (floored) fraction, non-Earth/Moon packs fall back to catalog dots.
 # Matches the default paint floor so world-fixed disks stay textured through Sol zoom-out.
@@ -122,11 +123,14 @@ BLENDER_MIN_BILLBOARD_FRAC = 0.0035
 # Soft floors so rings/asteroids stay barely readable without dominating the frame.
 BLENDER_RING_LINGER_MIN_FRAC = 0.008
 BLENDER_ASTEROID_BELT_MIN_FRAC = 0.004
-BLENDER_STAR_NEAR_SUN_MIN_FRAC = 0.012
+# Keep Sol's textured disk readable through the Inner-planets hold (scatter markers GIF poorly).
+BLENDER_STAR_NEAR_SUN_MIN_FRAC = 0.024
 # Hide Luna until the camera is wide enough that its exaggerated orbit fits.
 SOL_MOON_REVEAL_HALF_AU = 0.11
 SOL_NEAR_SUN_HALF_AU = 2.4
 SOL_INNER_HALF_AU = 6.5
+# Half-width window where Sol uses the spin billboard instead of a scatter star marker.
+BLENDER_STAR_BILLBOARD_HALF_AU = (1.2, SOL_INNER_HALF_AU * 1.15)
 # Linger on the main belt / Jupiter's orbit (same idea as the Kuiper hold).
 SOL_BELT_LINGER_HALF_AU = 7.8
 # Saturn rings beat — wide enough for the annulus without jumping to Kuiper.
@@ -1062,8 +1066,9 @@ class SolCentauriCinematicAnimator:
         sunPosition = np.zeros(3)
         sunSize = 340.0 if halfWidthAu < 3.0 else (270.0 if halfWidthAu < 80.0 else 150.0)
         sunInView = self._inView(sunPosition, margin=1.05)
+        starBillboardMin, starBillboardMax = BLENDER_STAR_BILLBOARD_HALF_AU
         nearSunBillboard = (
-            self.useBlenderBodies and 1.55 <= halfWidthAu <= SOL_NEAR_SUN_HALF_AU * 1.2
+            self.useBlenderBodies and starBillboardMin <= halfWidthAu <= starBillboardMax
         )
         queuedSun = False
         if nearSunBillboard:
@@ -1416,7 +1421,13 @@ class SolCentauriCinematicAnimator:
             )
             if fracRadius is None:
                 continue
-            resolution = 384 if openCloseup else (64 if fracRadius <= 0.01 else 128)
+            if catalogName in BLENDER_STAR_BODY_SCALE:
+                # Native spin size — avoid an extra 768→384 downscale before paint.
+                resolution = 768
+            elif openCloseup:
+                resolution = 384
+            else:
+                resolution = 64 if fracRadius <= 0.01 else 128
             disk = self.blenderSprites.bodyFrame(
                 catalogName,
                 frame,
@@ -1466,8 +1477,10 @@ class SolCentauriCinematicAnimator:
         floor = 0.0035
         if catalogName is not None:
             appearance = appearanceForCatalogName(catalogName)
-            if catalogName in BLENDER_STAR_BODY_SCALE and 1.5 <= halfWidthAu <= 4.0:
-                floor = BLENDER_STAR_NEAR_SUN_MIN_FRAC
+            if catalogName in BLENDER_STAR_BODY_SCALE:
+                starMin, starMax = BLENDER_STAR_BILLBOARD_HALF_AU
+                if starMin <= halfWidthAu <= starMax:
+                    floor = BLENDER_STAR_NEAR_SUN_MIN_FRAC
             elif (
                 appearance is not None and appearance.rings.enabled and 18.0 <= halfWidthAu <= 70.0
             ):
