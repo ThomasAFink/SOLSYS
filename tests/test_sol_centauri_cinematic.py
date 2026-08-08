@@ -6,21 +6,25 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+from animate.animation_styles import ASTEROID_RENDER_STYLES
 from animate.scenes.sol_centauri_cinematic import (
     AB_HOLD_END,
     AB_TRAVEL_END,
     ANIMATION_SPEED_AB,
     ANIMATION_SPEED_SOL_NEAR,
+    PROXIMA_TRAVEL_END,
     PULLBACK_END,
     SOL_BELT_ARRIVE,
     SOL_BELT_HOLD_END,
     SOL_BELT_LINGER_HALF_AU,
+    SOL_EARTH_CLOSE_HALF_AU,
     SOL_EARTH_HALF_AU,
+    SOL_EARTH_MOON_REVEAL_END,
+    SOL_EARTH_SPIN_HOLD_END,
     SOL_HALF_WIDTH_AU,
     SOL_HOLD_END,
     SOL_INNER_HALF_AU,
     SOL_OUTER_ARRIVE,
-    PROXIMA_TRAVEL_END,
     WIDE_OUT_ARRIVE,
     WIDE_OUT_END,
     SolCentauriCinematicAnimator,
@@ -31,7 +35,6 @@ from animate.scenes.sol_centauri_cinematic import (
     spectralClassColor,
     travelProgress,
 )
-from animate.animation_styles import ASTEROID_RENDER_STYLES
 from solsys.physics.catalogs.system_catalog import SystemCatalog, defaultDataPaths
 from solsys.physics.frame_transform import SolCentauriFrameTransform
 
@@ -84,6 +87,29 @@ class CinematicTransformTests(unittest.TestCase):
         earth = self.animator._planetPositionAu('Earth', 0)
         np.testing.assert_allclose(focus, earth, atol=1e-9)
         self.assertAlmostEqual(halfWidth, SOL_EARTH_HALF_AU, places=6)
+
+    def test_blender_camera_starts_earth_close_then_reveals_moon(self) -> None:
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            focus, halfWidth = animator._cameraState(0)
+            earth = animator._planetPositionAu('Earth', 0)
+            np.testing.assert_allclose(focus, earth, atol=1e-9)
+            self.assertAlmostEqual(halfWidth, SOL_EARTH_CLOSE_HALF_AU, places=6)
+            holdFrame = int(SOL_EARTH_SPIN_HOLD_END * (animator.animationFrames - 1)) - 1
+            _, holdHalf = animator._cameraState(holdFrame)
+            self.assertAlmostEqual(holdHalf, SOL_EARTH_CLOSE_HALF_AU, places=6)
+            revealFrame = int(SOL_EARTH_MOON_REVEAL_END * (animator.animationFrames - 1))
+            _, revealHalf = animator._cameraState(revealFrame)
+            self.assertAlmostEqual(revealHalf, SOL_EARTH_HALF_AU, places=6)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
 
     def test_camera_ends_at_proxima(self) -> None:
         from animate.scenes.sol_centauri_cinematic import PROXIMA_INNER_HALF_AU

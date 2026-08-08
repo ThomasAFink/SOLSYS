@@ -55,3 +55,34 @@ def buildFlybyCameraPath(
             )
         )
     return tuple(samples)
+
+
+def buildSpinCameraPath(
+    displayRadiusAu: float,
+    frameCount: int = 48,
+    *,
+    elevationDeg: float = 18.0,
+    azimuthDeg: float = 35.0,
+) -> tuple[FlybyCameraSample, ...]:
+    """Fixed camera + full 360° body spin (seamless loop for cinematic reuse)."""
+    if frameCount < 2:
+        raise ValueError('frameCount must be >= 2')
+    cameraAu = flybyCameraLocation(
+        0,
+        2,
+        displayRadiusAu,
+        elevationDeg=elevationDeg,
+        azimuthStartDeg=azimuthDeg,
+        azimuthSweepDeg=0.0,
+    )
+    samples: list[FlybyCameraSample] = []
+    for frame in range(frameCount):
+        # Omit 360° on the last frame so index 0 and N line up when looping.
+        samples.append(
+            FlybyCameraSample(
+                frame=frame,
+                cameraAu=cameraAu,
+                bodyRotationDeg=(frame / frameCount) * 360.0,
+            )
+        )
+    return tuple(samples)
