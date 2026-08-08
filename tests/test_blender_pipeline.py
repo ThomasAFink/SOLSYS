@@ -149,6 +149,58 @@ class BodyAppearanceTests(unittest.TestCase):
     def test_unknown_catalog_name_has_no_pack(self) -> None:
         self.assertIsNone(appearanceForCatalogName('Nibiru'))
 
+    def test_sol_planet_packs_resolve_color_maps(self) -> None:
+        from animate.scenes.blender.body_appearance import registeredPlanetCatalogNames
+
+        expected = (
+            'Earth',
+            'Jupiter',
+            'Mars',
+            'Mercury',
+            'Neptune',
+            'Pluto',
+            'Saturn',
+            'Uranus',
+            'Venus',
+        )
+        self.assertEqual(registeredPlanetCatalogNames(), expected)
+        for name in expected:
+            appearance = appearanceForCatalogName(name)
+            self.assertIsNotNone(appearance, name)
+            assert appearance is not None
+            maps = appearance.textures.existingMaps()
+            self.assertIn('color', maps, name)
+            self.assertTrue(maps['color'].is_file(), name)
+
+    def test_saturn_rings_pack_and_job_payload(self) -> None:
+        appearance = appearanceForCatalogName('Saturn')
+        self.assertIsNotNone(appearance)
+        assert appearance is not None
+        self.assertTrue(appearance.rings.enabled)
+        maps = appearance.textures.existingMaps()
+        self.assertIn('rings', maps)
+        job = appearance.toJobDict()
+        self.assertIn('rings', job)
+        self.assertAlmostEqual(job['rings']['tiltDeg'], 26.7)
+        self.assertIn('rings', job['textures'])
+
+    def test_ice_giant_rings_present_but_subtler(self) -> None:
+        for name in ('Uranus', 'Neptune'):
+            appearance = appearanceForCatalogName(name)
+            self.assertIsNotNone(appearance, name)
+            assert appearance is not None
+            self.assertTrue(appearance.rings.enabled, name)
+            self.assertLess(appearance.rings.opacity, 1.0, name)
+            self.assertIn('rings', appearance.textures.existingMaps(), name)
+
+    def test_airless_packs_skip_atmosphere(self) -> None:
+        for name in ('Mercury', 'Pluto'):
+            appearance = appearanceForCatalogName(name)
+            self.assertIsNotNone(appearance, name)
+            assert appearance is not None
+            self.assertFalse(appearance.atmosphere.enabled, name)
+            self.assertNotIn('atmosphere', appearance.toJobDict())
+
 
 class FlybyPipelineTests(unittest.TestCase):
     def test_prepare_export(self) -> None:
