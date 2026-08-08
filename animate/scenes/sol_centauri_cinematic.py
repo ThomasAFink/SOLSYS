@@ -1000,11 +1000,14 @@ class SolCentauriCinematicAnimator:
         earthOpen = halfWidthAu <= SOL_EARTH_HALF_AU * 1.5
         plutoOuter = name == 'Pluto' and halfWidthAu >= 20.0
         queuedBlenderEarth = False
-        if (
+        blenderEarthAvailable = (
             name == 'Earth'
             and self.useBlenderBodies
             and self.blenderSprites is not None
             and self.blenderSprites.hasEarth
+        )
+        if (
+            blenderEarthAvailable
             and self._blenderBillboardRadiusAu(halfWidthAu, openCloseup=earthOpen, bodyScale=1.0)
             is not None
         ):
@@ -1012,7 +1015,8 @@ class SolCentauriCinematicAnimator:
                 ('Earth', position.copy(), frame, halfWidthAu, earthOpen, 1.0, None)
             )
             queuedBlenderEarth = True
-        if not queuedBlenderEarth:
+        # Blender mode: never fall back to the catalog-blue Earth scatter marker.
+        if not queuedBlenderEarth and not blenderEarthAvailable:
             self.axes.scatter(
                 [position[0]],
                 [position[1]],
@@ -1082,11 +1086,14 @@ class SolCentauriCinematicAnimator:
         )
         moonPosition = np.array([float(moonX), float(moonY), float(moonZ)], dtype=float)
         queuedBlenderMoon = False
-        if (
+        blenderMoonAvailable = (
             moon.name == 'Moon'
             and self.useBlenderBodies
             and self.blenderSprites is not None
             and self.blenderSprites.hasMoon
+        )
+        if (
+            blenderMoonAvailable
             and self._blenderBillboardRadiusAu(halfWidthAu, openCloseup=moonOpen, bodyScale=0.35)
             is not None
         ):
@@ -1102,7 +1109,8 @@ class SolCentauriCinematicAnimator:
                 )
             )
             queuedBlenderMoon = True
-        if not queuedBlenderMoon:
+        # Blender mode: never fall back to the catalog-gray Luna scatter marker.
+        if not queuedBlenderMoon and not blenderMoonAvailable:
             self.axes.scatter(
                 [moonPosition[0]],
                 [moonPosition[1]],
@@ -1157,16 +1165,16 @@ class SolCentauriCinematicAnimator:
         openCloseup: bool,
         bodyScale: float,
     ) -> float | None:
-        """Fixed world-space globe radius; None → keep the scatter dot.
+        """Fixed world-space globe radius; None → omit the body (no catalog-color dot).
 
         Radius is anchored to the Earth-open framing so zoom-out shrinks the
         body on screen instead of growing it inside the Moon's orbit.
         """
         del openCloseup  # size is world-fixed; closeup only affects texture resolution
         radiusAu = EARTH_GLOBE_RADIUS_AU * bodyScale
-        # Drop to dots once the disk is a few pixels in a 1200px frame.
-        screenFraction = radiusAu / max(2.0 * halfWidthAu, 1e-9)
-        if screenFraction < 0.0035 or halfWidthAu > 80.0:
+        # Keep textured disks through the Sol zoom-out; drop only once the
+        # camera is well past the outer system (never swap to catalog blue/gray).
+        if halfWidthAu > 100.0:
             return None
         return radiusAu
 
@@ -1188,7 +1196,12 @@ class SolCentauriCinematicAnimator:
             )
             if radiusAu is None:
                 continue
-            resolution = 384 if openCloseup else 128
+            # Map world radius → figure fraction (axes fills the figure).
+            fracRadius = float(radiusAu / max(2.0 * halfWidthAu, 1e-9))
+            # Hold a few on-screen pixels in the outer Sol so Earth stays textured
+            # instead of vanishing into a sub-pixel (and never a blue catalog dot).
+            fracRadius = max(fracRadius, 0.0035)
+            resolution = 384 if openCloseup else (64 if fracRadius <= 0.01 else 128)
             if catalogName == 'Earth':
                 disk = self.blenderSprites.earthFrame(frame, resolution=resolution)
             else:
@@ -1207,8 +1220,6 @@ class SolCentauriCinematicAnimator:
             )
             display = self.axes.transData.transform((x2, y2))
             frac = self.figure.transFigure.inverted().transform(display)
-            # Map world radius → figure fraction (axes fills the figure).
-            fracRadius = float(radiusAu / max(2.0 * halfWidthAu, 1e-9))
             # PillowWriter quantizes better from 8-bit RGBA than float arrays.
             diskU8 = (np.clip(disk, 0.0, 1.0) * 255.0).astype(np.uint8)
             self.bodyOverlay.imshow(

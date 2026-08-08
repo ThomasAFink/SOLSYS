@@ -62,43 +62,183 @@ def _clearSceneObjects(bpy: Any) -> None:
 
 
 def _assignSphericalUvs(builder: Any) -> None:
-    """Equirectangular UVs from vertex directions (shared by planets/moons/asteroids)."""
+    """Equirectangular UVs from vertex directions, seam-safe per face.
+
+    Loops are per-corner, so faces that straddle U=0/1 get their low-U corners
+    shifted by +1. That stops interpolation from smearing across the whole map
+    (the vertical “date line” artifact on Earth).
+    """
     uvLayer = builder.loops.layers.uv.new('UVMap')
     for face in builder.faces:
         for loop in face.loops:
             direction = loop.vert.co.normalized()
-            u = 0.5 + math.atan2(direction.y, direction.x) / (2.0 * math.pi)
+            u = (0.5 + math.atan2(direction.y, direction.x) / (2.0 * math.pi)) % 1.0
             v = 0.5 + math.asin(max(-1.0, min(1.0, direction.z))) / math.pi
             loop[uvLayer].uv = (u, v)
+        us = [loop[uvLayer].uv[0] for loop in face.loops]
+        if max(us) - min(us) > 0.5:
+            for loop in face.loops:
+                u, v = loop[uvLayer].uv
+                if u < 0.5:
+                    loop[uvLayer].uv = (u + 1.0, v)
 
 
-def _createUvSphere(bpy: Any, name: str, radius: float) -> Any:
+def _createBodySphere(bpy: Any, name: str, radius: float) -> Any:
+    """Icosphere body mesh — UV spheres keep a geometric meridian crease.
+
+    Equirectangular maps are sampled via Environment Texture (object direction),
+    so we do not need UV-sphere topology. UVs are still assigned as a fallback
+    for Image Texture paths.
+    """
     import bmesh  # type: ignore[import-not-found]
 
     mesh = bpy.data.meshes.new(f'{name}Mesh')
     builder = bmesh.new()
-    bmesh.ops.create_uvsphere(builder, u_segments=96, v_segments=48, radius=radius)
+    # subdivisions=5 ≈ 20k tris — smooth limb without a date-line edge.
+    bmesh.ops.create_icosphere(builder, subdivisions=5, radius=radius)
     bmesh.ops.recalc_face_normals(builder, faces=builder.faces)
     _assignSphericalUvs(builder)
     builder.to_mesh(mesh)
     builder.free()
     for polygon in mesh.polygons:
         polygon.use_smooth = True
+    if hasattr(mesh, 'use_auto_smooth'):
+        mesh.use_auto_smooth = False
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
     return obj
 
 
-def _loadImageTexture(bpy: Any, nodeTree: Any, imagePath: Path, *, label: str) -> Any | None:
+def _createUvSphere(bpy: Any, name: str, radius: float) -> Any:
+    """Backward-compatible alias — prefer ``_createBodySphere``."""
+    return _createBodySphere(bpy, name, radius)
+
+
+def _ensureEquirectangularVector(bpy: Any, nodeTree: Any) -> Any:
+    """Per-fragment equirectangular UV from object normals (no mesh UV seam).
+
+    Mesh UV unwraps smear across U=0/1; computing atan2/asin in the shader from
+    the interpolated object normal avoids the date-line streak.
+    """
+    for node in nodeTree.nodes:
+        if node.get('solsys_equirect_uv'):
+            return node.outputs['Vector']
+
+    texCoord = nodeTree.nodes.new('ShaderNodeTexCoord')
+    texCoord.location = (-1600, 200)
+
+    normalize = nodeTree.nodes.new('ShaderNodeVectorMath')
+    normalize.operation = 'NORMALIZE'
+    normalize.location = (-1420, 200)
+    nodeTree.links.new(texCoord.outputs['Normal'], normalize.inputs[0])
+
+    separate = nodeTree.nodes.new('ShaderNodeSeparateXYZ')
+    separate.location = (-1240, 200)
+    nodeTree.links.new(normalize.outputs['Vector'], separate.inputs['Vector'])
+
+    # u = atan2(y, x) / (2π) + 0.5
+    arctan2 = nodeTree.nodes.new('ShaderNodeMath')
+    arctan2.operation = 'ARCTAN2'
+    arctan2.location = (-1060, 260)
+    nodeTree.links.new(separate.outputs['Y'], arctan2.inputs[0])
+    nodeTree.links.new(separate.outputs['X'], arctan2.inputs[1])
+
+    divU = nodeTree.nodes.new('ShaderNodeMath')
+    divU.operation = 'DIVIDE'
+    divU.location = (-880, 260)
+    divU.inputs[1].default_value = 2.0 * math.pi
+    nodeTree.links.new(arctan2.outputs['Value'], divU.inputs[0])
+
+    addU = nodeTree.nodes.new('ShaderNodeMath')
+    addU.operation = 'ADD'
+    addU.location = (-700, 260)
+    addU.inputs[1].default_value = 0.5
+    nodeTree.links.new(divU.outputs['Value'], addU.inputs[0])
+
+    # v = asin(z) / π + 0.5
+    arcsin = nodeTree.nodes.new('ShaderNodeMath')
+    arcsin.operation = 'ARCSINE'
+    arcsin.location = (-1060, 80)
+    nodeTree.links.new(separate.outputs['Z'], arcsin.inputs[0])
+
+    divV = nodeTree.nodes.new('ShaderNodeMath')
+    divV.operation = 'DIVIDE'
+    divV.location = (-880, 80)
+    divV.inputs[1].default_value = math.pi
+    nodeTree.links.new(arcsin.outputs['Value'], divV.inputs[0])
+
+    addV = nodeTree.nodes.new('ShaderNodeMath')
+    addV.operation = 'ADD'
+    addV.location = (-700, 80)
+    addV.inputs[1].default_value = 0.5
+    nodeTree.links.new(divV.outputs['Value'], addV.inputs[0])
+
+    combine = nodeTree.nodes.new('ShaderNodeCombineXYZ')
+    combine.location = (-520, 180)
+    combine['solsys_equirect_uv'] = True
+    nodeTree.links.new(addU.outputs['Value'], combine.inputs['X'])
+    nodeTree.links.new(addV.outputs['Value'], combine.inputs['Y'])
+    return combine.outputs['Vector']
+
+
+def _featherEquirectEdges(imagePath: Path, *, blendPx: int = 8) -> Path:
+    """Cross-fade left/right edges so the 0°/360° wrap is invisible."""
+    seamlessPath = imagePath.with_name(f'{imagePath.stem}_seamless{imagePath.suffix}')
+    if seamlessPath.is_file() and seamlessPath.stat().st_mtime >= imagePath.stat().st_mtime:
+        return seamlessPath
+    try:
+        import numpy as np
+        from PIL import Image
+    except ImportError:
+        return imagePath
+    with Image.open(imagePath) as image:
+        array = np.asarray(image.convert('RGBA'), dtype=np.float32)
+    width = array.shape[1]
+    blendPx = max(1, min(blendPx, width // 4))
+    for index in range(blendPx):
+        blend = (index + 0.5) / blendPx
+        left = array[:, index]
+        right = array[:, width - blendPx + index]
+        mixed = right * (1.0 - blend) + left * blend
+        array[:, index] = mixed
+        array[:, width - blendPx + index] = mixed
+    Image.fromarray(np.clip(array, 0, 255).astype(np.uint8), mode='RGBA').save(seamlessPath)
+    return seamlessPath
+
+
+def _loadImageTexture(
+    bpy: Any,
+    nodeTree: Any,
+    imagePath: Path,
+    *,
+    label: str,
+    equirectangular: bool = False,
+) -> Any | None:
+    """Load a body map. Equirectangular mode uses shader UVs (no mesh seam)."""
     if not imagePath.is_file():
         print(f'Warning: texture missing ({label}): {imagePath}', file=sys.stderr)
         return None
-    image = bpy.data.images.load(str(imagePath), check_existing=True)
+    loadPath = _featherEquirectEdges(imagePath) if equirectangular else imagePath
+    image = bpy.data.images.load(str(loadPath), check_existing=True)
     textureNode = nodeTree.nodes.new('ShaderNodeTexImage')
     textureNode.image = image
     textureNode.label = label
-    textureNode.interpolation = 'Smart'
+    # Closest avoids mip-seam streaks where atan2 U wraps 0↔1 across neighbors.
+    textureNode.interpolation = 'Closest' if equirectangular else 'Cubic'
+    textureNode.extension = 'REPEAT'
+    if equirectangular:
+        textureNode.projection = 'FLAT'
+        vector = _ensureEquirectangularVector(bpy, nodeTree)
+        nodeTree.links.new(vector, textureNode.inputs['Vector'])
     return textureNode
+
+
+def _loadBodyColorTexture(bpy: Any, nodeTree: Any, colorPath: Path) -> Any | None:
+    """Seam-safe equirect color map; plain UV image as last resort."""
+    colorNode = _loadImageTexture(bpy, nodeTree, colorPath, label='color', equirectangular=True)
+    if colorNode is not None:
+        return colorNode
+    return _loadImageTexture(bpy, nodeTree, colorPath, label='color', equirectangular=False)
 
 
 def _mixCloudLayer(
@@ -111,7 +251,7 @@ def _mixCloudLayer(
 
     Keep coverage modest so continents/oceans stay readable (not a snowball).
     """
-    cloudsNode = _loadImageTexture(bpy, nodeTree, cloudsPath, label='clouds')
+    cloudsNode = _loadImageTexture(bpy, nodeTree, cloudsPath, label='clouds', equirectangular=True)
     if cloudsNode is None:
         return surfaceColorSocket
     cloudsNode.location = (-620, -40)
@@ -187,7 +327,7 @@ def _applyBodyMaterial(
     if not colorPath:
         return
 
-    colorNode = _loadImageTexture(bpy, nodeTree, Path(colorPath), label='color')
+    colorNode = _loadBodyColorTexture(bpy, nodeTree, Path(colorPath))
     if colorNode is None:
         return
     colorNode.location = (-820, 200)

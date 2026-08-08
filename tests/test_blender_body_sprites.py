@@ -133,12 +133,15 @@ class BlenderBodyOverlayTests(unittest.TestCase):
         )
         close = animator._blenderBillboardRadiusAu(0.14, openCloseup=True, bodyScale=1.0)
         mid = animator._blenderBillboardRadiusAu(1.5, openCloseup=False, bodyScale=1.0)
+        outerSol = animator._blenderBillboardRadiusAu(42.0, openCloseup=False, bodyScale=1.0)
         far = animator._blenderBillboardRadiusAu(120.0, openCloseup=False, bodyScale=1.0)
         self.assertIsNotNone(close)
         self.assertIsNotNone(mid)
+        self.assertIsNotNone(outerSol)
         self.assertIsNone(far)
-        assert close is not None and mid is not None
+        assert close is not None and mid is not None and outerSol is not None
         self.assertAlmostEqual(close, mid, places=9)
+        self.assertAlmostEqual(close, outerSol, places=9)
 
     def test_update_paints_overlay_when_spin_assets_present(self) -> None:
         with tempfile.TemporaryDirectory() as temporaryName:
