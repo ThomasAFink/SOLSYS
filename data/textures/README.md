@@ -13,6 +13,7 @@ data/textures/
     ├── moon/
     │   └── color.png          # equirectangular color map (airless)
     ├── mercury/ … pluto/      # Sol planet packs (color; rings where applicable)
+    ├── io/ … charon/          # major moon packs (airless; Titan haze in code)
     └── ceres/                 # future (asteroids use the same layout)
 ```
 
@@ -28,7 +29,7 @@ Optional maps per body (same filename convention when added):
 
 Host code resolves packs via `animate.scenes.blender.body_appearance` (catalog name → `bodyId` → paths). Bodies without a pack keep the flat catalog `colorRgba` fallback.
 
-Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `BodyAtmosphere` (Earth/Venus/Mars/gas giants on; Mercury/Moon/Pluto off). Clouds are a texture map on the same pack and mix over the surface color when present. Rings use `BodyRings` + optional `rings.png`.
+Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `BodyAtmosphere` (Earth/Venus/Mars/gas giants/Titan on; Mercury/Moon/Pluto and other moons off). Clouds are a texture map on the same pack and mix over the surface color when present. Rings use `BodyRings` + optional `rings.png`.
 
 ## Earth
 
@@ -66,5 +67,26 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
 - **Solar System Scope textures:** free for personal and commercial use with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/) (underlying spacecraft data from NASA / USGS / ESA missions).
 - **NASA Pluto map:** U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/)).
 - Ice-giant `rings.png` files are lightweight synthetic azimuth×radius alpha strips (not spacecraft mosaics) so Uranus/Neptune show readable ring systems in EEVEE flybys.
+
+## Major moons
+
+Equirectangular color maps under `bodies/<bodyId>/color.png` for every `MoonCatalog` entry (except Luna, documented above). Registered as `kind=moon` in `body_appearance.py` — airless (no clouds) unless noted.
+
+| Body | Pack notes | Primary source |
+|------|------------|----------------|
+| Io | Volcanic color | [NASA 3D Resources](https://github.com/nasa/NASA-3D-Resources) `Jupiter - Io (A)` |
+| Europa | Icy, higher specular | NASA 3D Resources `Jupiter - Europa` |
+| Ganymede | Cratered ice/rock | NASA 3D Resources `Jupiter - Ganymede` |
+| Callisto | Dark cratered | NASA 3D Resources `Jupiter - Callisto` |
+| Titan | Low-detail surface + orange haze shell | NASA 3D Resources `Saturn - Titan` |
+| Enceladus | Bright ice | NASA 3D Resources `Saturn - Enceladus` |
+| Rhea | Icy regolith | NASA 3D Resources `Saturn - Rhea` |
+| Phobos / Deimos | Irregular Mars moons | NASA 3D Resources `Mars - Phobos` / `Mars - Deimos` |
+| Titania / Oberon | Uranian ice moons | NASA 3D Resources `Uranus - Titania` / `Uranus - Oberon` |
+| Triton | Neptune moon | NASA 3D Resources `Neptune - Triton` |
+| Charon | Pluto companion | NASA 3D Resources `Pluto - Charon` |
+
+- **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/)).
+- Titan’s spacecraft map is low-contrast; the EEVEE orange limb haze carries most of the recognizable look.
 
 Do not replace vendor textures without updating this README attribution.
