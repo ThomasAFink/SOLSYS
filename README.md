@@ -203,11 +203,14 @@ solsys.motion    → moving asteroid fields for animation frames
 | Ceres | ![Ceres light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/dwarf_planets/ceres/ceres_flyby_light.gif?raw=true) | ![Ceres dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/dwarf_planets/ceres/ceres_flyby_dark.gif?raw=true) |
 | Vesta | ![Vesta light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/asteroids/vesta/vesta_flyby_light.gif?raw=true) | ![Vesta dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/asteroids/vesta/vesta_flyby_dark.gif?raw=true) |
 
-**Sun**
+**Stars**
 
 | Body | Light | Dark |
 |------|-------|------|
 | Sun | ![Sun light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/sun/sun_flyby_light.gif?raw=true) | ![Sun dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/sun/sun_flyby_dark.gif?raw=true) |
+| Alpha Centauri A | ![α Cen A light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_a/alpha_centauri_a_flyby_light.gif?raw=true) | ![α Cen A dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_a/alpha_centauri_a_flyby_dark.gif?raw=true) |
+| Alpha Centauri B | ![α Cen B light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_b/alpha_centauri_b_flyby_light.gif?raw=true) | ![α Cen B dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_b/alpha_centauri_b_flyby_dark.gif?raw=true) |
+| Proxima Centauri | ![Proxima light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/proxima_centauri/proxima_centauri_flyby_light.gif?raw=true) | ![Proxima dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/proxima_centauri/proxima_centauri_flyby_dark.gif?raw=true) |
 
 ### Static zoom views (side)
 
@@ -363,6 +366,8 @@ Or render by product:
 .venv/bin/python render.py blender --body Ceres --flyby   # dwarf planet
 .venv/bin/python render.py blender --body Vesta --flyby   # main-belt asteroid
 .venv/bin/python render.py blender --body Sun --flyby     # emissive photosphere
+.venv/bin/python render.py blender --body "Alpha Centauri A" --flyby
+.venv/bin/python render.py blender --body "Proxima Centauri" --spin
 .venv/bin/python render.py blender --body Saturn --spin   # RGBA spin (rings) for cinematic
 .venv/bin/python render.py blender --body Earth --spin    # RGBA day/night loop for cinematic
 .venv/bin/python render.py blender --body Moon --spin     # Moon spin loop for cinematic
@@ -429,10 +434,12 @@ Cinematic billboards (issue #49) extend `--blender-bodies` beyond Earth/Moon:
 - Named asteroids (Ceres/Vesta/…) during belt / Kuiper visibility windows
 - Requires `render.py blender --body <Name> --spin` assets under `output/animate/blender/`
 
-Sun close-up (issue #50) is Sol-only for now (`kind=star`):
+Star close-ups (`kind=star`, issues #50 / #59):
 
 - `render.py blender --body Sun --flyby` / `--spin` → `output/animate/blender/stars/sun/`
+- `render.py blender --body "Alpha Centauri A"` / `"Alpha Centauri B"` / `"Proxima Centauri"` → `stars/<id>/`
 - Emissive photosphere (not a yellow diffuse planet under a key lamp; no atmosphere shell)
+- With `--blender-bodies`, the Sol→α Cen cinematic composites A/B (AB hold) and Proxima (dive) spin billboards when on-screen
 
 Staged Sol zoom-out beats (issue #51) — blender mode only (`--blender-bodies`); classic dotted GIFs unchanged:
 

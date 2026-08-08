@@ -139,7 +139,15 @@ class BodyAppearanceTests(unittest.TestCase):
         from animate.scenes.blender.body_appearance import registeredStarCatalogNames
         from animate.scenes.blender.export_body import bodyOutputDirectory
 
-        self.assertEqual(registeredStarCatalogNames(), ('Sun',))
+        self.assertEqual(
+            registeredStarCatalogNames(),
+            (
+                'Alpha Centauri A',
+                'Alpha Centauri B',
+                'Proxima Centauri',
+                'Sun',
+            ),
+        )
         appearance = appearanceForCatalogName('Sun')
         self.assertIsNotNone(appearance)
         assert appearance is not None
@@ -158,6 +166,33 @@ class BodyAppearanceTests(unittest.TestCase):
             bodyOutputDirectory('star', 'Sun').as_posix().endswith('stars/sun'),
             True,
         )
+
+    def test_alpha_centauri_star_packs_are_emissive(self) -> None:
+        from animate.scenes.blender.body_scene import buildBodyScene
+        from animate.scenes.blender.export_body import bodyOutputDirectory
+
+        for catalogName, bodyId in (
+            ('Alpha Centauri A', 'alpha_centauri_a'),
+            ('Alpha Centauri B', 'alpha_centauri_b'),
+            ('Proxima Centauri', 'proxima_centauri'),
+        ):
+            appearance = appearanceForCatalogName(catalogName)
+            self.assertIsNotNone(appearance, catalogName)
+            assert appearance is not None
+            self.assertEqual(appearance.kind, 'star')
+            self.assertEqual(appearance.bodyId, bodyId)
+            self.assertFalse(appearance.atmosphere.enabled)
+            maps = appearance.textures.existingMaps()
+            self.assertIn('color', maps)
+            self.assertTrue(maps['color'].is_file())
+            scene = buildBodyScene(catalogName, frameCount=8)
+            self.assertEqual(scene.body.kind, 'star')
+            self.assertEqual(scene.body.name, catalogName)
+            self.assertTrue(
+                bodyOutputDirectory('star', catalogName)
+                .as_posix()
+                .endswith(f'stars/{bodyId}')
+            )
 
     def test_earth_pack_resolves_color_map(self) -> None:
         appearance = appearanceForCatalogName('Earth')
