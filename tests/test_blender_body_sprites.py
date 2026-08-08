@@ -11,6 +11,7 @@ from animate.blender_body_sprites import (
     BlenderBodySpriteAtlas,
     _blendSpinFrames,
     loadSpinLoopFrames,
+    spinLoopAvailable,
     tidalLockFrameIndex,
     tidalLockFramePosition,
 )
@@ -100,9 +101,26 @@ class SpinAtlasTests(unittest.TestCase):
             atlas = BlenderBodySpriteAtlas('dark', outputDirectory=temporary)
             self.assertTrue(atlas.hasEarth)
             self.assertTrue(atlas.hasMoon)
+            self.assertEqual(atlas.loadedBodyNames(), ())
             frame = atlas.earthFrame(5, resolution=16)
             assert frame is not None
             self.assertEqual(frame.shape, (16, 16, 4))
+            self.assertEqual(atlas.loadedBodyNames(), ('Earth',))
+
+    def test_lazy_load_jupiter_and_missing_pack(self) -> None:
+        with tempfile.TemporaryDirectory() as temporaryName:
+            temporary = Path(temporaryName)
+            jupiterDir = spinFramesDirectory('Jupiter', 'dark', outputDirectory=temporary)
+            jupiterDir.mkdir(parents=True)
+            Image.new('RGBA', (16, 16), (200, 160, 90, 230)).save(jupiterDir / 'frame_0000.png')
+            atlas = BlenderBodySpriteAtlas('dark', outputDirectory=temporary)
+            self.assertTrue(spinLoopAvailable('Jupiter', 'dark', outputDirectory=temporary))
+            self.assertTrue(atlas.hasBody('Jupiter'))
+            self.assertFalse(atlas.hasBody('Mars'))
+            disk = atlas.bodyFrame('Jupiter', 3, resolution=16)
+            assert disk is not None
+            self.assertEqual(disk.shape, (16, 16, 4))
+            self.assertIsNone(atlas.bodyFrame('Mars', 0, resolution=16))
 
 
 class BlenderBodyOverlayTests(unittest.TestCase):
@@ -163,7 +181,7 @@ class BlenderBodyOverlayTests(unittest.TestCase):
     def test_update_paints_overlay_when_spin_assets_present(self) -> None:
         with tempfile.TemporaryDirectory() as temporaryName:
             temporary = Path(temporaryName)
-            for body in ('Earth', 'Moon'):
+            for body in ('Earth', 'Moon', 'Jupiter', 'Saturn'):
                 directory = spinFramesDirectory(body, 'light', outputDirectory=temporary)
                 directory.mkdir(parents=True)
                 Image.new('RGBA', (48, 48), (20, 90, 180, 230)).save(directory / 'frame_0000.png')
@@ -176,6 +194,33 @@ class BlenderBodyOverlayTests(unittest.TestCase):
             animator.blenderSprites = BlenderBodySpriteAtlas('light', outputDirectory=temporary)
             animator.update(0)
             self.assertGreaterEqual(len(animator.bodyOverlay.get_images()), 1)
+
+    def test_missing_planet_pack_falls_back_to_scatter(self) -> None:
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=self.starsCsvPath,
+            useBlenderBodies=True,
+        )
+        with tempfile.TemporaryDirectory() as temporaryName:
+            temporary = Path(temporaryName)
+            # Only Earth present — Mars must remain a catalog dot path (no queue).
+            earthDir = spinFramesDirectory('Earth', 'dark', outputDirectory=temporary)
+            earthDir.mkdir(parents=True)
+            Image.new('RGBA', (16, 16), (20, 90, 180, 230)).save(earthDir / 'frame_0000.png')
+            animator.blenderSprites = BlenderBodySpriteAtlas('dark', outputDirectory=temporary)
+            self.assertTrue(animator._blenderBodyAvailable('Earth'))
+            self.assertFalse(animator._blenderBodyAvailable('Mars'))
+            queued = animator._queueBlenderBody(
+                'Mars',
+                np.array([1.5, 0.0, 0.0]),
+                0,
+                6.0,
+                openCloseup=False,
+                bodyScale=0.58,
+                orbitalPhaseRad=None,
+                suppressDotFallback=False,
+            )
+            self.assertFalse(queued)
 
 
 if __name__ == '__main__':
