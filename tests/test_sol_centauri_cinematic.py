@@ -14,6 +14,14 @@ from animate.scenes.sol_centauri_cinematic import (
     ANIMATION_SPEED_SOL_NEAR,
     PROXIMA_TRAVEL_END,
     PULLBACK_END,
+    SOL_BEAT_BELT_ARRIVE,
+    SOL_BEAT_BELT_HOLD_END,
+    SOL_BEAT_INNER_ARRIVE,
+    SOL_BEAT_INNER_HOLD_END,
+    SOL_BEAT_NEAR_SUN_ARRIVE,
+    SOL_BEAT_NEAR_SUN_HOLD_END,
+    SOL_BEAT_SATURN_ARRIVE,
+    SOL_BEAT_SATURN_HOLD_END,
     SOL_BELT_ARRIVE,
     SOL_BELT_HOLD_END,
     SOL_BELT_LINGER_HALF_AU,
@@ -24,7 +32,9 @@ from animate.scenes.sol_centauri_cinematic import (
     SOL_HALF_WIDTH_AU,
     SOL_HOLD_END,
     SOL_INNER_HALF_AU,
+    SOL_NEAR_SUN_HALF_AU,
     SOL_OUTER_ARRIVE,
+    SOL_SATURN_LINGER_HALF_AU,
     WIDE_OUT_ARRIVE,
     WIDE_OUT_END,
     SolCentauriCinematicAnimator,
@@ -110,6 +120,58 @@ class CinematicTransformTests(unittest.TestCase):
             import matplotlib.pyplot as plt
 
             plt.close(animator.figure)
+
+    def test_blender_sol_beats_hold_near_sun_belt_and_saturn(self) -> None:
+        """Staged blender zoom-out (#51) plateaus at Near-Sun, belt, and Saturn scales."""
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            frames = animator.animationFrames
+            nearHold = int(
+                0.5 * (SOL_BEAT_NEAR_SUN_ARRIVE + SOL_BEAT_NEAR_SUN_HOLD_END) * (frames - 1)
+            )
+            focus, halfWidth = animator._cameraState(nearHold)
+            np.testing.assert_allclose(focus, np.zeros(3), atol=1e-9)
+            self.assertAlmostEqual(halfWidth, SOL_NEAR_SUN_HALF_AU, places=4)
+            title, _ = animator._solCaption(halfWidth, nearHold / max(frames - 1, 1))
+            self.assertEqual(title, 'The Sun')
+
+            innerMid = int(0.5 * (SOL_BEAT_INNER_ARRIVE + SOL_BEAT_INNER_HOLD_END) * (frames - 1))
+            _, innerHalf = animator._cameraState(innerMid)
+            self.assertAlmostEqual(innerHalf, SOL_INNER_HALF_AU, places=4)
+
+            beltHold = int(0.5 * (SOL_BEAT_BELT_ARRIVE + SOL_BEAT_BELT_HOLD_END) * (frames - 1))
+            _, beltHalf = animator._cameraState(beltHold)
+            self.assertAlmostEqual(beltHalf, SOL_BELT_LINGER_HALF_AU, places=4)
+            beltTitle, _ = animator._solCaption(beltHalf, beltHold / max(frames - 1, 1))
+            self.assertIn('belt', beltTitle.lower())
+
+            saturnHold = int(
+                0.5 * (SOL_BEAT_SATURN_ARRIVE + SOL_BEAT_SATURN_HOLD_END) * (frames - 1)
+            )
+            _, saturnHalf = animator._cameraState(saturnHold)
+            self.assertAlmostEqual(saturnHalf, SOL_SATURN_LINGER_HALF_AU, places=4)
+            saturnTitle, _ = animator._solCaption(saturnHalf, saturnHold / max(frames - 1, 1))
+            self.assertEqual(saturnTitle, 'Saturn')
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_classic_mode_skips_blender_sol_beat_timeline(self) -> None:
+        """Dotted mode keeps the pre-#51 belt arrive (no Near-Sun plateau)."""
+        frames = self.animator.animationFrames
+        # Just before classic belt arrive, half-width is still diving (not held at Near-Sun).
+        preBelt = int((SOL_BELT_ARRIVE - 0.01) * (frames - 1))
+        _, halfWidth = self.animator._cameraState(preBelt)
+        self.assertNotAlmostEqual(halfWidth, SOL_NEAR_SUN_HALF_AU, places=3)
+        arrive = int(np.ceil(SOL_BELT_ARRIVE * (frames - 1)))
+        _, arriveHalf = self.animator._cameraState(arrive)
+        self.assertAlmostEqual(arriveHalf, SOL_BELT_LINGER_HALF_AU, places=4)
 
     def test_camera_ends_at_proxima(self) -> None:
         from animate.scenes.sol_centauri_cinematic import PROXIMA_INNER_HALF_AU
