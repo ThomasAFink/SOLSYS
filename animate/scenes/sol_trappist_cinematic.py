@@ -43,18 +43,20 @@ from animate.scenes.trappist_1 import TRAPPIST_1_STAR_COLOR
 FIELD_STARS_MAX_LY = 45.0
 START_HALF_WIDTH_LY = 45.0
 ANIMATION_SPEED_TRAPPIST_PLANETS = 0.20
+# Final HZ + e/f close-ups: slow the dance so orbits read as motion, not blur.
+ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE = 0.055
 
 # Arrival: host readable; planets still tiny. Finale matches exoplanet scene (~0.09 AU).
 TRAPPIST_ARRIVE_HALF_AU = 2.0
 TRAPPIST_WIDE_HALF_AU = 0.15
 # HZ overview frames the band; candidate close-up centers e/f (not the host).
-TRAPPIST_HZ_HALF_AU = 0.052
-TRAPPIST_CANDIDATE_HALF_AU = 0.030
+TRAPPIST_HZ_HALF_AU = 0.040
+TRAPPIST_CANDIDATE_HALF_AU = 0.016
 TRAPPIST_INNER_HALF_AU = 0.09
 # Monotonic tighten from arrive → planet-wide (no Proxima-style zoom-out waypoints).
 TRAPPIST_DIVE_WAYPOINTS_AU = (1.0, 0.4)
-TRAPPIST_HZ_DIVE_WAYPOINTS_AU = (0.10, 0.07)
-TRAPPIST_CANDIDATE_DIVE_WAYPOINTS_AU = (0.042, 0.035)
+TRAPPIST_HZ_DIVE_WAYPOINTS_AU = (0.09, 0.058)
+TRAPPIST_CANDIDATE_DIVE_WAYPOINTS_AU = (0.028, 0.020)
 TRAPPIST_ELEVATION_DEG = 58.0
 # Steeper view so the HZ annulus reads as a band, not a foreshortened line.
 TRAPPIST_HZ_ELEVATION_DEG = 62.0
@@ -68,26 +70,27 @@ TRAPPIST_HZ_COLOR_DARK = '#7DFFB0'
 TRAPPIST_HZ_COLOR_LIGHT = '#1B8A4A'
 
 # Classic dotted timeline (after shared Sol open / pullback).
-TRAPPIST_TRAVEL_END = 0.82
-TRAPPIST_ARRIVE_HOLD_END = 0.87
-TRAPPIST_DIVE_END = 0.905
-TRAPPIST_WIDE_HOLD_END = 0.92
-TRAPPIST_HZ_ARRIVE = 0.935
+TRAPPIST_TRAVEL_END = 0.80
+TRAPPIST_ARRIVE_HOLD_END = 0.85
+TRAPPIST_DIVE_END = 0.885
+TRAPPIST_WIDE_HOLD_END = 0.90
+TRAPPIST_HZ_ARRIVE = 0.92
 TRAPPIST_HZ_HOLD_END = 0.945
 TRAPPIST_CANDIDATE_ARRIVE = 0.96
-TRAPPIST_CANDIDATE_HOLD_END = 0.98
-TRAPPIST_INNER_ARRIVE = 0.99
+TRAPPIST_CANDIDATE_HOLD_END = 0.985
+TRAPPIST_INNER_ARRIVE = 0.995
 
 # Blender: wide chain → HZ band → pan/zoom onto e & f → full-chain finale.
-ARRIVAL_TRAPPIST_TRAVEL_END = 0.80
-ARRIVAL_TRAPPIST_HOLD_END = 0.845
-ARRIVAL_TRAPPIST_DIVE_END = 0.872
-ARRIVAL_TRAPPIST_WIDE_HOLD_END = 0.888
-ARRIVAL_TRAPPIST_HZ_ARRIVE = 0.905
+# Steal a little from travel/wide so HZ + candidate holds linger.
+ARRIVAL_TRAPPIST_TRAVEL_END = 0.78
+ARRIVAL_TRAPPIST_HOLD_END = 0.825
+ARRIVAL_TRAPPIST_DIVE_END = 0.852
+ARRIVAL_TRAPPIST_WIDE_HOLD_END = 0.865
+ARRIVAL_TRAPPIST_HZ_ARRIVE = 0.885
 ARRIVAL_TRAPPIST_HZ_HOLD_END = 0.918
-ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE = 0.942
-ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END = 0.968
-ARRIVAL_TRAPPIST_INNER_ARRIVE = 0.985
+ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE = 0.938
+ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END = 0.978
+ARRIVAL_TRAPPIST_INNER_ARRIVE = 0.992
 
 OUTPUT_DIRECTORY = 'output/animate/sol_trappist'
 BLENDER_OUTPUT_DIRECTORY = 'output/animate/sol_trappist/blender'
@@ -205,10 +208,31 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         raise KeyError(name)
 
     def _candidateFocusSol(self, frame: int) -> np.ndarray:
-        """Look-at point between e and f so both HZ candidates stay in frame."""
+        """Look-at point biased to e, with a pull toward f when they share a side."""
         planetE = self._trappistPlanetPositionSol(self._planetByName('TRAPPIST-1 e'), frame)
         planetF = self._trappistPlanetPositionSol(self._planetByName('TRAPPIST-1 f'), frame)
-        return 0.62 * planetE + 0.38 * planetF
+        host = self.hostSolAu
+        # When e/f sit on opposite sides of the star, favor e so the close-up can tighten.
+        radialE = planetE - host
+        radialF = planetF - host
+        sameSide = float(np.dot(radialE, radialF)) > 0.0
+        weightF = 0.34 if sameSide else 0.12
+        return (1.0 - weightF) * planetE + weightF * planetF
+
+    def _trappistPlanetAnimationSpeed(self, frame: int) -> float:
+        """Cruise speed early; ease down through HZ → candidate so orbits linger."""
+        linear = timelineProgress(frame, self.animationFrames)
+        hzArrive = self._hzArrive()
+        if linear < hzArrive:
+            return ANIMATION_SPEED_TRAPPIST_PLANETS
+        candidateArrive = self._candidateArrive()
+        if linear >= candidateArrive:
+            return ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE
+        blend = smootherstep(segmentProgress(linear, hzArrive, candidateArrive))
+        return float(
+            (1.0 - blend) * ANIMATION_SPEED_TRAPPIST_PLANETS
+            + blend * ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE
+        )
 
     def _loadFieldStars(self, starsCsvPath: str) -> pd.DataFrame:
         catalog = SystemCatalog(starsCsvPath=starsCsvPath).starCatalog
@@ -256,7 +280,7 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             planet.argumentPeriapsisDeg,
             0.0,
             frame,
-            ANIMATION_SPEED_TRAPPIST_PLANETS,
+            self._trappistPlanetAnimationSpeed(frame),
         )
         return self.hostSolAu + np.array([offsetX, offsetY, 0.0], dtype=float)
 
@@ -424,7 +448,16 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         if halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.15:
             self._drawHabitableZoneBand(halfWidthAu, hzFocus=hzFocus or candidateFocus)
 
-        starSize = 520.0 if halfWidthAu <= TRAPPIST_INNER_HALF_AU * 1.8 else 320.0
+        # Screen-fixed host marker: keep it dominant over the smaller planet disks
+        # on the first chain reveal (no TRAPPIST star spin pack yet).
+        if halfWidthAu <= TRAPPIST_CANDIDATE_HALF_AU * 1.15:
+            starSize = 380.0
+        elif halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.15:
+            starSize = 560.0
+        elif halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.15:
+            starSize = 720.0
+        else:
+            starSize = 420.0
         self._drawStarMarker(
             host,
             TRAPPIST_1_STAR_COLOR,
@@ -571,9 +604,9 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
                 frame,
                 halfWidthAu,
                 openCloseup=halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.25
-                or halfWidthAu <= TRAPPIST_CANDIDATE_HALF_AU * 1.2
+                or halfWidthAu <= TRAPPIST_CANDIDATE_HALF_AU * 1.35
                 or halfWidthAu <= TRAPPIST_INNER_HALF_AU * 1.05,
-                bodyScale=bodyScale * (1.2 if hzFocus and isHzCandidate else 1.0),
+                bodyScale=bodyScale * (1.08 if hzFocus and isHzCandidate else 1.0),
                 orbitalPhaseRad=None,
                 suppressDotFallback=True,
             )
