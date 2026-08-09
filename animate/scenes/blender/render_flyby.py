@@ -312,6 +312,7 @@ def _starPhotosphereColorSocket(bpy: Any, nodeTree: Any, colorPath: Path) -> Any
         try:
             image.interpolation_method = 'Linear'
         except (TypeError, ValueError):
+            # Blender builds vary on Image.interpolation_method enums.
             pass
     texCoord = nodeTree.nodes.new('ShaderNodeTexCoord')
     texCoord.location = (-920, 200)
@@ -918,12 +919,14 @@ def _configureFlybyRenderer(
             try:
                 cycles.device = 'GPU'
             except TypeError:
+                # Some Blender builds expose device as read-only / CPU-only.
                 pass
         print('Renderer: Cycles (rings occlusion)')
     else:
         try:
             scene.render.engine = 'BLENDER_EEVEE_NEXT'
         except TypeError:
+            # Older Blender still uses the BLENDER_EEVEE engine id.
             scene.render.engine = 'BLENDER_EEVEE'
         print('Renderer: EEVEE')
     scene.render.resolution_x = resolution
@@ -942,11 +945,13 @@ def _configureFlybyRenderer(
             try:
                 viewSettings.view_transform = 'Standard'
             except TypeError:
+                # view_transform enum differs across Blender color-management builds.
                 pass
             if hasattr(viewSettings, 'look'):
                 try:
                     viewSettings.look = 'None'
                 except TypeError:
+                    # Optional look slot; ignore when the build rejects 'None'.
                     pass
             viewSettings.exposure = 0.0
             viewSettings.gamma = 1.0
