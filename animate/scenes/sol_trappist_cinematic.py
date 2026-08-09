@@ -47,7 +47,8 @@ ANIMATION_SPEED_TRAPPIST_PLANETS = 0.20
 TRAPPIST_ARRIVE_HALF_AU = 2.0
 TRAPPIST_WIDE_HALF_AU = 0.15
 TRAPPIST_INNER_HALF_AU = 0.09
-TRAPPIST_DIVE_WAYPOINTS_AU = (8000.0, 600.0, 60.0, 6.0)
+# Monotonic tighten from arrive → planet-wide (no Proxima-style zoom-out waypoints).
+TRAPPIST_DIVE_WAYPOINTS_AU = (1.0, 0.4)
 TRAPPIST_ELEVATION_DEG = 58.0
 
 # Classic dotted timeline (after shared Sol open / pullback).
@@ -294,12 +295,14 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             return
 
         host = self.hostSolAu
-        if linear < self._abHoldEnd():
-            # Cruise / arrive: unresolved host marker along the travel path.
+        # Until the camera is tight enough for the chain, keep a continuous host marker
+        # (cruise, arrive hold, and the start of the dive — never blank the destination).
+        showChain = linear >= self._abHoldEnd() and halfWidthAu <= TRAPPIST_ARRIVE_HALF_AU * 1.05
+        if not showChain:
             size = np.clip(
                 52.0 * (self.startHalfWidthAu / max(halfWidthAu, 1.0)) ** 0.35, 36.0, 190.0
             )
-            if travelProgressValue > 0.15:
+            if travelProgressValue > 0.15 or linear >= self._abTravelEnd():
                 size = max(size, 90.0)
             label = 'TRAPPIST-1' if linear >= self._abTravelEnd() else 'TRAPPIST-1 (destination)'
             self._drawStarMarker(
@@ -309,10 +312,6 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
                 zorder=self._scatterDepthZorder(host, base=5),
             )
             self._label3d(host, f'  {label}', color=self.labelColor, fontsize=9)
-            return
-
-        # Dive / finale: host + resonant chain.
-        if halfWidthAu > 80.0:
             return
 
         starSize = 520.0 if halfWidthAu <= TRAPPIST_INNER_HALF_AU * 1.8 else 320.0
