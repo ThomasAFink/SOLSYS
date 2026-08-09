@@ -109,12 +109,12 @@ Equirectangular color maps under `bodies/<bodyId>/color.png` for every `MoonCata
 
 ## Proxima planets (b / d)
 
-Gallery-grade equirect maps for the Sol→α Cen cinematic finale (`kind=planet`). Derived from Mars/Earth packs with M-dwarf / cool tints — schematic diameters in `planets.csv`, not spacecraft mosaics.
+Fully procedural equirect maps for the Sol→α Cen cinematic finale (`kind=planet`). No spacecraft mosaics and **not** remixed Earth/Mars plates (those still read as familiar continents). Schematic diameters in `planets.csv`.
 
 | Body | Pack notes | Primary source |
 |------|------------|----------------|
-| Proxima b | HZ rocky under red-dwarf lighting (`bodies/proxima_b/`) | Remixed Mars + Earth (NASA / SSS lineage) |
-| Proxima d | Cooler sub-Earth rock (`bodies/proxima_d/`) | Remixed Mars |
+| Proxima b | Tidally locked HZ look: warm day-side rock, dark night side, sparse polar ice (`bodies/proxima_b/`) | Generated in-repo (fBm + domain warp) |
+| Proxima d | Cool cratered rock, no oceans (`bodies/proxima_d/`) | Generated in-repo (fBm + crater mask) |
 
 - CLI: `render.py blender --body "Proxima b"` / `"Proxima d" --flyby` / `--spin`
 - Disputed Proxima c stays a scatter marker (no pack yet)
