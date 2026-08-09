@@ -25,6 +25,7 @@ from animate.scenes.sol_trappist_cinematic import (
     FIELD_STARS_MAX_LY,
     START_HALF_WIDTH_LY,
     TRAPPIST_ARRIVE_HALF_AU,
+    TRAPPIST_CANDIDATE_BODY_SCALE,
     TRAPPIST_CANDIDATE_HALF_AU,
     TRAPPIST_HZ_FOCUS_NAMES,
     TRAPPIST_HZ_HALF_AU,
@@ -217,7 +218,7 @@ class SolTrappistCinematicTests(unittest.TestCase):
             expectedFocus = animator._candidateFocusSol(candFrame)
             np.testing.assert_allclose(candFocus, expectedFocus, atol=1e-9)
             self.assertAlmostEqual(candHalf, TRAPPIST_CANDIDATE_HALF_AU, places=5)
-            self.assertLess(candHalf, 0.022)
+            self.assertAlmostEqual(candHalf, SOL_EARTH_CLOSE_HALF_AU, places=5)
             self.assertLess(candHalf, hzHalf)
             self.assertGreater(float(np.linalg.norm(candFocus - animator.hostSolAu)), 0.01)
 
@@ -293,19 +294,26 @@ class SolTrappistCinematicTests(unittest.TestCase):
             self.assertTrue(nonzero)
             self.assertEqual(len({1 if value > 0 else -1 for value in nonzero}), 1)
 
-            # e/f billboards grow from wide → candidate (not pinned by a tiny MAX_FRAC).
-            scale = BLENDER_PLANET_BODY_SCALE['TRAPPIST-1 e']
+            # Chain markers stay modest; candidate hero matches Earth-open on-screen size.
+            chainScale = BLENDER_PLANET_BODY_SCALE['TRAPPIST-1 e']
             wideFrac = animator._blenderBillboardFracRadius(
-                TRAPPIST_WIDE_HALF_AU, scale, catalogName='TRAPPIST-1 e'
+                TRAPPIST_WIDE_HALF_AU, chainScale, catalogName='TRAPPIST-1 e'
             )
             candFrac = animator._blenderBillboardFracRadius(
-                TRAPPIST_CANDIDATE_HALF_AU, scale, catalogName='TRAPPIST-1 e'
+                TRAPPIST_CANDIDATE_HALF_AU,
+                TRAPPIST_CANDIDATE_BODY_SCALE,
+                catalogName='TRAPPIST-1 e',
+            )
+            earthFrac = animator._blenderBillboardFracRadius(
+                SOL_EARTH_CLOSE_HALF_AU, 1.0, catalogName='Earth'
             )
             self.assertIsNotNone(wideFrac)
             self.assertIsNotNone(candFrac)
-            assert wideFrac is not None and candFrac is not None
+            self.assertIsNotNone(earthFrac)
+            assert wideFrac is not None and candFrac is not None and earthFrac is not None
             self.assertLess(wideFrac, 0.006)
-            self.assertGreater(candFrac, wideFrac * 2.5)
+            self.assertGreater(candFrac, 0.25)
+            self.assertAlmostEqual(candFrac, earthFrac, places=3)
 
             # Candidate close-up must still queue e (SMA > halfWidth must not cull it).
             animator._viewFocus = animator._candidateFocusSol(candHold)
@@ -317,8 +325,11 @@ class SolTrappistCinematicTests(unittest.TestCase):
                 TRAPPIST_CANDIDATE_HALF_AU,
                 hzFocus=True,
             )
-            queued = [name for name, *_ in animator._pendingBlenderBodies]
+            queued = [entry[0] for entry in animator._pendingBlenderBodies]
             self.assertIn('TRAPPIST-1 e', queued)
+            # Hero paint scale should be Earth-matched.
+            eEntry = next(entry for entry in animator._pendingBlenderBodies if entry[0] == 'TRAPPIST-1 e')
+            self.assertAlmostEqual(float(eEntry[5]), TRAPPIST_CANDIDATE_BODY_SCALE, places=5)
         finally:
             import matplotlib.pyplot as plt
 

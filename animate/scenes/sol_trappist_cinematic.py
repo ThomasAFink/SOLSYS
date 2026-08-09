@@ -49,14 +49,16 @@ ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE = 0.055
 # Arrival: host readable; planets still tiny. Finale matches exoplanet scene (~0.09 AU).
 TRAPPIST_ARRIVE_HALF_AU = 2.0
 TRAPPIST_WIDE_HALF_AU = 0.15
-# HZ overview frames the band; candidate close-up centers e/f (not the host).
-TRAPPIST_HZ_HALF_AU = 0.040
-TRAPPIST_CANDIDATE_HALF_AU = 0.016
+# HZ overview frames the band; candidate close-up matches the blender Earth open frame.
+TRAPPIST_HZ_HALF_AU = 0.078
+TRAPPIST_CANDIDATE_HALF_AU = SOL_EARTH_CLOSE_HALF_AU
 TRAPPIST_INNER_HALF_AU = 0.09
+# Earth-matched hero disk for e (and f) once the camera is on the candidates.
+TRAPPIST_CANDIDATE_BODY_SCALE = 1.0
 # Monotonic tighten from arrive → planet-wide (no Proxima-style zoom-out waypoints).
 TRAPPIST_DIVE_WAYPOINTS_AU = (1.0, 0.4)
-TRAPPIST_HZ_DIVE_WAYPOINTS_AU = (0.09, 0.058)
-TRAPPIST_CANDIDATE_DIVE_WAYPOINTS_AU = (0.028, 0.020)
+TRAPPIST_HZ_DIVE_WAYPOINTS_AU = (0.12, 0.095)
+TRAPPIST_CANDIDATE_DIVE_WAYPOINTS_AU = (0.060, 0.048)
 TRAPPIST_ELEVATION_DEG = 58.0
 # Steeper view so the HZ annulus reads as a band, not a foreshortened line.
 TRAPPIST_HZ_ELEVATION_DEG = 62.0
@@ -208,10 +210,10 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         raise KeyError(name)
 
     def _candidateFocusSol(self, frame: int) -> np.ndarray:
-        """Look-at point between e and f (stable weights — no side-flip jumps)."""
+        """Earth-style hero look-at on e, with a light pull toward f."""
         planetE = self._trappistPlanetPositionSol(self._planetByName('TRAPPIST-1 e'), frame)
         planetF = self._trappistPlanetPositionSol(self._planetByName('TRAPPIST-1 f'), frame)
-        return 0.72 * planetE + 0.28 * planetF
+        return 0.88 * planetE + 0.12 * planetF
 
     def _trappistPlanetAnimationSpeed(self, frame: int) -> float:
         """Per-frame rate (for the accumulated motion clock only)."""
@@ -617,6 +619,18 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             )
             if not wantBillboard:
                 return
+            paintScale = bodyScale
+            if isHzCandidate and halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.05:
+                # Ramp chain-scale markers up to an Earth-open hero disk.
+                blend = smootherstep(
+                    np.clip(
+                        (TRAPPIST_HZ_HALF_AU - halfWidthAu)
+                        / max(TRAPPIST_HZ_HALF_AU - TRAPPIST_CANDIDATE_HALF_AU, 1e-6),
+                        0.0,
+                        1.0,
+                    )
+                )
+                paintScale = float(bodyScale + blend * (TRAPPIST_CANDIDATE_BODY_SCALE - bodyScale))
             queued = self._queueBlenderBody(
                 planet.name,
                 position,
@@ -625,13 +639,13 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
                 openCloseup=halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.25
                 or halfWidthAu <= TRAPPIST_CANDIDATE_HALF_AU * 1.35
                 or halfWidthAu <= TRAPPIST_INNER_HALF_AU * 1.05,
-                bodyScale=bodyScale * (1.08 if hzFocus and isHzCandidate else 1.0),
+                bodyScale=paintScale,
                 orbitalPhaseRad=None,
                 suppressDotFallback=True,
             )
             if queued:
                 self._pendingBlenderLabels.append(
-                    (planet.name, position.copy(), labelSize, bodyScale)
+                    (planet.name, position.copy(), labelSize, paintScale)
                 )
                 return
             # Pack present but not paintable this frame — omit (never flash catalog dots).
