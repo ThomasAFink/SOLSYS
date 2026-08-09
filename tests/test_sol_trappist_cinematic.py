@@ -228,6 +228,82 @@ class SolTrappistCinematicTests(unittest.TestCase):
 
             plt.close(animator.figure)
 
+    def test_blender_trappist_planets_never_flash_catalog_dots(self) -> None:
+        """Dive/HZ reveal must queue textured billboards — not scatter markers first."""
+        animator = SolTrappistCinematicAnimator(
+            self.system,
+            starsCsvPath=self.paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            # Need at least one TRAPPIST spin pack on disk for the no-dot path.
+            available = [
+                planet.name
+                for planet in animator.trappistPlanets
+                if animator._blenderBodyAvailable(planet.name)
+            ]
+            if not available:
+                self.skipTest('TRAPPIST Blender spin packs not present')
+
+            scatterHits = 0
+            queued: set[str] = set()
+            origScatter = animator.axes.scatter
+            origQueue = animator._queueBlenderBody
+
+            def scatterSpy(*args, **kwargs):
+                nonlocal scatterHits
+                scatterHits += 1
+                return origScatter(*args, **kwargs)
+
+            def queueSpy(catalogName, position, frame, halfWidthAu, **kwargs):
+                ok = origQueue(catalogName, position, frame, halfWidthAu, **kwargs)
+                if ok and str(catalogName).startswith('TRAPPIST-1'):
+                    queued.add(str(catalogName))
+                return ok
+
+            animator.axes.scatter = scatterSpy  # type: ignore[method-assign]
+            animator._queueBlenderBody = queueSpy  # type: ignore[method-assign]
+
+            # Sample half-widths from arrive → wide → HZ → candidate (disk gate opens mid-dive).
+            halfWidths = [
+                TRAPPIST_ARRIVE_HALF_AU,
+                TRAPPIST_WIDE_HALF_AU * 2.5,
+                TRAPPIST_WIDE_HALF_AU * 2.0,
+                TRAPPIST_WIDE_HALF_AU,
+                TRAPPIST_HZ_HALF_AU,
+                TRAPPIST_CANDIDATE_HALF_AU,
+                TRAPPIST_INNER_HALF_AU,
+            ]
+            for halfWidth in halfWidths:
+                animator._viewFocus = animator.hostSolAu.copy()
+                animator._viewHalfWidthAu = float(halfWidth)
+                animator._pendingBlenderBodies = []
+                hzFocus = halfWidth <= TRAPPIST_HZ_HALF_AU * 1.05
+                for planet in animator.trappistPlanets:
+                    if not animator._blenderBodyAvailable(planet.name):
+                        continue
+                    before = scatterHits
+                    animator._drawOneTrappistPlanet(
+                        planet,
+                        frame=0,
+                        halfWidthAu=float(halfWidth),
+                        hzFocus=hzFocus,
+                    )
+                    self.assertEqual(
+                        scatterHits,
+                        before,
+                        msg=(
+                            f'{planet.name} used a catalog scatter at '
+                            f'halfWidth={halfWidth:.4f} AU'
+                        ),
+                    )
+
+            self.assertTrue(queued, 'expected at least one TRAPPIST billboard queue')
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
 
 if __name__ == '__main__':
     unittest.main()

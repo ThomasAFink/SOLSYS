@@ -526,19 +526,26 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             return
 
         isHzCandidate = planet.name in TRAPPIST_HZ_FOCUS_NAMES
+        # Orbits can lead; disks wait until the frame is tight enough for textures.
+        drawOrbit = halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 3.0
+        drawDisk = halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 2.2
         pathX, pathY = self.trappistPlanetPathsLocal[planet.planetId]
         pathLocal = np.column_stack((pathX, pathY, np.zeros_like(pathX)))
         pathSol = pathLocal + self.hostSolAu
-        orbitAlpha = 0.95 if (hzFocus and isHzCandidate) else (0.45 if hzFocus else 0.85)
-        orbitWidth = 2.2 if (hzFocus and isHzCandidate) else 1.6
-        self.axes.plot(
-            pathSol[:, 0],
-            pathSol[:, 1],
-            pathSol[:, 2],
-            color=planet.color,
-            linewidth=orbitWidth,
-            alpha=orbitAlpha,
-        )
+        if drawOrbit:
+            orbitAlpha = 0.95 if (hzFocus and isHzCandidate) else (0.45 if hzFocus else 0.85)
+            orbitWidth = 2.2 if (hzFocus and isHzCandidate) else 1.6
+            self.axes.plot(
+                pathSol[:, 0],
+                pathSol[:, 1],
+                pathSol[:, 2],
+                color=planet.color,
+                linewidth=orbitWidth,
+                alpha=orbitAlpha,
+            )
+        if not drawDisk:
+            return
+
         position = self._trappistPlanetPositionSol(planet, frame)
         if not self._inView(position, margin=1.15):
             return
@@ -551,28 +558,35 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         else:
             labelSize = 9.0
         bodyScale = BLENDER_PLANET_BODY_SCALE.get(planet.name)
-        queued = False
-        if (
-            bodyScale is not None
-            and self.useBlenderBodies
-            and halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.2
-            and (not hzFocus or isHzCandidate or halfWidthAu >= TRAPPIST_INNER_HALF_AU * 0.95)
-        ):
+        if bodyScale is not None and self.useBlenderBodies:
+            # During HZ candidate close-up, keep e/f textured; other worlds stay orbits-only.
+            wantBillboard = (
+                not hzFocus or isHzCandidate or halfWidthAu >= TRAPPIST_INNER_HALF_AU * 0.9
+            )
+            if not wantBillboard:
+                return
             queued = self._queueBlenderBody(
                 planet.name,
                 position,
                 frame,
                 halfWidthAu,
-                openCloseup=halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.15
+                openCloseup=halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.25
+                or halfWidthAu <= TRAPPIST_CANDIDATE_HALF_AU * 1.2
                 or halfWidthAu <= TRAPPIST_INNER_HALF_AU * 1.05,
-                bodyScale=bodyScale * (1.15 if hzFocus and isHzCandidate else 1.0),
+                bodyScale=bodyScale * (1.2 if hzFocus and isHzCandidate else 1.0),
                 orbitalPhaseRad=None,
                 suppressDotFallback=True,
             )
-        if queued:
-            self._pendingBlenderLabels.append((planet.name, position.copy(), labelSize, bodyScale))
-            return
+            if queued:
+                self._pendingBlenderLabels.append(
+                    (planet.name, position.copy(), labelSize, bodyScale)
+                )
+                return
+            # Pack present but not paintable this frame — omit (never flash catalog dots).
+            if self._blenderBodyAvailable(planet.name):
+                return
 
+        # Classic dotted mode, or blender mode with a missing pack.
         baseSize = 64.0 if (hzFocus and isHzCandidate) else 48.0
         zoomBoost = np.clip(TRAPPIST_WIDE_HALF_AU / max(halfWidthAu, 1e-6), 1.0, 12.0)
         markerSize = baseSize * (zoomBoost**0.65)
