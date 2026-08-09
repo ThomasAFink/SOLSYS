@@ -61,6 +61,7 @@ SOLSYS/
 │       ├── exoplanet_system.py                    # Shared single-host exoplanet top-down animator
 │       ├── alpha_centauri.py                      # A–B close-up, wide triple; Proxima via exoplanet_system
 │       ├── sol_centauri_cinematic.py              # Sol → α Cen AB cinematic (uses frame transform)
+│       ├── sol_trappist_cinematic.py              # Sol → TRAPPIST-1 cinematic (Sol XYZ host)
 │       ├── barnards_star.py                       # Barnard's Star planets via exoplanet_system
 │       ├── trappist_1.py                          # TRAPPIST-1 planets via exoplanet_system
 │       ├── tabbys_star.py                         # Tabby's Star dust-cloud dimming schematic
@@ -85,6 +86,7 @@ SOLSYS/
 ├── tests/                                         # Unit tests (stdlib unittest)
 │   ├── test_frame_transform.py                    # Sol ↔ α Cen frame transform
 │   ├── test_sol_centauri_cinematic.py             # Sol → α Cen cinematic helpers
+│   ├── test_sol_trappist_cinematic.py             # Sol → TRAPPIST-1 cinematic helpers
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -115,6 +117,8 @@ SOLSYS/
 │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
 │   ├── sol_centauri/                          # classic cinematic GIFs
 │   │   └── blender/                           # cinematic with textured Earth/Moon
+│   ├── sol_trappist/                          # Sol → TRAPPIST-1 cinematic GIFs
+│   │   └── blender/                           # cinematic with TRAPPIST b–h billboards
 │   ├── barnards_star/                         # barnards_star_planets_{light,dark}.gif
 │   ├── trappist_1/                            # trappist_1_planets_{light,dark}.gif
 │   ├── tabbys_star/                           # tabbys_star_dust_{light,dark}.gif
@@ -155,6 +159,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Sol Centauri blender light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/blender/sol_centauri_cinematic_blender_light.gif?raw=true) | ![Sol Centauri blender dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/blender/sol_centauri_cinematic_blender_dark.gif?raw=true) |
+
+**Sol → TRAPPIST-1 cinematic (Blender bodies)**
+
+| Light | Dark |
+|-------|------|
+| ![Sol TRAPPIST blender light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_trappist/blender/sol_trappist_cinematic_blender_light.gif?raw=true) | ![Sol TRAPPIST blender dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_trappist/blender/sol_trappist_cinematic_blender_dark.gif?raw=true) |
 
 **Earth Blender close-up**
 
@@ -478,6 +488,11 @@ TRAPPIST-1 (issue #7) is a single-host ultracool dwarf (~40.7 ly) with seven con
 
 Blender close-ups (issue #69): `render.py blender --body "TRAPPIST-1 b"` … `"TRAPPIST-1 h" --flyby` / `--spin` write under `output/animate/blender/planets/trappist-1_<letter>/`.
 
+Sol → TRAPPIST-1 cinematic (issue #71): `--system sol_trappist` reuses the Sol opening / pullback from the α Cen tour, then cruises to TRAPPIST-1 at true Sol XYZ (~40.7 ly; no AB-style frame transform) and dives onto b–h. With `--blender-bodies`, finale billboards use the TRAPPIST spin packs (host stays a scatter marker until a star pack exists):
+
+- `output/animate/sol_trappist/sol_trappist_cinematic_{light,dark}.gif` — classic scatter-dot bodies
+- `output/animate/sol_trappist/blender/sol_trappist_cinematic_blender_{light,dark}.gif` — Blender Sol + TRAPPIST planet billboards
+
 Tabby's Star (issue #17 / Boyajian's Star / KIC 8462852) has no confirmed planets. The scene visualizes the leading **uneven circumstellar dust / debris** explanation for its irregular Kepler dips (not a megastructure). Animations render to `output/animate/tabbys_star/`:
 
 - `tabbys_star_dust_{light,dark}.gif` — real Kepler LC (`data/tabbys_star_lightcurve.csv`); orbiting dust clumps of different sizes cross the LOS at observed dip times
@@ -504,5 +519,5 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
 - More Blender close-ups (additional moons, asteroids, planets) via shared `data/textures/bodies/` packs
-- Disputed Proxima c Blender pack (optional) for cinematic finale billboards
-- Sol→TRAPPIST-1 cinematic using the new planet spin packs (#69)
+- Additional destination cinematics (Barnard's Star, Tabby's Star) on the Sol→TRAPPIST pattern
+- Optional TRAPPIST-1 host-star Blender photosphere pack for arrival billboards

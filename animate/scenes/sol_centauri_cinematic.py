@@ -86,11 +86,26 @@ BLENDER_PLANET_BODY_SCALE = {
     # Proxima finale — modest markers under the Proxima photosphere.
     'Proxima b': 0.22,
     'Proxima d': 0.14,
+    # TRAPPIST-1 finale (Sol→TRAPPIST cinematic) — compact chain under the host.
+    'TRAPPIST-1 b': 0.16,
+    'TRAPPIST-1 c': 0.16,
+    'TRAPPIST-1 d': 0.14,
+    'TRAPPIST-1 e': 0.15,
+    'TRAPPIST-1 f': 0.15,
+    'TRAPPIST-1 g': 0.16,
+    'TRAPPIST-1 h': 0.13,
 }
 # Cap on-screen size so the final close-up does not read as planet > star.
 BLENDER_PLANET_MAX_FRAC = {
     'Proxima b': 0.014,
     'Proxima d': 0.010,
+    'TRAPPIST-1 b': 0.012,
+    'TRAPPIST-1 c': 0.012,
+    'TRAPPIST-1 d': 0.011,
+    'TRAPPIST-1 e': 0.012,
+    'TRAPPIST-1 f': 0.012,
+    'TRAPPIST-1 g': 0.012,
+    'TRAPPIST-1 h': 0.010,
 }
 BLENDER_MOON_BODY_SCALE = {
     'Moon': 0.35,
@@ -1742,6 +1757,13 @@ class SolCentauriCinematicAnimator:
                 'Proxima Centauri': 'Proxima Centauri',
                 'Proxima b': 'b',
                 'Proxima d': 'd',
+                'TRAPPIST-1 b': 'b',
+                'TRAPPIST-1 c': 'c',
+                'TRAPPIST-1 d': 'd',
+                'TRAPPIST-1 e': 'e',
+                'TRAPPIST-1 f': 'f',
+                'TRAPPIST-1 g': 'g',
+                'TRAPPIST-1 h': 'h',
             }.get(name, name)
             # Keep labels with their disk in the depth stack (not always on top of stars).
             # Skip labels for disks occulted behind a star (not painted this frame).
