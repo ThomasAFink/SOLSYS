@@ -207,6 +207,13 @@ solsys.motion    → moving asteroid fields for animation frames
 | Proxima Centauri | ![Proxima light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/proxima_centauri/proxima_centauri_flyby_light.gif?raw=true) | ![Proxima dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/proxima_centauri/proxima_centauri_flyby_dark.gif?raw=true) |
 | Proxima b | ![Proxima b light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_b/proxima_b_flyby_light.gif?raw=true) | ![Proxima b dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_b/proxima_b_flyby_dark.gif?raw=true) |
 | Proxima d | ![Proxima d light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_d/proxima_d_flyby_light.gif?raw=true) | ![Proxima d dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_d/proxima_d_flyby_dark.gif?raw=true) |
+| TRAPPIST-1 b | ![TRAPPIST-1 b light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_b/trappist-1_b_flyby_light.gif?raw=true) | ![TRAPPIST-1 b dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_b/trappist-1_b_flyby_dark.gif?raw=true) |
+| TRAPPIST-1 c | ![TRAPPIST-1 c light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_c/trappist-1_c_flyby_light.gif?raw=true) | ![TRAPPIST-1 c dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_c/trappist-1_c_flyby_dark.gif?raw=true) |
+| TRAPPIST-1 d | ![TRAPPIST-1 d light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_d/trappist-1_d_flyby_light.gif?raw=true) | ![TRAPPIST-1 d dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_d/trappist-1_d_flyby_dark.gif?raw=true) |
+| TRAPPIST-1 e | ![TRAPPIST-1 e light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_e/trappist-1_e_flyby_light.gif?raw=true) | ![TRAPPIST-1 e dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_e/trappist-1_e_flyby_dark.gif?raw=true) |
+| TRAPPIST-1 f | ![TRAPPIST-1 f light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_f/trappist-1_f_flyby_light.gif?raw=true) | ![TRAPPIST-1 f dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_f/trappist-1_f_flyby_dark.gif?raw=true) |
+| TRAPPIST-1 g | ![TRAPPIST-1 g light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_g/trappist-1_g_flyby_light.gif?raw=true) | ![TRAPPIST-1 g dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_g/trappist-1_g_flyby_dark.gif?raw=true) |
+| TRAPPIST-1 h | ![TRAPPIST-1 h light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_h/trappist-1_h_flyby_light.gif?raw=true) | ![TRAPPIST-1 h dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_h/trappist-1_h_flyby_dark.gif?raw=true) |
 
 ### Static zoom views (side)
 
@@ -469,6 +476,8 @@ TRAPPIST-1 (issue #7) is a single-host ultracool dwarf (~40.7 ly) with seven con
 
 - `trappist_1_planets_{light,dark}.gif` — compact resonant chain (b–h)
 
+Blender close-ups (issue #69): `render.py blender --body "TRAPPIST-1 b"` … `"TRAPPIST-1 h" --flyby` / `--spin` write under `output/animate/blender/planets/trappist-1_<letter>/`.
+
 Tabby's Star (issue #17 / Boyajian's Star / KIC 8462852) has no confirmed planets. The scene visualizes the leading **uneven circumstellar dust / debris** explanation for its irregular Kepler dips (not a megastructure). Animations render to `output/animate/tabbys_star/`:
 
 - `tabbys_star_dust_{light,dark}.gif` — real Kepler LC (`data/tabbys_star_lightcurve.csv`); orbiting dust clumps of different sizes cross the LOS at observed dip times
@@ -495,4 +504,5 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
 - More Blender close-ups (additional moons, asteroids, planets) via shared `data/textures/bodies/` packs
-- Additional exoplanet Blender packs (e.g. disputed Proxima c) for cinematic finale billboards
+- Disputed Proxima c Blender pack (optional) for cinematic finale billboards
+- Sol→TRAPPIST-1 cinematic using the new planet spin packs (#69)
