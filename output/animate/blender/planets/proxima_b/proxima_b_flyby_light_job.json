@@ -666,7 +666,7 @@
       "bodyRotationDeg": 140.0
     }
   ],
-  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_proxima_b_light_iqqlkmyy/frames",
+  "outputDirectory": "/var/folders/nx/wwmkd72x7jn3p284yz62yz980000gn/T/solsys_flyby_proxima_b_light_akcunsq4/frames",
   "resolution": 640,
   "fps": 18,
   "filmTransparent": false,
@@ -676,19 +676,19 @@
     "textures": {
       "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/proxima_b/color.png"
     },
-    "roughness": 0.62,
-    "specular": 0.14,
+    "roughness": 0.68,
+    "specular": 0.08,
     "atmosphere": {
       "enabled": true,
       "scale": 1.03,
       "colorRgba": [
-        0.55,
-        0.35,
-        0.45,
+        0.7,
+        0.4,
+        0.28,
         1.0
       ],
-      "strength": 0.55,
-      "fresnelBlend": 0.12
+      "strength": 0.5,
+      "fresnelBlend": 0.11
     }
   }
 }
