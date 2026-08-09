@@ -65,6 +65,8 @@ End-to-end (Earth + Moon spins, then Sol→Centauri cinematic compositing those 
 
 Staged Sol zoom-out beats (issue #51) apply only with `--blender-bodies`: Earth/Moon → Near-Sun → inner planets → belt/Jupiter → Saturn → outer/Kuiper. Half-width plateaus + HUD captions; classic dotted mode is unchanged.
 
+Staged α Cen arrival beats (issue #63) likewise blender-only: AB hold → triple wide → Proxima dive → Proxima-wide hold → inner b/d. Classic arrival timing is unchanged.
+
 Products land in:
 
 ```text

@@ -452,6 +452,17 @@ Staged Sol zoom-out beats (issue #51) — blender mode only (`--blender-bodies`)
 | Saturn | ~18 AU | Rings linger floor |
 | Outer / Kuiper | ~42 AU | Ice giants + Pluto, then Oort pullback |
 
+Staged α Cen arrival beats (issue #63) — blender mode only; classic arrival timing unchanged:
+
+| Beat | Approx. scale | Notes |
+|------|---------------|--------|
+| AB approach | cruise → ~32 AU | Fly to α Cen; A/B resolve |
+| AB hold | ~32 AU | Textured α Cen A + B |
+| Triple wide | ~12 000 AU | A/B + Proxima framed |
+| Proxima dive | → ~2 AU | Zoom onto Proxima |
+| Proxima wide hold | ~2 AU | System overview before the inner close-up |
+| Inner planets | ~0.055 AU | b/d finale; Proxima photosphere stays textured |
+
 Beats ease in/out via half-width plateaus (no GIF splicing). HUD titles switch per beat.
 
 Barnard's Star (issue #15) is a nearby M dwarf (~6 ly) with four confirmed sub-Earth planets. Animations render via `exoplanet_system` to `output/animate/barnards_star/`:
@@ -488,4 +499,4 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
 - More Blender close-ups (additional moons, asteroids, planets) via shared `data/textures/bodies/` packs
-- Splice Earth/Moon Blender opens into the Sol→α Cen cinematic (#42)
+- Proxima planet Blender packs (b/d) for textured finale billboards

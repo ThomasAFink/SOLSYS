@@ -15,6 +15,7 @@ from animate.scenes.sol_centauri_cinematic import (
     BLENDER_STAR_BILLBOARD_HALF_AU,
     BLENDER_STAR_BODY_SCALE,
     PROXIMA_TRAVEL_END,
+    PROXIMA_WIDE_HALF_AU,
     PULLBACK_END,
     SOL_BEAT_BELT_ARRIVE,
     SOL_BEAT_BELT_HOLD_END,
@@ -594,6 +595,81 @@ class CinematicTransformTests(unittest.TestCase):
         _, holdHalf = self.animator._cameraState(hold)
         self.assertAlmostEqual(arriveHalf, self.animator.abHalfWidthAu, places=2)
         self.assertAlmostEqual(holdHalf, self.animator.abHalfWidthAu, places=2)
+
+    def test_blender_arrival_beats_hold_ab_triple_and_proxima_wide(self) -> None:
+        """Staged blender arrival (#63) plateaus at AB, triple-wide, and Proxima-wide."""
+        from animate.scenes.sol_centauri_cinematic import (
+            ARRIVAL_AB_HOLD_END,
+            ARRIVAL_AB_TRAVEL_END,
+            ARRIVAL_PROXIMA_DIVE_END,
+            ARRIVAL_PROXIMA_WIDE_HOLD_END,
+            ARRIVAL_WIDE_HOLD_END,
+            ARRIVAL_WIDE_OUT_ARRIVE,
+            PROXIMA_WIDE_HALF_AU,
+        )
+
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            frames = animator.animationFrames
+            abHold = int(0.5 * (ARRIVAL_AB_TRAVEL_END + ARRIVAL_AB_HOLD_END) * (frames - 1))
+            _, abHalf = animator._cameraState(abHold)
+            self.assertAlmostEqual(abHalf, animator.abHalfWidthAu, places=2)
+            abTitle, _ = animator._caption(
+                animator._travelProgress(abHold),
+                animator._proximaTravelProgress(abHold),
+                abHalf,
+                abHold / max(frames - 1, 1),
+            )
+            self.assertIn('A–B', abTitle)
+
+            tripleHold = int(
+                0.5 * (ARRIVAL_WIDE_OUT_ARRIVE + ARRIVAL_WIDE_HOLD_END) * (frames - 1)
+            )
+            focus, tripleHalf = animator._cameraState(tripleHold)
+            np.testing.assert_allclose(focus, animator.barycenterSolAu, atol=1e-6)
+            self.assertAlmostEqual(tripleHalf, animator.wideHalfWidthAu, places=2)
+            tripleTitle, _ = animator._caption(
+                animator._travelProgress(tripleHold),
+                animator._proximaTravelProgress(tripleHold),
+                tripleHalf,
+                tripleHold / max(frames - 1, 1),
+            )
+            self.assertIn('triple', tripleTitle.lower())
+
+            proxWideHold = int(
+                0.5
+                * (ARRIVAL_PROXIMA_DIVE_END + ARRIVAL_PROXIMA_WIDE_HOLD_END)
+                * (frames - 1)
+            )
+            proxFocus, proxHalf = animator._cameraState(proxWideHold)
+            np.testing.assert_allclose(
+                proxFocus, animator._proximaPositionSol(proxWideHold), atol=1e-6
+            )
+            self.assertAlmostEqual(proxHalf, PROXIMA_WIDE_HALF_AU, places=4)
+            proxTitle, _ = animator._caption(
+                animator._travelProgress(proxWideHold),
+                animator._proximaTravelProgress(proxWideHold),
+                proxHalf,
+                proxWideHold / max(frames - 1, 1),
+            )
+            self.assertIn('Proxima', proxTitle)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_classic_arrival_skips_proxima_wide_hold(self) -> None:
+        """Dotted mode has no extra Proxima-wide plateau after the dive."""
+        frames = self.animator.animationFrames
+        # Just after classic PROXIMA_TRAVEL_END, half-width should already be tightening.
+        postDive = int(np.ceil((PROXIMA_TRAVEL_END + 0.005) * (frames - 1)))
+        _, halfWidth = self.animator._cameraState(postDive)
+        self.assertLess(halfWidth, PROXIMA_WIDE_HALF_AU - 1e-6)
 
     def test_outer_planet_moves_during_sol_opening(self) -> None:
         frames = self.animator.animationFrames
