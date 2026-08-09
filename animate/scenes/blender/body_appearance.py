@@ -258,6 +258,33 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
             fresnelBlend=0.12,
         ),
     ),
+    # Proxima planets — gallery-grade packs for the cinematic finale (#65).
+    _planet(
+        'proxima_b',
+        'Proxima b',
+        roughness=0.68,
+        specular=0.08,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.03,
+            colorRgba=(0.70, 0.40, 0.28, 1.0),
+            strength=0.50,
+            fresnelBlend=0.11,
+        ),
+    ),
+    _planet(
+        'proxima_d',
+        'Proxima d',
+        roughness=0.82,
+        specular=0.04,
+        atmosphere=BodyAtmosphere(
+            enabled=True,
+            scale=1.018,
+            colorRgba=(0.50, 0.52, 0.55, 1.0),
+            strength=0.22,
+            fresnelBlend=0.08,
+        ),
+    ),
     _planet(
         'jupiter',
         'Jupiter',
