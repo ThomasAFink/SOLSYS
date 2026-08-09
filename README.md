@@ -148,19 +148,13 @@ solsys.motion    → moving asteroid fields for animation frames
 
 | Light | Dark |
 |-------|------|
-| ![Inner 2D light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/animate/2d/inner_solar_system_light.gif?raw=true) | ![Inner 2D dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/animate/2d/inner_solar_system_dark.gif?raw=true) |
+| ![Inner 2D light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/2d/inner_solar_system_light.gif?raw=true) | ![Inner 2D dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/2d/inner_solar_system_dark.gif?raw=true) |
 
-**Solar System Zoom**
-
-| Light | Dark |
-|-------|------|
-| ![Zoom 3D light](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/animate/3d/solar_system_light.gif?raw=true) | ![Zoom 3D dark](https://github.com/ThomasAFink/visualization_of_the_solar_system_on_an_interstellar_scale/blob/main/output/animate/3d/solar_system_dark.gif?raw=true) |
-
-**Sol → Alpha Centauri cinematic**
+**Sol → Alpha Centauri cinematic (Blender bodies)**
 
 | Light | Dark |
 |-------|------|
-| ![Sol Centauri light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/sol_centauri_cinematic_light.gif?raw=true) | ![Sol Centauri dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/sol_centauri_cinematic_dark.gif?raw=true) |
+| ![Sol Centauri blender light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/blender/sol_centauri_cinematic_blender_light.gif?raw=true) | ![Sol Centauri blender dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_centauri/blender/sol_centauri_cinematic_blender_dark.gif?raw=true) |
 
 **Earth Blender close-up**
 
@@ -388,7 +382,7 @@ Blender → cinematic workflow:
 .venv/bin/python render.py blender --pipeline
 ```
 
-Sol → Centauri cinematic with `--blender-bodies` (issues #42 / #49) keeps the same camera tour but composites Blender spin frames **each `FuncAnimation` frame** (not GIF concat) for every Sol body that has a spin pack — planets (incl. ringed giants), major moons, and named asteroids/dwarfs. Loops are lazy-loaded by zoom stage; missing packs and tiny on-screen disks fall back to catalog dots (Earth/Moon keep the no-blue/gray-dot rule). Outputs go under `output/animate/sol_centauri/blender/` (classic dotted GIFs stay in `output/animate/sol_centauri/`).
+Sol → Centauri cinematic with `--blender-bodies` (issues #42 / #49 / #65 / #67) keeps the same camera tour but composites Blender spin frames **each `FuncAnimation` frame** (not GIF concat) for every Sol body that has a spin pack — planets (incl. ringed giants), major moons, and named asteroids/dwarfs. Loops are lazy-loaded by zoom stage; missing packs fall back to catalog dots, while floored disks stay textured through the Kuiper linger (Earth/Moon keep the no-blue/gray-dot rule). Gallery preview uses the Blender outputs under `output/animate/sol_centauri/blender/`.
 
 Alpha Centauri (issue #1) is one `system_id` covering A, B, and Proxima. Animations render to `output/animate/alpha_centauri/`:
 

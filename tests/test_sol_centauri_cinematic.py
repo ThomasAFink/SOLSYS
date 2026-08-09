@@ -698,6 +698,38 @@ class CinematicTransformTests(unittest.TestCase):
 
             plt.close(animator.figure)
 
+    def test_blender_planets_stay_above_dot_cutoff_at_kuiper(self) -> None:
+        """Kuiper linger must keep floored planet disks above the eased dot fallback."""
+        from animate.scenes.sol_centauri_cinematic import (
+            BLENDER_MIN_BILLBOARD_FRAC,
+            BLENDER_PLANET_BODY_SCALE,
+            blenderOuterFloorScale,
+        )
+
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            half = SOL_OUTER_LINGER_HALF_AU
+            minFrac = BLENDER_MIN_BILLBOARD_FRAC * blenderOuterFloorScale(half)
+            self.assertLess(minFrac, BLENDER_MIN_BILLBOARD_FRAC)
+            for name in ('Mercury', 'Earth', 'Neptune', 'Pluto'):
+                frac = animator._blenderBillboardFracRadius(
+                    half,
+                    BLENDER_PLANET_BODY_SCALE[name],
+                    catalogName=name,
+                )
+                self.assertIsNotNone(frac)
+                assert frac is not None
+                self.assertGreaterEqual(frac, minFrac)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
     def test_blender_proxima_planets_capped_on_finale(self) -> None:
         """Proxima b/d billboards stay textured but capped at the inner close-up."""
         from animate.scenes.sol_centauri_cinematic import (
