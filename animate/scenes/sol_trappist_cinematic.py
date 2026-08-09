@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from solsys.physics.catalogs.system_catalog import StarSystem, SystemCatalog, SystemPlanet
 
 from animate.scenes.exoplanet_system import bodyPositionInOrbitalPlane, orbitPathInOrbitalPlane
@@ -53,12 +54,15 @@ TRAPPIST_INNER_HALF_AU = 0.09
 TRAPPIST_DIVE_WAYPOINTS_AU = (1.0, 0.4)
 TRAPPIST_HZ_DIVE_WAYPOINTS_AU = (0.10, 0.07)
 TRAPPIST_ELEVATION_DEG = 58.0
+# Steeper view so the HZ annulus reads as a band, not a foreshortened line.
+TRAPPIST_HZ_ELEVATION_DEG = 62.0
 # Schematic conservative liquid-water HZ for an ultracool dwarf (not a climate model).
 # Spans roughly outside d through e/f; g rides the outer rim.
 TRAPPIST_HZ_INNER_AU = 0.024
 TRAPPIST_HZ_OUTER_AU = 0.046
 TRAPPIST_HZ_FOCUS_NAMES = ('TRAPPIST-1 e', 'TRAPPIST-1 f')
-TRAPPIST_HZ_COLOR = '#5CDB8A'
+TRAPPIST_HZ_COLOR_DARK = '#7DFFB0'
+TRAPPIST_HZ_COLOR_LIGHT = '#1B8A4A'
 
 # Classic dotted timeline (after shared Sol open / pullback).
 TRAPPIST_TRAVEL_END = 0.82
@@ -80,6 +84,15 @@ ARRIVAL_TRAPPIST_INNER_ARRIVE = 0.975
 
 OUTPUT_DIRECTORY = 'output/animate/sol_trappist'
 BLENDER_OUTPUT_DIRECTORY = 'output/animate/sol_trappist/blender'
+
+
+def _hexToRgb(color: str) -> tuple[float, float, float]:
+    text = color.lstrip('#')
+    return (
+        int(text[0:2], 16) / 255.0,
+        int(text[2:4], 16) / 255.0,
+        int(text[4:6], 16) / 255.0,
+    )
 
 
 class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
@@ -346,8 +359,12 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             self._label3d(host, f'  {label}', color=self.labelColor, fontsize=9)
             return
 
+        hzFocus = (
+            self._hzArrive() <= linear <= self._hzHoldEnd()
+            or abs(halfWidthAu - TRAPPIST_HZ_HALF_AU) < 1e-3
+        )
         if halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.15:
-            self._drawHabitableZoneBand(halfWidthAu)
+            self._drawHabitableZoneBand(halfWidthAu, hzFocus=hzFocus)
 
         starSize = 520.0 if halfWidthAu <= TRAPPIST_INNER_HALF_AU * 1.8 else 320.0
         self._drawStarMarker(
@@ -363,53 +380,75 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             fontsize=11.0 if halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.05 else 10.0,
         )
 
-        hzFocus = (
-            self._hzArrive() <= linear <= self._hzHoldEnd()
-            or abs(halfWidthAu - TRAPPIST_HZ_HALF_AU) < 1e-3
-        )
         for planet in self.trappistPlanets:
             self._drawOneTrappistPlanet(planet, frame, halfWidthAu, hzFocus=hzFocus)
 
-    def _drawHabitableZoneBand(self, halfWidthAu: float) -> None:
-        """Schematic annular HZ in the face-on orbital plane around the host."""
-        del halfWidthAu
+    def _habitableZoneColor(self) -> str:
+        return TRAPPIST_HZ_COLOR_DARK if self.isDark else TRAPPIST_HZ_COLOR_LIGHT
+
+    def _drawHabitableZoneBand(self, halfWidthAu: float, *, hzFocus: bool) -> None:
+        """Filled schematic HZ annulus — readable at wide + HZ camera scales."""
         host = self.hostSolAu
-        theta = np.linspace(0.0, 2.0 * np.pi, 160)
+        color = self._habitableZoneColor()
+        theta = np.linspace(0.0, 2.0 * np.pi, 96)
         cosT = np.cos(theta)
         sinT = np.sin(theta)
-        bandAlpha = 0.16 if self.isDark else 0.22
-        for radius in np.linspace(TRAPPIST_HZ_INNER_AU, TRAPPIST_HZ_OUTER_AU, 7):
-            ring = host + np.column_stack((radius * cosT, radius * sinT, np.zeros_like(theta)))
-            self.axes.plot(
-                ring[:, 0],
-                ring[:, 1],
-                ring[:, 2],
-                color=TRAPPIST_HZ_COLOR,
-                linewidth=2.2,
-                alpha=bandAlpha,
-                zorder=2,
-            )
-        for radius, width in (
-            (TRAPPIST_HZ_INNER_AU, 1.4),
-            (TRAPPIST_HZ_OUTER_AU, 1.4),
-        ):
+        outer = host + np.column_stack(
+            (TRAPPIST_HZ_OUTER_AU * cosT, TRAPPIST_HZ_OUTER_AU * sinT, np.zeros_like(theta))
+        )
+        inner = host + np.column_stack(
+            (TRAPPIST_HZ_INNER_AU * cosT, TRAPPIST_HZ_INNER_AU * sinT, np.zeros_like(theta))
+        )
+        # Closed annulus polygon (outer ring, then reverse inner).
+        verts = np.vstack((outer, inner[::-1]))
+        faceAlpha = 0.34 if hzFocus else (0.26 if self.isDark else 0.30)
+        collection = Poly3DCollection(
+            [verts],
+            facecolors=(*_hexToRgb(color), faceAlpha),
+            edgecolors=(*_hexToRgb(color), 0.85 if hzFocus else 0.7),
+            linewidths=2.0 if hzFocus else 1.5,
+        )
+        collection.set_zorder(2)
+        self.axes.add_collection3d(collection)
+
+        # Bold rims so the band reads even when 3D foreshortening flattens the fill.
+        rimWidth = 3.4 if hzFocus else 2.6
+        rimAlpha = 0.95 if hzFocus else 0.8
+        for radius in (TRAPPIST_HZ_INNER_AU, TRAPPIST_HZ_OUTER_AU):
             rim = host + np.column_stack((radius * cosT, radius * sinT, np.zeros_like(theta)))
             self.axes.plot(
                 rim[:, 0],
                 rim[:, 1],
                 rim[:, 2],
-                color=TRAPPIST_HZ_COLOR,
-                linewidth=width,
-                alpha=0.55 if self.isDark else 0.65,
+                color=color,
+                linewidth=rimWidth,
+                alpha=rimAlpha,
                 zorder=3,
+                linestyle='--',
             )
-        labelPos = host + np.array([TRAPPIST_HZ_OUTER_AU * 0.78, TRAPPIST_HZ_OUTER_AU * 0.55, 0.0])
-        self._label3d(
-            labelPos,
-            '  approx. habitable zone',
-            color=TRAPPIST_HZ_COLOR,
-            fontsize=8,
-            alpha=0.9,
+
+        # Screen-space label (3D text vanishes into the foreshortened ring).
+        scaleNote = ''
+        if halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.15:
+            scaleNote = ' · e & f'
+        self.bodyOverlay.text(
+            0.50,
+            0.11,
+            f'Habitable zone (schematic){scaleNote}',
+            ha='center',
+            va='center',
+            color=color,
+            fontsize=12 if hzFocus else 11,
+            fontweight='bold',
+            alpha=0.95,
+            zorder=25,
+            bbox={
+                'boxstyle': 'round,pad=0.28',
+                'facecolor': '#101010' if self.isDark else '#F7F7F7',
+                'edgecolor': color,
+                'linewidth': 1.4,
+                'alpha': 0.82 if self.isDark else 0.88,
+            },
         )
 
     def _drawOneTrappistPlanet(
@@ -616,12 +655,18 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             blend = segmentProgress(linear, PULLBACK_END, PULLBACK_END + 0.02)
             elev = SOL_ELEVATION_DEG + blend * (CAMERA_ELEVATION_DEG - SOL_ELEVATION_DEG)
             azim = lerpAngleDeg(self.solAzimuthDeg, self.travelAzimuthDeg, blend)
-        elif linear < self._hzHoldEnd():
-            # Steady travel camera through dive, wide hold, and HZ linger.
+        elif linear < self._proximaWideHoldEnd():
             elev, azim = CAMERA_ELEVATION_DEG, self.travelAzimuthDeg
+        elif linear < self._hzHoldEnd():
+            # Tilt up into the HZ linger so the filled annulus stays readable.
+            blend = segmentProgress(linear, self._proximaWideHoldEnd(), self._hzArrive())
+            elev = CAMERA_ELEVATION_DEG + blend * (TRAPPIST_HZ_ELEVATION_DEG - CAMERA_ELEVATION_DEG)
+            azim = self.travelAzimuthDeg
         else:
             blend = segmentProgress(linear, self._hzHoldEnd(), self._proximaInnerArrive())
-            elev = CAMERA_ELEVATION_DEG + blend * (TRAPPIST_ELEVATION_DEG - CAMERA_ELEVATION_DEG)
+            elev = TRAPPIST_HZ_ELEVATION_DEG + blend * (
+                TRAPPIST_ELEVATION_DEG - TRAPPIST_HZ_ELEVATION_DEG
+            )
             azim = self.travelAzimuthDeg
 
         self.axes.view_init(elev=elev, azim=azim)
