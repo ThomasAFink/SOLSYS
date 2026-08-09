@@ -460,19 +460,19 @@
     "textures": {
       "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/proxima_b/color.png"
     },
-    "roughness": 0.62,
-    "specular": 0.14,
+    "roughness": 0.68,
+    "specular": 0.08,
     "atmosphere": {
       "enabled": true,
       "scale": 1.03,
       "colorRgba": [
-        0.55,
-        0.35,
-        0.45,
+        0.7,
+        0.4,
+        0.28,
         1.0
       ],
-      "strength": 0.55,
-      "fresnelBlend": 0.12
+      "strength": 0.5,
+      "fresnelBlend": 0.11
     }
   }
 }
