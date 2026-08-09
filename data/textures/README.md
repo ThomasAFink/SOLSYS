@@ -13,7 +13,8 @@ data/textures/
     ├── moon/
     │   └── color.png          # equirectangular color map (airless)
     ├── sun/                   # Sol photosphere (emissive star close-up)
-    ├── alpha_centauri_a/ …    # α Cen A/B + Proxima (spectral-tint from Sol)
+    ├── alpha_centauri_a/ …    # α Cen A/B + Proxima star (spectral-tint from Sol)
+    ├── proxima_b/ proxima_d/  # Proxima planets (gallery-grade; cinematic finale)
     ├── mercury/ … pluto/      # Sol planet packs (color; rings where applicable)
     ├── io/ … charon/          # major moon packs (airless; Titan haze in code)
     └── ceres/ … eris/         # asteroids / dwarf planets (airless)
@@ -105,6 +106,18 @@ Equirectangular color maps under `bodies/<bodyId>/color.png` for every `MoonCata
 
 - **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/)).
 - Titan’s spacecraft map is low-contrast; the EEVEE orange limb haze carries most of the recognizable look.
+
+## Proxima planets (b / d)
+
+Fully procedural equirect maps for the Sol→α Cen cinematic finale (`kind=planet`). No spacecraft mosaics and **not** remixed Earth/Mars plates (those still read as familiar continents / polar ice). Schematic diameters in `planets.csv`.
+
+| Body | Pack notes | Primary source |
+|------|------------|----------------|
+| Proxima b | Tidally locked “eyeball”: scorched day rock + terminator dust band + charcoal night; no oceans / polar ice (`bodies/proxima_b/`) | Generated in-repo (fBm + domain warp) |
+| Proxima d | Cool airless cratered rock; no oceans / ice caps (`bodies/proxima_d/`) | Generated in-repo (fBm + crater mask) |
+
+- CLI: `render.py blender --body "Proxima b"` / `"Proxima d" --flyby` / `--spin`
+- Disputed Proxima c stays a scatter marker (no pack yet)
 
 ## Asteroids & dwarf planets
 

@@ -15,6 +15,7 @@ from solsys.physics.catalogs.famous_asteroid_catalog import (
 )
 from solsys.physics.catalogs.moon_catalog import MoonCatalog, MoonOrbit
 from solsys.physics.catalogs.planet_catalog import PlanetCatalog, PlanetOrbit
+from solsys.physics.catalogs.system_catalog import SystemCatalog, SystemPlanet
 from solsys.physics.orbit_calculator import OrbitCalculator
 
 # FamousAsteroidCatalog uses hex colors; planets/moons use matplotlib names.
@@ -427,13 +428,67 @@ def buildSunBodyScene(
     return buildStarBodyScene('Sun', frameCount=frameCount, constants=constants)
 
 
+def _systemPlanetByName(bodyName: str) -> SystemPlanet | None:
+    """Look up an exoplanet by display name across ``SystemCatalog``."""
+    catalog = SystemCatalog()
+    for systemId in catalog.listSystemIds():
+        system = catalog.load(systemId)
+        for planet in system.planets:
+            if planet.name == bodyName:
+                return planet
+    return None
+
+
+def buildSystemPlanetBodyScene(
+    bodyName: str,
+    *,
+    frameCount: int = 120,
+    constants: AstronomicalConstants | None = None,
+) -> BodyScene:
+    """Build a Blender-ingestible scene for a ``SystemCatalog`` planet (e.g. Proxima b)."""
+    if frameCount < 2:
+        raise ValueError('frameCount must be >= 2')
+    planet = _systemPlanetByName(bodyName)
+    if planet is None:
+        raise ValueError(f'Unknown system planet {bodyName!r}')
+
+    constants = constants or AstronomicalConstants()
+    body = BodySceneBody(
+        name=planet.name,
+        kind='planet',
+        systemId=planet.systemId,
+        semiMajorAxisAu=planet.semiMajorAxisAu,
+        eccentricity=planet.eccentricity,
+        inclinationDeg=planet.inclinationDeg,
+        orbitalPeriodDays=planet.orbitalPeriodDays,
+        diameterKm=planet.diameterKm,
+        color=planet.color,
+        colorRgba=colorRgbaForName(planet.color),
+        displayRadiusAu=displayRadiusAu(planet.diameterKm, constants),
+    )
+    keyframes = _orbitKeyframes(
+        semiMajorAxisAu=max(planet.semiMajorAxisAu, 0.02),
+        eccentricity=planet.eccentricity,
+        inclinationDeg=planet.inclinationDeg,
+        orbitalPeriodDays=max(planet.orbitalPeriodDays, 1.0),
+        frameCount=frameCount,
+    )
+    cameraHintDistanceAu = max(body.displayRadiusAu * 8.0, 0.05)
+    return BodyScene(
+        schema=SCHEMA_ID,
+        body=body,
+        keyframes=keyframes,
+        cameraHintDistanceAu=cameraHintDistanceAu,
+    )
+
+
 def buildBodyScene(
     bodyName: str = 'Earth',
     *,
     frameCount: int = 120,
     constants: AstronomicalConstants | None = None,
 ) -> BodyScene:
-    """Build a body scene from planet / moon / asteroid catalogs, or a registered star."""
+    """Build a body scene from planet / moon / asteroid catalogs, stars, or system planets."""
     constants = constants or AstronomicalConstants()
     if bodyName in _STAR_SPECS:
         return buildStarBodyScene(bodyName, frameCount=frameCount, constants=constants)
@@ -446,6 +501,9 @@ def buildBodyScene(
         return buildMoonBodyScene(bodyName, frameCount=frameCount, constants=constants)
     if bodyName in asteroids:
         return buildAsteroidBodyScene(bodyName, frameCount=frameCount, constants=constants)
+    systemPlanet = _systemPlanetByName(bodyName)
+    if systemPlanet is not None:
+        return buildSystemPlanetBodyScene(bodyName, frameCount=frameCount, constants=constants)
     knownStars = ', '.join(sorted(_STAR_SPECS))
     knownPlanets = ', '.join(sorted(planets))
     knownMoons = ', '.join(sorted(moons))
@@ -453,5 +511,6 @@ def buildBodyScene(
     raise ValueError(
         f'Unknown body {bodyName!r}. Known stars: {knownStars}. '
         f'Known planets: {knownPlanets}. Known moons: {knownMoons}. '
-        f'Known asteroids: {knownAsteroids}'
+        f'Known asteroids: {knownAsteroids}. '
+        f'Also: SystemCatalog exoplanets (e.g. "Proxima b").'
     )

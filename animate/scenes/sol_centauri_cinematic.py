@@ -83,6 +83,14 @@ BLENDER_PLANET_BODY_SCALE = {
     'Uranus': 1.05,
     'Neptune': 1.0,
     'Pluto': 0.32,
+    # Proxima finale — modest markers under the Proxima photosphere.
+    'Proxima b': 0.22,
+    'Proxima d': 0.14,
+}
+# Cap on-screen size so the final close-up does not read as planet > star.
+BLENDER_PLANET_MAX_FRAC = {
+    'Proxima b': 0.014,
+    'Proxima d': 0.010,
 }
 BLENDER_MOON_BODY_SCALE = {
     'Moon': 0.35,
@@ -113,20 +121,28 @@ BLENDER_ASTEROID_BODY_SCALE = {
     'Eris': 0.11,
 }
 # Star photosphere billboards (world scale vs Earth globe).
-# Sol: Near-Sun / inner holds read as a clear textured disk, not a ~40px speck.
-# α Cen A/B: readable at AB hold (~32 AU). Proxima: readable on the wide→dive approach.
+# Sol: Near-Sun hero disk, but radius must stay inside Mercury's orbit (~0.39 AU).
+# α Cen A/B: readable at AB hold (~32 AU).
+# Proxima: MUST stay smaller than Proxima d/b orbits (~0.029 / 0.049 AU) or the
+# planets crawl across the photosphere instead of orbiting around it.
 BLENDER_STAR_BODY_SCALE = {
-    'Sun': 8.0,
+    'Sun': 5.5,
     'Alpha Centauri A': 48.0,
     'Alpha Centauri B': 40.0,
-    'Proxima Centauri': 6.0,
+    # Under Proxima d's orbit (~0.029 AU); larger than b/d planet billboards.
+    'Proxima Centauri': 0.75,
 }
 # Cap on-screen size for non-Sol stars so the Proxima dive does not fill the frame.
 BLENDER_STAR_MAX_FRAC = {
     'Alpha Centauri A': 0.055,
     'Alpha Centauri B': 0.048,
-    'Proxima Centauri': 0.09,
+    # Keep under planet orbit fracs through the wide→inner tighten.
+    'Proxima Centauri': 0.055,
 }
+# Sol outer-system readability floor (figure fraction). Raw world scale alone
+# shrinks below floored planet disks at Saturn/Kuiper and the Sun vanishes.
+BLENDER_SUN_OUTER_MIN_FRAC = 0.008
+BLENDER_SUN_OUTER_FLOOR_HALF_AU = 20.0
 # Below this on-screen (floored) fraction, non-Earth/Moon packs fall back to catalog dots.
 # Matches the default paint floor so world-fixed disks stay textured through Sol zoom-out.
 BLENDER_MIN_BILLBOARD_FRAC = 0.0035
@@ -235,18 +251,19 @@ AB_HOLD_END = 0.85
 # Pull out to the A–B + Proxima triple view, then linger before diving to Proxima.
 WIDE_OUT_ARRIVE = 0.89
 WIDE_OUT_END = 0.935
-PROXIMA_TRAVEL_END = 0.96
+PROXIMA_TRAVEL_END = 0.945
 # Longer, slower tighten onto b/d so the final zoom does not rush.
-PROXIMA_INNER_ARRIVE = 0.985
+PROXIMA_INNER_ARRIVE = 0.97
 # Blender-only α Cen arrival beats (#63). Classic dotted mode keeps the constants above.
 # AB approach → AB hold → triple wide hold → Proxima dive → Proxima-wide hold → inner.
+# Inner b/d hold is intentionally long (~5% of the GIF) so the finale can breathe.
 ARRIVAL_AB_TRAVEL_END = 0.76
-ARRIVAL_AB_HOLD_END = 0.835
-ARRIVAL_WIDE_OUT_ARRIVE = 0.87
-ARRIVAL_WIDE_HOLD_END = 0.91
-ARRIVAL_PROXIMA_DIVE_END = 0.945
-ARRIVAL_PROXIMA_WIDE_HOLD_END = 0.97
-ARRIVAL_PROXIMA_INNER_ARRIVE = 0.99
+ARRIVAL_AB_HOLD_END = 0.815
+ARRIVAL_WIDE_OUT_ARRIVE = 0.845
+ARRIVAL_WIDE_HOLD_END = 0.875
+ARRIVAL_PROXIMA_DIVE_END = 0.905
+ARRIVAL_PROXIMA_WIDE_HOLD_END = 0.925
+ARRIVAL_PROXIMA_INNER_ARRIVE = 0.945
 CAMERA_ELEVATION_DEG = 22.0
 SOL_ELEVATION_DEG = 28.0
 # Top-down open so the Moon orbit fills the viewport (3D foreshortening shrinks it).
@@ -618,6 +635,8 @@ class SolCentauriCinematicAnimator:
         ] = []
         # (name, center, fontsize, bodyScale)
         self._pendingBlenderLabels: list[tuple[str, np.ndarray, float, float]] = []
+        # Billboard paint zorder by (name, x, y, z) after depth sort in overlay flush.
+        self._blenderBodyPaintZorder: dict[tuple[str, float, float, float], int] = {}
         self.blenderSprites: BlenderBodySpriteAtlas | None = None
         if self.useBlenderBodies:
             themeName = 'dark' if self.isDark else 'light'
@@ -1011,6 +1030,7 @@ class SolCentauriCinematicAnimator:
         self.bodyOverlay.set_ylim(0.0, 1.0)
         self._pendingBlenderBodies = []
         self._pendingBlenderLabels = []
+        self._blenderBodyPaintZorder = {}
         for textArtist in list(self.figure.texts):
             textArtist.remove()
         focus, halfWidthAu = self._cameraState(frame)
@@ -1170,7 +1190,12 @@ class SolCentauriCinematicAnimator:
             )
         if wantSun:
             if not queuedSun:
-                self._drawStarMarker(sunPosition, STAR_COLORS['sun'], sunSize)
+                self._drawStarMarker(
+                    sunPosition,
+                    STAR_COLORS['sun'],
+                    sunSize,
+                    zorder=self._scatterDepthZorder(sunPosition, base=5),
+                )
             if sunInView and halfWidthAu < 120.0:
                 if queuedSun:
                     self._pendingBlenderLabels.append(
@@ -1257,7 +1282,7 @@ class SolCentauriCinematicAnimator:
                 color=planet.color,
                 s=self._solPlanetMarkerSize(name, halfWidthAu),
                 depthshade=True,
-                zorder=6 if plutoOuter else 5,
+                zorder=self._scatterDepthZorder(position, base=6 if plutoOuter else 4),
             )
         if name in LABELED_SOL_PLANETS or (
             halfWidthAu < SOL_INNER_HALF_AU and name in ('Mercury', 'Venus', 'Mars')
@@ -1505,11 +1530,58 @@ class SolCentauriCinematicAnimator:
             return None
         return radiusAu
 
+    def _cameraDepthKey(self, position: np.ndarray) -> float:
+        """Scalar depth along the view axis; larger means closer to the camera.
+
+        Used to painter-sort flat billboard overlays so bodies behind a star
+        (Mercury at near-Sun, Proxima b/d at the finale) do not paint on top of it.
+        """
+        elev = np.deg2rad(self.axes.elev)
+        azim = np.deg2rad(self.axes.azim)
+        # Unit vector from scene focus toward the camera eye (matplotlib convention).
+        eyeDir = np.array(
+            [
+                np.cos(elev) * np.cos(azim),
+                np.cos(elev) * np.sin(azim),
+                np.sin(elev),
+            ],
+            dtype=float,
+        )
+        focus = getattr(self, '_viewFocus', np.zeros(3))
+        return float(np.dot(np.asarray(position, dtype=float) - focus, eyeDir))
+
+    def _scatterDepthZorder(self, position: np.ndarray, *, base: int = 4) -> int:
+        """Map camera depth to a discrete axes zorder (farther → lower)."""
+        half = max(float(getattr(self, '_viewHalfWidthAu', 1.0)), 1e-6)
+        # 0 = far side of the frame, 1 = near side.
+        nearness = float(np.clip(0.5 + 0.5 * (self._cameraDepthKey(position) / half), 0.0, 1.0))
+        return base + int(round(nearness * 5.0))
+
+    def _projectBlenderOverlay(self, center: np.ndarray) -> tuple[np.ndarray, float] | None:
+        """Project a body center to figure-fraction coords + camera depth."""
+        x2, y2, _ = proj3d.proj_transform(
+            float(center[0]),
+            float(center[1]),
+            float(center[2]),
+            self.axes.get_proj(),
+        )
+        display = self.axes.transData.transform((x2, y2))
+        frac = self.figure.transFigure.inverted().transform(display)
+        return frac, self._cameraDepthKey(center)
+
     def _flushBlenderBodyOverlays(self, halfWidthAu: float) -> None:
         """Project queued bodies and paint Blender spin-loop frames into this frame."""
         if not self._pendingBlenderBodies or self.blenderSprites is None:
             return
-        for (
+        # Far → near so closer disks (and their labels) cover bodies behind stars.
+        # Partial occultations keep the free limb: the star PNG's opaque disk covers
+        # overlap; do not hard-cull whole planets when only partly behind the star.
+        pending = sorted(
+            self._pendingBlenderBodies,
+            key=lambda item: self._cameraDepthKey(item[1]),
+        )
+        self._blenderBodyPaintZorder = {}
+        for rank, (
             catalogName,
             center,
             frame,
@@ -1517,22 +1589,27 @@ class SolCentauriCinematicAnimator:
             openCloseup,
             bodyScale,
             orbitalPhaseRad,
-        ) in self._pendingBlenderBodies:
-            radiusAu = self._blenderBillboardRadiusAu(
-                bodyHalfWidth,
-                openCloseup=openCloseup,
-                bodyScale=bodyScale,
-                catalogName=catalogName,
-            )
-            if radiusAu is None:
+        ) in enumerate(pending):
+            if (
+                self._blenderBillboardRadiusAu(
+                    bodyHalfWidth,
+                    openCloseup=openCloseup,
+                    bodyScale=bodyScale,
+                    catalogName=catalogName,
+                )
+                is None
+            ):
                 continue
             fracRadius = self._blenderBillboardFracRadius(
                 halfWidthAu, bodyScale, catalogName=catalogName
             )
             if fracRadius is None:
                 continue
+            projected = self._projectBlenderOverlay(center)
+            if projected is None:
+                continue
+            frac, _depth = projected
             if catalogName in BLENDER_STAR_BODY_SCALE:
-                # Native spin size — avoid an extra 768→384 downscale before paint.
                 resolution = 768
             elif openCloseup:
                 resolution = 384
@@ -1546,15 +1623,10 @@ class SolCentauriCinematicAnimator:
             )
             if disk is None:
                 continue
-            x2, y2, _ = proj3d.proj_transform(
-                float(center[0]),
-                float(center[1]),
-                float(center[2]),
-                self.axes.get_proj(),
-            )
-            display = self.axes.transData.transform((x2, y2))
-            frac = self.figure.transFigure.inverted().transform(display)
-            # PillowWriter quantizes better from 8-bit RGBA than float arrays.
+            paintZ = 5 + rank
+            self._blenderBodyPaintZorder[
+                (catalogName, float(center[0]), float(center[1]), float(center[2]))
+            ] = paintZ
             diskU8 = (np.clip(disk, 0.0, 1.0) * 255.0).astype(np.uint8)
             self.bodyOverlay.imshow(
                 diskU8,
@@ -1566,10 +1638,9 @@ class SolCentauriCinematicAnimator:
                 ),
                 origin='upper',
                 interpolation='bilinear',
-                zorder=5,
+                zorder=paintZ,
                 clip_on=False,
             )
-        # imshow(extent=...) expands data limits; keep 0–1 so label coords stay figure-like.
         self.bodyOverlay.set_xlim(0.0, 1.0)
         self.bodyOverlay.set_ylim(0.0, 1.0)
 
@@ -1588,7 +1659,17 @@ class SolCentauriCinematicAnimator:
         # Non-Sol stars may cap max frac so a dive does not swallow the frame.
         if catalogName in BLENDER_STAR_BODY_SCALE:
             maxFrac = BLENDER_STAR_MAX_FRAC.get(catalogName)
-            return min(rawFrac, maxFrac) if maxFrac is not None else rawFrac
+            frac = min(rawFrac, maxFrac) if maxFrac is not None else rawFrac
+            # Outer Sol: keep a visible photosphere above shrinking planet floors.
+            if (
+                catalogName == 'Sun'
+                and halfWidthAu >= BLENDER_SUN_OUTER_FLOOR_HALF_AU
+                and frac is not None
+            ):
+                frac = max(frac, BLENDER_SUN_OUTER_MIN_FRAC)
+            return frac
+        if catalogName in BLENDER_PLANET_MAX_FRAC:
+            return min(rawFrac, BLENDER_PLANET_MAX_FRAC[catalogName])
         floor = 0.0035
         if catalogName is not None:
             appearance = appearanceForCatalogName(catalogName)
@@ -1596,6 +1677,9 @@ class SolCentauriCinematicAnimator:
                 floor = BLENDER_RING_LINGER_MIN_FRAC
             elif catalogName in BLENDER_ASTEROID_BODY_SCALE and 3.5 <= halfWidthAu <= 14.0:
                 floor = BLENDER_ASTEROID_BELT_MIN_FRAC
+        # Ease the readability floor out with zoom so floored planets do not
+        # outgrow / bury the Sun at Saturn–Kuiper scales.
+        floor *= float(np.clip(12.0 / max(halfWidthAu, 1e-6), 0.2, 1.0))
         # Same floor as overlay paint so labels track the painted disk.
         return max(rawFrac, floor)
 
@@ -1645,7 +1729,15 @@ class SolCentauriCinematicAnimator:
                 'Alpha Centauri A': 'α Cen A',
                 'Alpha Centauri B': 'α Cen B',
                 'Proxima Centauri': 'Proxima Centauri',
+                'Proxima b': 'b',
+                'Proxima d': 'd',
             }.get(name, name)
+            # Keep labels with their disk in the depth stack (not always on top of stars).
+            # Skip labels for disks occulted behind a star (not painted this frame).
+            paintKey = (name, float(center[0]), float(center[1]), float(center[2]))
+            paintZ = self._blenderBodyPaintZorder.get(paintKey)
+            if paintZ is None:
+                continue
             self.bodyOverlay.text(
                 textX,
                 textY,
@@ -1655,7 +1747,7 @@ class SolCentauriCinematicAnimator:
                 ha='left',
                 va=va,
                 clip_on=False,
-                zorder=10,
+                zorder=paintZ + 0.5,
             )
 
     def _drawSolAsteroidPopulations(self, frame: int, halfWidthAu: float) -> None:
@@ -2157,7 +2249,12 @@ class SolCentauriCinematicAnimator:
                 suppressDotFallback=True,
             )
         if not queued:
-            self._drawStarMarker(position, markerColor, markerSize)
+            self._drawStarMarker(
+                position,
+                markerColor,
+                markerSize,
+                zorder=self._scatterDepthZorder(position, base=5),
+            )
             self._label3d(position, classicLabel, color=self.labelColor, fontsize=int(labelSize))
             return
         self._pendingBlenderLabels.append(
@@ -2168,7 +2265,12 @@ class SolCentauriCinematicAnimator:
         marker = self.barycenterSolAu
         size = np.clip(52.0 * (self.startHalfWidthAu / halfWidthAu) ** 0.35, 36.0, 190.0)
         label = 'α Cen A/B' if linear >= self._abHoldEnd() else 'α Centauri (next system)'
-        self._drawStarMarker(marker, STAR_COLORS['primary'], size)
+        self._drawStarMarker(
+            marker,
+            STAR_COLORS['primary'],
+            size,
+            zorder=self._scatterDepthZorder(marker, base=5),
+        )
         self._label3d(marker, f'  {label}', color=self.labelColor, fontsize=9)
 
     def _drawProximaWideMarker(self, frame: int) -> None:
@@ -2181,7 +2283,12 @@ class SolCentauriCinematicAnimator:
             linewidth=1.4,
             alpha=0.55,
         )
-        self._drawStarMarker(proximaSol, STAR_COLORS['proxima'], 140.0)
+        self._drawStarMarker(
+            proximaSol,
+            STAR_COLORS['proxima'],
+            140.0,
+            zorder=self._scatterDepthZorder(proximaSol, base=5),
+        )
         self._label3d(proximaSol, '  Proxima', color=self.labelColor, fontsize=10)
 
     def _drawProxima(self, frame: int, halfWidthAu: float, linear: float) -> None:
@@ -2242,13 +2349,35 @@ class SolCentauriCinematicAnimator:
         position = self._proximaPlanetPositionSol(planet, frame)
         if not self._inView(position, margin=1.15):
             return
+        shortName = planet.name.replace('Proxima ', '')
+        suffix = '' if confirmed else ' ?'
+        labelSize = 10.0 if confirmed else 8.0
+        bodyScale = BLENDER_PLANET_BODY_SCALE.get(planet.name)
+        queued = False
+        if (
+            confirmed
+            and bodyScale is not None
+            and self.useBlenderBodies
+            and halfWidthAu <= PROXIMA_WIDE_HALF_AU * 1.15
+        ):
+            queued = self._queueBlenderBody(
+                planet.name,
+                position,
+                frame,
+                halfWidthAu,
+                openCloseup=halfWidthAu <= PROXIMA_INNER_HALF_AU * 2.5,
+                bodyScale=bodyScale,
+                orbitalPhaseRad=None,
+                suppressDotFallback=True,
+            )
+        if queued:
+            self._pendingBlenderLabels.append((planet.name, position.copy(), labelSize, bodyScale))
+            return
         # Grow with zoom-in so b/d stay readable as the orbit fills the frame
         # (matplotlib scatter is screen-fixed; without this they look like they shrink).
         baseSize = 56.0 if confirmed else 32.0
         zoomBoost = np.clip(PROXIMA_WIDE_HALF_AU / max(halfWidthAu, 1e-6), 1.0, 12.0)
         markerSize = baseSize * (zoomBoost**0.65)
-        shortName = planet.name.replace('Proxima ', '')
-        suffix = '' if confirmed else ' ?'
         self.axes.scatter(
             [position[0]],
             [position[1]],
@@ -2257,13 +2386,13 @@ class SolCentauriCinematicAnimator:
             s=markerSize,
             alpha=1.0 if confirmed else 0.65,
             depthshade=False,
-            zorder=6,
+            zorder=self._scatterDepthZorder(position, base=4),
         )
         self._label3d(
             position,
             f'  {shortName}{suffix}',
             color=self.labelColor,
-            fontsize=10 if confirmed else 8,
+            fontsize=int(labelSize),
             alpha=0.95 if confirmed else 0.7,
         )
 

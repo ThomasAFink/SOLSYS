@@ -12,8 +12,10 @@ from animate.scenes.sol_centauri_cinematic import (
     AB_TRAVEL_END,
     ANIMATION_SPEED_AB,
     ANIMATION_SPEED_SOL_NEAR,
+    BLENDER_PLANET_BODY_SCALE,
     BLENDER_STAR_BILLBOARD_HALF_AU,
     BLENDER_STAR_BODY_SCALE,
+    EARTH_GLOBE_RADIUS_AU,
     PROXIMA_TRAVEL_END,
     PROXIMA_WIDE_HALF_AU,
     PULLBACK_END,
@@ -156,9 +158,7 @@ class CinematicTransformTests(unittest.TestCase):
                 if halfWidth >= SOL_MOON_REVEAL_HALF_AU - 1e-9:
                     visibleFrame = frame
                     break
-            daysStart = animator._lunarMotionDays(
-                moon, visibleFrame, SOL_EARTH_HALF_AU
-            )
+            daysStart = animator._lunarMotionDays(moon, visibleFrame, SOL_EARTH_HALF_AU)
             daysEnd = animator._lunarMotionDays(moon, dwellFrame, SOL_EARTH_HALF_AU)
             orbits = (daysEnd - daysStart) / moon.orbitalPeriodDays
             self.assertGreaterEqual(orbits, 0.95)
@@ -246,13 +246,31 @@ class CinematicTransformTests(unittest.TestCase):
             outerFrac = animator._blenderBillboardFracRadius(
                 SOL_OUTER_LINGER_HALF_AU, sunScale, catalogName='Sun'
             )
-            fracs = (nearFrac, innerFrac, beltFrac, saturnFrac, outerFrac)
-            self.assertTrue(all(f is not None for f in fracs))
-            assert all(f is not None for f in fracs)
-            for earlier, later in zip(fracs[:-1], fracs[1:], strict=True):
+            self.assertTrue(
+                all(f is not None for f in (nearFrac, innerFrac, beltFrac, saturnFrac, outerFrac))
+            )
+            assert (
+                nearFrac is not None
+                and innerFrac is not None
+                and beltFrac is not None
+                and saturnFrac is not None
+                and outerFrac is not None
+            )
+            # Monotonic shrink through Saturn; Kuiper uses an outer readability floor.
+            for earlier, later in zip(
+                (nearFrac, innerFrac, beltFrac),
+                (innerFrac, beltFrac, saturnFrac),
+                strict=True,
+            ):
                 self.assertGreater(earlier, later)
-            # Near-Sun should still read as a clear hero disk.
-            self.assertGreater(nearFrac, 0.04)
+            # Near-Sun should still read as a clear hero disk (under Mercury's orbit).
+            self.assertGreater(nearFrac, 0.028)
+            self.assertLess(
+                EARTH_GLOBE_RADIUS_AU * sunScale,
+                0.35,
+            )
+            # Outer floor keeps Sol visible above shrinking planet disks at Kuiper.
+            self.assertGreaterEqual(outerFrac, 0.008)
             starMax = BLENDER_STAR_BILLBOARD_HALF_AU[1]
             self.assertGreater(starMax, SOL_OUTER_LINGER_HALF_AU)
             self.assertIsNone(
@@ -317,6 +335,27 @@ class CinematicTransformTests(unittest.TestCase):
             self.assertLess(aFrac, BLENDER_STAR_MAX_FRAC['Alpha Centauri A'])
             # Finale must keep the capped photosphere — not drop to scatter.
             self.assertEqual(proxInner, BLENDER_STAR_MAX_FRAC['Proxima Centauri'])
+            # World radius must sit inside Proxima d/b orbits or planets ride the disk.
+            proxRadiusAu = EARTH_GLOBE_RADIUS_AU * BLENDER_STAR_BODY_SCALE['Proxima Centauri']
+            self.assertLess(proxRadiusAu, 0.028)
+            for half in (PROXIMA_WIDE_HALF_AU, 0.4, 0.15, PROXIMA_INNER_HALF_AU):
+                starFrac = animator._blenderBillboardFracRadius(
+                    half,
+                    BLENDER_STAR_BODY_SCALE['Proxima Centauri'],
+                    catalogName='Proxima Centauri',
+                )
+                self.assertIsNotNone(starFrac)
+                assert starFrac is not None
+                self.assertLess(starFrac, 0.029 / (2.0 * half))
+                for planetName in ('Proxima b', 'Proxima d'):
+                    planetFrac = animator._blenderBillboardFracRadius(
+                        half,
+                        BLENDER_PLANET_BODY_SCALE[planetName],
+                        catalogName=planetName,
+                    )
+                    self.assertIsNotNone(planetFrac)
+                    assert planetFrac is not None
+                    self.assertLess(planetFrac, starFrac)
             self.assertIsNotNone(
                 animator._blenderBillboardRadiusAu(
                     PROXIMA_INNER_HALF_AU,
@@ -627,9 +666,7 @@ class CinematicTransformTests(unittest.TestCase):
             )
             self.assertIn('A–B', abTitle)
 
-            tripleHold = int(
-                0.5 * (ARRIVAL_WIDE_OUT_ARRIVE + ARRIVAL_WIDE_HOLD_END) * (frames - 1)
-            )
+            tripleHold = int(0.5 * (ARRIVAL_WIDE_OUT_ARRIVE + ARRIVAL_WIDE_HOLD_END) * (frames - 1))
             focus, tripleHalf = animator._cameraState(tripleHold)
             np.testing.assert_allclose(focus, animator.barycenterSolAu, atol=1e-6)
             self.assertAlmostEqual(tripleHalf, animator.wideHalfWidthAu, places=2)
@@ -642,9 +679,7 @@ class CinematicTransformTests(unittest.TestCase):
             self.assertIn('triple', tripleTitle.lower())
 
             proxWideHold = int(
-                0.5
-                * (ARRIVAL_PROXIMA_DIVE_END + ARRIVAL_PROXIMA_WIDE_HOLD_END)
-                * (frames - 1)
+                0.5 * (ARRIVAL_PROXIMA_DIVE_END + ARRIVAL_PROXIMA_WIDE_HOLD_END) * (frames - 1)
             )
             proxFocus, proxHalf = animator._cameraState(proxWideHold)
             np.testing.assert_allclose(
@@ -663,6 +698,44 @@ class CinematicTransformTests(unittest.TestCase):
 
             plt.close(animator.figure)
 
+    def test_blender_proxima_planets_capped_on_finale(self) -> None:
+        """Proxima b/d billboards stay textured but capped at the inner close-up."""
+        from animate.scenes.sol_centauri_cinematic import (
+            BLENDER_PLANET_BODY_SCALE,
+            BLENDER_PLANET_MAX_FRAC,
+            PROXIMA_INNER_HALF_AU,
+            PROXIMA_WIDE_HALF_AU,
+        )
+
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            for name in ('Proxima b', 'Proxima d'):
+                wideFrac = animator._blenderBillboardFracRadius(
+                    PROXIMA_WIDE_HALF_AU,
+                    BLENDER_PLANET_BODY_SCALE[name],
+                    catalogName=name,
+                )
+                innerFrac = animator._blenderBillboardFracRadius(
+                    PROXIMA_INNER_HALF_AU,
+                    BLENDER_PLANET_BODY_SCALE[name],
+                    catalogName=name,
+                )
+                self.assertIsNotNone(wideFrac)
+                self.assertIsNotNone(innerFrac)
+                assert wideFrac is not None and innerFrac is not None
+                self.assertGreater(wideFrac, 0.0005)
+                self.assertEqual(innerFrac, BLENDER_PLANET_MAX_FRAC[name])
+                self.assertLess(innerFrac, 0.02)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
     def test_classic_arrival_skips_proxima_wide_hold(self) -> None:
         """Dotted mode has no extra Proxima-wide plateau after the dive."""
         frames = self.animator.animationFrames
@@ -670,6 +743,85 @@ class CinematicTransformTests(unittest.TestCase):
         postDive = int(np.ceil((PROXIMA_TRAVEL_END + 0.005) * (frames - 1)))
         _, halfWidth = self.animator._cameraState(postDive)
         self.assertLess(halfWidth, PROXIMA_WIDE_HALF_AU - 1e-6)
+
+    def test_blender_proxima_inner_hold_lasts_several_seconds(self) -> None:
+        """Finale linger on b/d is a real beat, not a one-second flash."""
+        from animate.scenes.sol_centauri_cinematic import (
+            ANIMATION_FPS,
+            ANIMATION_FRAMES,
+            ARRIVAL_PROXIMA_INNER_ARRIVE,
+        )
+
+        holdFrames = (1.0 - ARRIVAL_PROXIMA_INNER_ARRIVE) * (ANIMATION_FRAMES - 1)
+        self.assertGreaterEqual(ARRIVAL_PROXIMA_INNER_ARRIVE, 0.93)
+        self.assertLessEqual(ARRIVAL_PROXIMA_INNER_ARRIVE, 0.96)
+        self.assertGreaterEqual(holdFrames / ANIMATION_FPS, 4.0)
+
+    def test_camera_depth_key_orders_near_in_front_of_far(self) -> None:
+        """Billboard painter sort: points toward the camera outrank points behind focus."""
+        self.animator._viewFocus = np.zeros(3)
+        self.animator.axes.view_init(elev=30.0, azim=-60.0)
+        elev = np.deg2rad(30.0)
+        azim = np.deg2rad(-60.0)
+        eyeDir = np.array([np.cos(elev) * np.cos(azim), np.cos(elev) * np.sin(azim), np.sin(elev)])
+        near = eyeDir * 2.0
+        far = -eyeDir * 2.0
+        self.assertGreater(
+            self.animator._cameraDepthKey(near),
+            self.animator._cameraDepthKey(far),
+        )
+
+    def test_blender_overlay_paints_far_body_under_near_body(self) -> None:
+        """Bodies behind the star must not win the flat overlay z-stack."""
+        from unittest.mock import MagicMock
+
+        from animate.scenes.sol_centauri_cinematic import SolCentauriCinematicAnimator
+
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            animator._viewFocus = np.zeros(3)
+            animator._viewHalfWidthAu = 2.5
+            animator.axes.view_init(elev=28.0, azim=-60.0)
+            elev = np.deg2rad(28.0)
+            azim = np.deg2rad(-60.0)
+            eyeDir = np.array(
+                [np.cos(elev) * np.cos(azim), np.cos(elev) * np.sin(azim), np.sin(elev)]
+            )
+            starPos = np.zeros(3)
+            farPlanet = -eyeDir * 0.8
+            nearPlanet = eyeDir * 0.8
+            disk = np.zeros((8, 8, 4), dtype=float)
+            disk[..., 3] = 1.0
+            sprites = MagicMock()
+            sprites.bodyFrame.return_value = disk
+            animator.blenderSprites = sprites
+            animator._pendingBlenderBodies = [
+                ('Mercury', farPlanet.copy(), 0, 2.5, False, 0.4, None),
+                ('Sun', starPos.copy(), 0, 2.5, True, 3.2, None),
+                ('Venus', nearPlanet.copy(), 0, 2.5, False, 0.9, None),
+            ]
+            # Bypass radius/LOD gates that would drop tiny disks in this stub.
+            animator._blenderBillboardRadiusAu = lambda *args, **kwargs: 0.02  # type: ignore[method-assign]
+            animator._blenderBillboardFracRadius = lambda *args, **kwargs: 0.02  # type: ignore[method-assign]
+            animator._flushBlenderBodyOverlays(2.5)
+            zFar = animator._blenderBodyPaintZorder[
+                ('Mercury', float(farPlanet[0]), float(farPlanet[1]), float(farPlanet[2]))
+            ]
+            zStar = animator._blenderBodyPaintZorder[('Sun', 0.0, 0.0, 0.0)]
+            zNear = animator._blenderBodyPaintZorder[
+                ('Venus', float(nearPlanet[0]), float(nearPlanet[1]), float(nearPlanet[2]))
+            ]
+            self.assertLess(zFar, zStar)
+            self.assertLess(zStar, zNear)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
 
     def test_outer_planet_moves_during_sol_opening(self) -> None:
         frames = self.animator.animationFrames
