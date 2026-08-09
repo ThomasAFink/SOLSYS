@@ -145,10 +145,19 @@ BLENDER_SUN_OUTER_MIN_FRAC = 0.008
 BLENDER_SUN_OUTER_FLOOR_HALF_AU = 20.0
 # Below this on-screen (floored) fraction, non-Earth/Moon packs fall back to catalog dots.
 # Matches the default paint floor so world-fixed disks stay textured through Sol zoom-out.
+# Eased down with camera half-width (see blenderOuterFloorScale) so Kuiper does not
+# snap planets back to catalog dots while the paint floor is still active.
 BLENDER_MIN_BILLBOARD_FRAC = 0.0035
 # Soft floors so rings/asteroids stay barely readable without dominating the frame.
 BLENDER_RING_LINGER_MIN_FRAC = 0.008
 BLENDER_ASTEROID_BELT_MIN_FRAC = 0.004
+
+
+def blenderOuterFloorScale(halfWidthAu: float) -> float:
+    """Ease readability floors/cutoffs out with zoom (1 at inner Sol → 0.2 by ~60 AU)."""
+    return float(np.clip(12.0 / max(halfWidthAu, 1e-6), 0.2, 1.0))
+
+
 # Hide Luna until the camera is wide enough that its exaggerated orbit fits.
 SOL_MOON_REVEAL_HALF_AU = 0.11
 SOL_NEAR_SUN_HALF_AU = 2.4
@@ -1486,8 +1495,10 @@ class SolCentauriCinematicAnimator:
         if fracRadius is None:
             return False
         # Earth/Moon keep a painted disk through Sol zoom-out (floor handles tininess).
-        # Other packs fall back to catalog dots when they would be sub-pixel.
-        if not suppressDotFallback and fracRadius < BLENDER_MIN_BILLBOARD_FRAC:
+        # Other packs fall back to catalog dots only when below the *eased* paint floor —
+        # a fixed 0.0035 cutoff was snapping every planet to dots at the Kuiper linger.
+        minFrac = BLENDER_MIN_BILLBOARD_FRAC * blenderOuterFloorScale(halfWidthAu)
+        if not suppressDotFallback and fracRadius < minFrac:
             return False
         self._pendingBlenderBodies.append(
             (
@@ -1679,7 +1690,7 @@ class SolCentauriCinematicAnimator:
                 floor = BLENDER_ASTEROID_BELT_MIN_FRAC
         # Ease the readability floor out with zoom so floored planets do not
         # outgrow / bury the Sun at Saturn–Kuiper scales.
-        floor *= float(np.clip(12.0 / max(halfWidthAu, 1e-6), 0.2, 1.0))
+        floor *= blenderOuterFloorScale(halfWidthAu)
         # Same floor as overlay paint so labels track the painted disk.
         return max(rawFrac, floor)
 
