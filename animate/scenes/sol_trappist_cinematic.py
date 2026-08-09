@@ -208,19 +208,13 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         raise KeyError(name)
 
     def _candidateFocusSol(self, frame: int) -> np.ndarray:
-        """Look-at point biased to e, with a pull toward f when they share a side."""
+        """Look-at point between e and f (stable weights — no side-flip jumps)."""
         planetE = self._trappistPlanetPositionSol(self._planetByName('TRAPPIST-1 e'), frame)
         planetF = self._trappistPlanetPositionSol(self._planetByName('TRAPPIST-1 f'), frame)
-        host = self.hostSolAu
-        # When e/f sit on opposite sides of the star, favor e so the close-up can tighten.
-        radialE = planetE - host
-        radialF = planetF - host
-        sameSide = float(np.dot(radialE, radialF)) > 0.0
-        weightF = 0.34 if sameSide else 0.12
-        return (1.0 - weightF) * planetE + weightF * planetF
+        return 0.72 * planetE + 0.28 * planetF
 
     def _trappistPlanetAnimationSpeed(self, frame: int) -> float:
-        """Cruise speed early; ease down through HZ → candidate so orbits linger."""
+        """Per-frame rate (for the accumulated motion clock only)."""
         linear = timelineProgress(frame, self.animationFrames)
         hzArrive = self._hzArrive()
         if linear < hzArrive:
@@ -233,6 +227,22 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             (1.0 - blend) * ANIMATION_SPEED_TRAPPIST_PLANETS
             + blend * ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE
         )
+
+    def _ensureTrappistMotionClock(self) -> None:
+        """Accumulate zoom-dependent days so slowing orbits never reverse or jump."""
+        if getattr(self, '_trappistMotionDaysByFrame', None) is not None:
+            return
+        days = np.zeros(self.animationFrames, dtype=float)
+        accumulated = 0.0
+        for frame in range(self.animationFrames):
+            accumulated += self._trappistPlanetAnimationSpeed(frame)
+            days[frame] = accumulated
+        self._trappistMotionDaysByFrame = days
+
+    def _trappistMotionDays(self, frame: int) -> float:
+        self._ensureTrappistMotionClock()
+        index = int(np.clip(frame, 0, self.animationFrames - 1))
+        return float(self._trappistMotionDaysByFrame[index])
 
     def _loadFieldStars(self, starsCsvPath: str) -> pd.DataFrame:
         catalog = SystemCatalog(starsCsvPath=starsCsvPath).starCatalog
@@ -272,6 +282,7 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         return self.hostSolAu.copy()
 
     def _trappistPlanetPositionSol(self, planet: SystemPlanet, frame: int) -> np.ndarray:
+        # frame=1 + accumulated days ≡ continuous anomaly (see Sol _solMotionDays).
         offsetX, offsetY = bodyPositionInOrbitalPlane(
             self.orbitCalculator,
             planet.semiMajorAxisAu,
@@ -279,8 +290,8 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             planet.orbitalPeriodDays,
             planet.argumentPeriapsisDeg,
             0.0,
-            frame,
-            self._trappistPlanetAnimationSpeed(frame),
+            1,
+            self._trappistMotionDays(frame),
         )
         return self.hostSolAu + np.array([offsetX, offsetY, 0.0], dtype=float)
 
@@ -555,12 +566,21 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         *,
         hzFocus: bool = False,
     ) -> None:
-        if planet.semiMajorAxisAu > halfWidthAu * 1.15:
+        isHzCandidate = planet.name in TRAPPIST_HZ_FOCUS_NAMES
+        position = self._trappistPlanetPositionSol(planet, frame)
+        focus = getattr(self, '_viewFocus', self.hostSolAu)
+        distToFocus = float(np.linalg.norm(position - focus))
+        # Host-centered SMA cull hides e/f on the candidate close-up (camera is on them,
+        # not the star). Prefer look-at distance; keep SMA only as a wide-frame filter.
+        inHostFrame = planet.semiMajorAxisAu <= halfWidthAu * 1.15
+        nearLookAt = distToFocus <= halfWidthAu * 1.25
+        if not inHostFrame and not nearLookAt and not (hzFocus and isHzCandidate):
             return
 
-        isHzCandidate = planet.name in TRAPPIST_HZ_FOCUS_NAMES
         # Orbits can lead; disks wait until the frame is tight enough for textures.
-        drawOrbit = halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 3.0
+        drawOrbit = halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 3.0 and (
+            inHostFrame or (hzFocus and isHzCandidate) or nearLookAt
+        )
         drawDisk = halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 2.2
         pathX, pathY = self.trappistPlanetPathsLocal[planet.planetId]
         pathLocal = np.column_stack((pathX, pathY, np.zeros_like(pathX)))
@@ -579,8 +599,7 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         if not drawDisk:
             return
 
-        position = self._trappistPlanetPositionSol(planet, frame)
-        if not self._inView(position, margin=1.15):
+        if not self._inView(position, margin=1.25):
             return
 
         shortName = planet.name.replace('TRAPPIST-1 ', '')
