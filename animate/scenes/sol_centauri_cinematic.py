@@ -105,8 +105,9 @@ BLENDER_PLANET_MAX_FRAC = {
     'TRAPPIST-1 b': 0.020,
     'TRAPPIST-1 c': 0.020,
     'TRAPPIST-1 d': 0.018,
-    'TRAPPIST-1 e': 0.032,
-    'TRAPPIST-1 f': 0.032,
+    # e/f must reach Earth-open on-screen size at the candidate beat (~0.34).
+    'TRAPPIST-1 e': 0.36,
+    'TRAPPIST-1 f': 0.36,
     'TRAPPIST-1 g': 0.020,
     'TRAPPIST-1 h': 0.016,
 }
