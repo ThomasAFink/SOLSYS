@@ -83,14 +83,14 @@ BLENDER_PLANET_BODY_SCALE = {
     'Uranus': 1.05,
     'Neptune': 1.0,
     'Pluto': 0.32,
-    # Proxima finale — smaller than the Proxima photosphere at every finale zoom.
-    'Proxima b': 0.35,
-    'Proxima d': 0.22,
+    # Proxima finale — modest markers under the Proxima photosphere.
+    'Proxima b': 0.22,
+    'Proxima d': 0.14,
 }
-# Cap on-screen size so Proxima planets stay under the star disk.
+# Cap on-screen size so the final close-up does not read as planet > star.
 BLENDER_PLANET_MAX_FRAC = {
-    'Proxima b': 0.028,
-    'Proxima d': 0.020,
+    'Proxima b': 0.014,
+    'Proxima d': 0.010,
 }
 BLENDER_MOON_BODY_SCALE = {
     'Moon': 0.35,
