@@ -143,6 +143,31 @@ class SolTrappistCinematicTests(unittest.TestCase):
         np.testing.assert_allclose(focus, np.zeros(3), atol=1e-12)
         self.assertGreater(halfWidth, 100.0)
 
+    def test_dive_half_width_never_zooms_out(self) -> None:
+        """Arrive hold is already at TRAPPIST; dive must tighten only (no black gap)."""
+        animator = SolTrappistCinematicAnimator(
+            self.system,
+            starsCsvPath=self.paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            holdEnd = animator._abHoldEnd()
+            diveEnd = animator._proximaDiveEnd()
+            frames = animator.animationFrames
+            holdFrame = int(holdEnd * (frames - 1))
+            _, holdHalf = animator._cameraState(holdFrame)
+            previous = holdHalf
+            for fraction in np.linspace(holdEnd, diveEnd, 25):
+                frame = int(fraction * (frames - 1))
+                _, halfWidth = animator._cameraState(frame)
+                self.assertLessEqual(halfWidth, holdHalf * 1.01)
+                self.assertLessEqual(halfWidth, previous * 1.01)
+                previous = halfWidth
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
     def test_blender_inner_arrive_uses_wide_then_inner(self) -> None:
         animator = SolTrappistCinematicAnimator(
             self.system,
