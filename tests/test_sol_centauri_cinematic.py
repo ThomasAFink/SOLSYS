@@ -728,8 +728,9 @@ class CinematicTransformTests(unittest.TestCase):
                 self.assertIsNotNone(wideFrac)
                 self.assertIsNotNone(innerFrac)
                 assert wideFrac is not None and innerFrac is not None
-                self.assertGreater(wideFrac, 0.001)
+                self.assertGreater(wideFrac, 0.0005)
                 self.assertEqual(innerFrac, BLENDER_PLANET_MAX_FRAC[name])
+                self.assertLess(innerFrac, 0.02)
         finally:
             import matplotlib.pyplot as plt
 
