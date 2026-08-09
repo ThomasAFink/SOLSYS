@@ -211,6 +211,8 @@ solsys.motion    → moving asteroid fields for animation frames
 | Alpha Centauri A | ![α Cen A light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_a/alpha_centauri_a_flyby_light.gif?raw=true) | ![α Cen A dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_a/alpha_centauri_a_flyby_dark.gif?raw=true) |
 | Alpha Centauri B | ![α Cen B light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_b/alpha_centauri_b_flyby_light.gif?raw=true) | ![α Cen B dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_b/alpha_centauri_b_flyby_dark.gif?raw=true) |
 | Proxima Centauri | ![Proxima light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/proxima_centauri/proxima_centauri_flyby_light.gif?raw=true) | ![Proxima dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/proxima_centauri/proxima_centauri_flyby_dark.gif?raw=true) |
+| Proxima b | ![Proxima b light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_b/proxima_b_flyby_light.gif?raw=true) | ![Proxima b dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_b/proxima_b_flyby_dark.gif?raw=true) |
+| Proxima d | ![Proxima d light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_d/proxima_d_flyby_light.gif?raw=true) | ![Proxima d dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_d/proxima_d_flyby_dark.gif?raw=true) |
 
 ### Static zoom views (side)
 
@@ -499,4 +501,4 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
 - More Blender close-ups (additional moons, asteroids, planets) via shared `data/textures/bodies/` packs
-- Proxima planet Blender packs (b/d) for textured finale billboards
+- Additional exoplanet Blender packs (e.g. disputed Proxima c) for cinematic finale billboards
