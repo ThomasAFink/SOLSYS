@@ -243,18 +243,19 @@ AB_HOLD_END = 0.85
 # Pull out to the A–B + Proxima triple view, then linger before diving to Proxima.
 WIDE_OUT_ARRIVE = 0.89
 WIDE_OUT_END = 0.935
-PROXIMA_TRAVEL_END = 0.96
+PROXIMA_TRAVEL_END = 0.945
 # Longer, slower tighten onto b/d so the final zoom does not rush.
-PROXIMA_INNER_ARRIVE = 0.985
+PROXIMA_INNER_ARRIVE = 0.97
 # Blender-only α Cen arrival beats (#63). Classic dotted mode keeps the constants above.
 # AB approach → AB hold → triple wide hold → Proxima dive → Proxima-wide hold → inner.
+# Inner b/d hold is intentionally long (~5% of the GIF) so the finale can breathe.
 ARRIVAL_AB_TRAVEL_END = 0.76
-ARRIVAL_AB_HOLD_END = 0.835
-ARRIVAL_WIDE_OUT_ARRIVE = 0.87
-ARRIVAL_WIDE_HOLD_END = 0.91
-ARRIVAL_PROXIMA_DIVE_END = 0.945
-ARRIVAL_PROXIMA_WIDE_HOLD_END = 0.97
-ARRIVAL_PROXIMA_INNER_ARRIVE = 0.99
+ARRIVAL_AB_HOLD_END = 0.815
+ARRIVAL_WIDE_OUT_ARRIVE = 0.845
+ARRIVAL_WIDE_HOLD_END = 0.875
+ARRIVAL_PROXIMA_DIVE_END = 0.905
+ARRIVAL_PROXIMA_WIDE_HOLD_END = 0.925
+ARRIVAL_PROXIMA_INNER_ARRIVE = 0.945
 CAMERA_ELEVATION_DEG = 22.0
 SOL_ELEVATION_DEG = 28.0
 # Top-down open so the Moon orbit fills the viewport (3D foreshortening shrinks it).
@@ -626,6 +627,8 @@ class SolCentauriCinematicAnimator:
         ] = []
         # (name, center, fontsize, bodyScale)
         self._pendingBlenderLabels: list[tuple[str, np.ndarray, float, float]] = []
+        # Billboard paint zorder by (name, x, y, z) after depth sort in overlay flush.
+        self._blenderBodyPaintZorder: dict[tuple[str, float, float, float], int] = {}
         self.blenderSprites: BlenderBodySpriteAtlas | None = None
         if self.useBlenderBodies:
             themeName = 'dark' if self.isDark else 'light'
@@ -1019,6 +1022,7 @@ class SolCentauriCinematicAnimator:
         self.bodyOverlay.set_ylim(0.0, 1.0)
         self._pendingBlenderBodies = []
         self._pendingBlenderLabels = []
+        self._blenderBodyPaintZorder = {}
         for textArtist in list(self.figure.texts):
             textArtist.remove()
         focus, halfWidthAu = self._cameraState(frame)
@@ -1178,7 +1182,12 @@ class SolCentauriCinematicAnimator:
             )
         if wantSun:
             if not queuedSun:
-                self._drawStarMarker(sunPosition, STAR_COLORS['sun'], sunSize)
+                self._drawStarMarker(
+                    sunPosition,
+                    STAR_COLORS['sun'],
+                    sunSize,
+                    zorder=self._scatterDepthZorder(sunPosition, base=5),
+                )
             if sunInView and halfWidthAu < 120.0:
                 if queuedSun:
                     self._pendingBlenderLabels.append(
@@ -1265,7 +1274,7 @@ class SolCentauriCinematicAnimator:
                 color=planet.color,
                 s=self._solPlanetMarkerSize(name, halfWidthAu),
                 depthshade=True,
-                zorder=6 if plutoOuter else 5,
+                zorder=self._scatterDepthZorder(position, base=6 if plutoOuter else 4),
             )
         if name in LABELED_SOL_PLANETS or (
             halfWidthAu < SOL_INNER_HALF_AU and name in ('Mercury', 'Venus', 'Mars')
@@ -1513,11 +1522,44 @@ class SolCentauriCinematicAnimator:
             return None
         return radiusAu
 
+    def _cameraDepthKey(self, position: np.ndarray) -> float:
+        """Scalar depth along the view axis; larger means closer to the camera.
+
+        Used to painter-sort flat billboard overlays so bodies behind a star
+        (Mercury at near-Sun, Proxima b/d at the finale) do not paint on top of it.
+        """
+        elev = np.deg2rad(self.axes.elev)
+        azim = np.deg2rad(self.axes.azim)
+        # Unit vector from scene focus toward the camera eye (matplotlib convention).
+        eyeDir = np.array(
+            [
+                np.cos(elev) * np.cos(azim),
+                np.cos(elev) * np.sin(azim),
+                np.sin(elev),
+            ],
+            dtype=float,
+        )
+        focus = getattr(self, '_viewFocus', np.zeros(3))
+        return float(np.dot(np.asarray(position, dtype=float) - focus, eyeDir))
+
+    def _scatterDepthZorder(self, position: np.ndarray, *, base: int = 4) -> int:
+        """Map camera depth to a discrete axes zorder (farther → lower)."""
+        half = max(float(getattr(self, '_viewHalfWidthAu', 1.0)), 1e-6)
+        # 0 = far side of the frame, 1 = near side.
+        nearness = float(np.clip(0.5 + 0.5 * (self._cameraDepthKey(position) / half), 0.0, 1.0))
+        return base + int(round(nearness * 5.0))
+
     def _flushBlenderBodyOverlays(self, halfWidthAu: float) -> None:
         """Project queued bodies and paint Blender spin-loop frames into this frame."""
         if not self._pendingBlenderBodies or self.blenderSprites is None:
             return
-        for (
+        # Far → near so closer disks (and their labels) cover bodies behind stars.
+        pending = sorted(
+            self._pendingBlenderBodies,
+            key=lambda item: self._cameraDepthKey(item[1]),
+        )
+        self._blenderBodyPaintZorder = {}
+        for rank, (
             catalogName,
             center,
             frame,
@@ -1525,7 +1567,7 @@ class SolCentauriCinematicAnimator:
             openCloseup,
             bodyScale,
             orbitalPhaseRad,
-        ) in self._pendingBlenderBodies:
+        ) in enumerate(pending):
             radiusAu = self._blenderBillboardRadiusAu(
                 bodyHalfWidth,
                 openCloseup=openCloseup,
@@ -1562,6 +1604,10 @@ class SolCentauriCinematicAnimator:
             )
             display = self.axes.transData.transform((x2, y2))
             frac = self.figure.transFigure.inverted().transform(display)
+            paintZ = 5 + rank
+            self._blenderBodyPaintZorder[
+                (catalogName, float(center[0]), float(center[1]), float(center[2]))
+            ] = paintZ
             # PillowWriter quantizes better from 8-bit RGBA than float arrays.
             diskU8 = (np.clip(disk, 0.0, 1.0) * 255.0).astype(np.uint8)
             self.bodyOverlay.imshow(
@@ -1574,7 +1620,7 @@ class SolCentauriCinematicAnimator:
                 ),
                 origin='upper',
                 interpolation='bilinear',
-                zorder=5,
+                zorder=paintZ,
                 clip_on=False,
             )
         # imshow(extent=...) expands data limits; keep 0–1 so label coords stay figure-like.
@@ -1658,6 +1704,11 @@ class SolCentauriCinematicAnimator:
                 'Proxima b': 'b',
                 'Proxima d': 'd',
             }.get(name, name)
+            # Keep labels with their disk in the depth stack (not always on top of stars).
+            paintZ = self._blenderBodyPaintZorder.get(
+                (name, float(center[0]), float(center[1]), float(center[2])),
+                10,
+            )
             self.bodyOverlay.text(
                 textX,
                 textY,
@@ -1667,7 +1718,7 @@ class SolCentauriCinematicAnimator:
                 ha='left',
                 va=va,
                 clip_on=False,
-                zorder=10,
+                zorder=paintZ + 0.5,
             )
 
     def _drawSolAsteroidPopulations(self, frame: int, halfWidthAu: float) -> None:
@@ -2169,7 +2220,12 @@ class SolCentauriCinematicAnimator:
                 suppressDotFallback=True,
             )
         if not queued:
-            self._drawStarMarker(position, markerColor, markerSize)
+            self._drawStarMarker(
+                position,
+                markerColor,
+                markerSize,
+                zorder=self._scatterDepthZorder(position, base=5),
+            )
             self._label3d(position, classicLabel, color=self.labelColor, fontsize=int(labelSize))
             return
         self._pendingBlenderLabels.append(
@@ -2180,7 +2236,12 @@ class SolCentauriCinematicAnimator:
         marker = self.barycenterSolAu
         size = np.clip(52.0 * (self.startHalfWidthAu / halfWidthAu) ** 0.35, 36.0, 190.0)
         label = 'α Cen A/B' if linear >= self._abHoldEnd() else 'α Centauri (next system)'
-        self._drawStarMarker(marker, STAR_COLORS['primary'], size)
+        self._drawStarMarker(
+            marker,
+            STAR_COLORS['primary'],
+            size,
+            zorder=self._scatterDepthZorder(marker, base=5),
+        )
         self._label3d(marker, f'  {label}', color=self.labelColor, fontsize=9)
 
     def _drawProximaWideMarker(self, frame: int) -> None:
@@ -2193,7 +2254,12 @@ class SolCentauriCinematicAnimator:
             linewidth=1.4,
             alpha=0.55,
         )
-        self._drawStarMarker(proximaSol, STAR_COLORS['proxima'], 140.0)
+        self._drawStarMarker(
+            proximaSol,
+            STAR_COLORS['proxima'],
+            140.0,
+            zorder=self._scatterDepthZorder(proximaSol, base=5),
+        )
         self._label3d(proximaSol, '  Proxima', color=self.labelColor, fontsize=10)
 
     def _drawProxima(self, frame: int, halfWidthAu: float, linear: float) -> None:
@@ -2291,7 +2357,7 @@ class SolCentauriCinematicAnimator:
             s=markerSize,
             alpha=1.0 if confirmed else 0.65,
             depthshade=False,
-            zorder=6,
+            zorder=self._scatterDepthZorder(position, base=4),
         )
         self._label3d(
             position,
