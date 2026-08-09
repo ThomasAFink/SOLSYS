@@ -86,26 +86,29 @@ BLENDER_PLANET_BODY_SCALE = {
     # Proxima finale — modest markers under the Proxima photosphere.
     'Proxima b': 0.22,
     'Proxima d': 0.14,
-    # TRAPPIST-1 finale (Sol→TRAPPIST cinematic) — compact chain under the host.
-    'TRAPPIST-1 b': 0.16,
-    'TRAPPIST-1 c': 0.16,
-    'TRAPPIST-1 d': 0.14,
-    'TRAPPIST-1 e': 0.15,
-    'TRAPPIST-1 f': 0.15,
-    'TRAPPIST-1 g': 0.16,
-    'TRAPPIST-1 h': 0.13,
+    # TRAPPIST-1 finale — keep disks under the host/orbit gaps on first reveal;
+    # close-up growth comes from camera half-width + a higher MAX_FRAC ceiling.
+    'TRAPPIST-1 b': 0.048,
+    'TRAPPIST-1 c': 0.048,
+    'TRAPPIST-1 d': 0.044,
+    'TRAPPIST-1 e': 0.050,
+    'TRAPPIST-1 f': 0.050,
+    'TRAPPIST-1 g': 0.048,
+    'TRAPPIST-1 h': 0.040,
 }
 # Cap on-screen size so the final close-up does not read as planet > star.
 BLENDER_PLANET_MAX_FRAC = {
     'Proxima b': 0.014,
     'Proxima d': 0.010,
-    'TRAPPIST-1 b': 0.012,
-    'TRAPPIST-1 c': 0.012,
-    'TRAPPIST-1 d': 0.011,
-    'TRAPPIST-1 e': 0.012,
-    'TRAPPIST-1 f': 0.012,
-    'TRAPPIST-1 g': 0.012,
-    'TRAPPIST-1 h': 0.010,
+    # Allow TRAPPIST disks to grow through HZ → candidate zooms (old 0.012
+    # ceiling pinned every beat to the same screen size).
+    'TRAPPIST-1 b': 0.020,
+    'TRAPPIST-1 c': 0.020,
+    'TRAPPIST-1 d': 0.018,
+    'TRAPPIST-1 e': 0.032,
+    'TRAPPIST-1 f': 0.032,
+    'TRAPPIST-1 g': 0.020,
+    'TRAPPIST-1 h': 0.016,
 }
 BLENDER_MOON_BODY_SCALE = {
     'Moon': 0.35,

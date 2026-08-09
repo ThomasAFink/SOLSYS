@@ -14,8 +14,12 @@ from animate.scenes.sol_centauri_cinematic import (
     SOL_HOLD_END,
 )
 from animate.scenes.sol_trappist_cinematic import (
+    ANIMATION_SPEED_TRAPPIST_PLANETS,
+    ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE,
+    ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE,
     ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END,
     ARRIVAL_TRAPPIST_HOLD_END,
+    ARRIVAL_TRAPPIST_HZ_ARRIVE,
     ARRIVAL_TRAPPIST_HZ_HOLD_END,
     ARRIVAL_TRAPPIST_INNER_ARRIVE,
     FIELD_STARS_MAX_LY,
@@ -205,7 +209,7 @@ class SolTrappistCinematicTests(unittest.TestCase):
             self.assertGreater(byName['TRAPPIST-1 h'].semiMajorAxisAu, TRAPPIST_HZ_OUTER_AU)
             self.assertEqual(TRAPPIST_HZ_FOCUS_NAMES, ('TRAPPIST-1 e', 'TRAPPIST-1 f'))
 
-            # Candidate beat pans onto e/f — not host-centered.
+            # Candidate beat pans onto e/f — not host-centered — and goes tighter than HZ.
             candFrame = (
                 int(ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END * (animator.animationFrames - 1)) - 2
             )
@@ -213,8 +217,18 @@ class SolTrappistCinematicTests(unittest.TestCase):
             expectedFocus = animator._candidateFocusSol(candFrame)
             np.testing.assert_allclose(candFocus, expectedFocus, atol=1e-9)
             self.assertAlmostEqual(candHalf, TRAPPIST_CANDIDATE_HALF_AU, places=5)
+            self.assertLess(candHalf, 0.022)
             self.assertLess(candHalf, hzHalf)
             self.assertGreater(float(np.linalg.norm(candFocus - animator.hostSolAu)), 0.01)
+
+            # HZ + candidate holds linger (longer than the zooms into them).
+            frames = animator.animationFrames - 1
+            hzHoldFrames = int((ARRIVAL_TRAPPIST_HZ_HOLD_END - ARRIVAL_TRAPPIST_HZ_ARRIVE) * frames)
+            candHoldFrames = int(
+                (ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END - ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE) * frames
+            )
+            self.assertGreaterEqual(hzHoldFrames, 50)
+            self.assertGreaterEqual(candHoldFrames, 65)
 
             innerFrame = int(ARRIVAL_TRAPPIST_INNER_ARRIVE * (animator.animationFrames - 1))
             focus, innerHalf = animator._cameraState(innerFrame)
@@ -223,6 +237,52 @@ class SolTrappistCinematicTests(unittest.TestCase):
             # Finale returns to host and pulls wider than the candidate close-up.
             self.assertGreater(innerHalf, candHalf)
             self.assertLess(innerHalf, TRAPPIST_WIDE_HALF_AU)
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_trappist_orbits_slow_on_final_zooms(self) -> None:
+        animator = SolTrappistCinematicAnimator(
+            self.system,
+            starsCsvPath=self.paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            frames = animator.animationFrames
+            early = int(0.5 * (frames - 1))
+            hzHold = int(
+                ((ARRIVAL_TRAPPIST_HZ_ARRIVE + ARRIVAL_TRAPPIST_HZ_HOLD_END) / 2) * (frames - 1)
+            )
+            candHold = int(
+                ((ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE + ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END) / 2)
+                * (frames - 1)
+            )
+            self.assertAlmostEqual(
+                animator._trappistPlanetAnimationSpeed(early),
+                ANIMATION_SPEED_TRAPPIST_PLANETS,
+            )
+            self.assertLess(
+                animator._trappistPlanetAnimationSpeed(hzHold),
+                ANIMATION_SPEED_TRAPPIST_PLANETS,
+            )
+            self.assertAlmostEqual(
+                animator._trappistPlanetAnimationSpeed(candHold),
+                ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE,
+            )
+            # e/f billboards grow from wide → candidate (not pinned by a tiny MAX_FRAC).
+            scale = BLENDER_PLANET_BODY_SCALE['TRAPPIST-1 e']
+            wideFrac = animator._blenderBillboardFracRadius(
+                TRAPPIST_WIDE_HALF_AU, scale, catalogName='TRAPPIST-1 e'
+            )
+            candFrac = animator._blenderBillboardFracRadius(
+                TRAPPIST_CANDIDATE_HALF_AU, scale, catalogName='TRAPPIST-1 e'
+            )
+            self.assertIsNotNone(wideFrac)
+            self.assertIsNotNone(candFrac)
+            assert wideFrac is not None and candFrac is not None
+            self.assertLess(wideFrac, 0.006)
+            self.assertGreater(candFrac, wideFrac * 2.5)
         finally:
             import matplotlib.pyplot as plt
 
