@@ -95,6 +95,10 @@ class SolTrappistCinematicAnimator(SolCentauriCinematicAnimator):
         *,
         useBlenderBodies: bool = False,
     ):
+        # Parent __init__ hard-requires alpha_centauri and builds AB/Proxima orbits.
+        # TRAPPIST reimplements the Sol-shared figure/population setup and overrides
+        # destination camera/draw/caption methods instead of calling super().__init__.
+        # codeql[py/missing-call-to-init]
         if system.systemId != 'trappist_1':
             raise ValueError(f'Expected trappist_1, got {system.systemId!r}')
         if not system.stars:

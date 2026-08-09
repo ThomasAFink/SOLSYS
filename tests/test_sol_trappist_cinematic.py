@@ -101,16 +101,36 @@ class SolTrappistCinematicTests(unittest.TestCase):
     def test_planets_orbit_host(self) -> None:
         self.assertEqual(len(self.animator.trappistPlanets), 7)
         for planet in self.animator.trappistPlanets:
-            position = self.animator._trappistPlanetPositionSol(planet, frame=12)
-            offset = position - self.animator.hostSolAu
-            self.assertLess(float(np.linalg.norm(offset)), 0.08)
-            self.assertAlmostEqual(float(offset[2]), 0.0, places=12)
+            peri = planet.semiMajorAxisAu * (1.0 - planet.eccentricity)
+            apo = planet.semiMajorAxisAu * (1.0 + planet.eccentricity)
+            positions = [
+                self.animator._trappistPlanetPositionSol(planet, frame=frame)
+                for frame in (0, 12, 48)
+            ]
+            radii = [
+                float(np.linalg.norm(position - self.animator.hostSolAu)) for position in positions
+            ]
+            for radius, position in zip(radii, positions, strict=True):
+                self.assertGreaterEqual(radius, peri * 0.99)
+                self.assertLessEqual(radius, apo * 1.01)
+                self.assertAlmostEqual(
+                    float(position[2] - self.animator.hostSolAu[2]), 0.0, places=12
+                )
+            # Planet must move on its orbit (not a frozen host-centered point).
+            self.assertGreater(float(np.linalg.norm(positions[2] - positions[0])), 1e-6)
 
     def test_field_stars_reach_trappist_distance(self) -> None:
         self.assertGreaterEqual(FIELD_STARS_MAX_LY, 45.0)
         self.assertGreaterEqual(START_HALF_WIDTH_LY, 45.0)
-        if not self.animator.fieldStars.empty:
-            self.assertFalse((self.animator.fieldStars.get('system_id') == 'trappist_1').any())
+        catalog = SystemCatalog(**self.paths).starCatalog
+        withinCut = catalog.starsWithinLightYears(FIELD_STARS_MAX_LY)
+        self.assertFalse(withinCut.empty)
+        # Extended cut must include the destination host (beyond the old 30 ly field).
+        self.assertTrue((withinCut['system_id'] == 'trappist_1').any())
+        self.assertGreater(float(withinCut['Distance (ly)'].max()), 30.0)
+        # Drawn field stars exclude the host (destination marker owns that point).
+        self.assertFalse(self.animator.fieldStars.empty)
+        self.assertFalse((self.animator.fieldStars['system_id'] == 'trappist_1').any())
 
     def test_blender_scales_registered(self) -> None:
         for letter in 'bcdefgh':
@@ -140,7 +160,8 @@ class SolTrappistCinematicTests(unittest.TestCase):
             innerFrame = int(ARRIVAL_TRAPPIST_INNER_ARRIVE * (animator.animationFrames - 1))
             focus, innerHalf = animator._cameraState(innerFrame)
             np.testing.assert_allclose(focus, animator.hostSolAu, atol=1e-9)
-            self.assertLessEqual(innerHalf, TRAPPIST_WIDE_HALF_AU + 1e-9)
+            self.assertAlmostEqual(innerHalf, TRAPPIST_INNER_HALF_AU, places=5)
+            self.assertLess(innerHalf, TRAPPIST_WIDE_HALF_AU)
         finally:
             import matplotlib.pyplot as plt
 
