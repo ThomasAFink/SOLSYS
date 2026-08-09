@@ -552,23 +552,24 @@ def parseApparentMagnitude(rawMagnitude: object) -> float | None:
         return None
 
 
-class SolCentauriCinematicAnimator:
-    """Flight from our solar system through α Cen AB to Proxima planets."""
+class SolScaleCinematicAnimator:
+    """Shared Sol-open / population / Blender billboard machinery for destination tours."""
 
     def __init__(
         self,
-        system: StarSystem,
         style: str = 'default',
         figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
         dpi: int = DEFAULT_DPI,
         starsCsvPath: str = 'data/nearby_stars_30.csv',
         *,
         useBlenderBodies: bool = False,
+        destinationSolAu: np.ndarray,
+        startHalfWidthLy: float = START_HALF_WIDTH_LY,
+        arriveHalfWidthAu: float,
+        wideSystemHalfWidthAu: float,
+        destinationWideHalfWidthAu: float,
+        destinationInnerHalfWidthAu: float,
     ):
-        if system.systemId != 'alpha_centauri':
-            raise ValueError(f'Expected alpha_centauri, got {system.systemId!r}')
-
-        self.system = system
         self.figureSizeInches = figureSizeInches
         self.dpi = dpi
         self.animationFrames = ANIMATION_FRAMES
@@ -577,13 +578,8 @@ class SolCentauriCinematicAnimator:
         self.orbitCalculator = OrbitCalculator()
         self.planetCatalog = PlanetCatalog(self.constants)
         self.moonCatalog = MoonCatalog()
-        self.transform = SolCentauriFrameTransform.fromStarSystem(system)
-        self.barycenterSolAu = np.asarray(self.transform.originSolAu, dtype=float)
+        self.barycenterSolAu = np.asarray(destinationSolAu, dtype=float)
         self.distanceLy = float(np.linalg.norm(self.barycenterSolAu) / self.constants.lightYearToAu)
-        self.primaryOrbit = self._requireOrbit('primary')
-        self.secondaryOrbit = self._requireOrbit('secondary')
-        self.proximaOrbit = self._requireOrbit('wide_companion')
-        self.proximaPlanets = system.planetsForHost(self.proximaOrbit.starUuid)
         self.asteroidPopulation = AnimatedAsteroidPopulation(
             self.constants,
             AsteroidPopulationCounts(
@@ -612,35 +608,22 @@ class SolCentauriCinematicAnimator:
 
         self.solEarthHalfWidthAu = SOL_EARTH_HALF_AU
         self.solHalfWidthAu = SOL_HALF_WIDTH_AU
-        self.startHalfWidthAu = START_HALF_WIDTH_LY * self.constants.lightYearToAu
-        self.abHalfWidthAu = AB_HALF_WIDTH_AU
-        self.wideHalfWidthAu = WIDE_HALF_WIDTH_AU
-        self.proximaWideHalfWidthAu = PROXIMA_WIDE_HALF_AU
-        self.proximaInnerHalfWidthAu = PROXIMA_INNER_HALF_AU
-        self.proximaHalfWidthAu = PROXIMA_INNER_HALF_AU
+        self.startHalfWidthAu = startHalfWidthLy * self.constants.lightYearToAu
+        self.abHalfWidthAu = arriveHalfWidthAu
+        self.wideHalfWidthAu = wideSystemHalfWidthAu
+        self.proximaWideHalfWidthAu = destinationWideHalfWidthAu
+        self.proximaInnerHalfWidthAu = destinationInnerHalfWidthAu
+        self.proximaHalfWidthAu = destinationInnerHalfWidthAu
         pathAzimuth = float(
             np.degrees(np.arctan2(self.barycenterSolAu[1], self.barycenterSolAu[0]))
         )
         self.travelAzimuthDeg = pathAzimuth + 55.0
         self.solAzimuthDeg = pathAzimuth + 35.0
-        # Keep AB/Proxima on the travel camera — orbital-plane "arrival" spins caused flippy orbits.
 
         self.fieldStars = self._loadFieldStars(starsCsvPath)
-        self.primaryOrbitPathSol = self._orbitPathSol(self.primaryOrbit)
-        self.secondaryOrbitPathSol = self._orbitPathSol(self.secondaryOrbit)
-        self.proximaOrbitPathSol = self._orbitPathSol(self.proximaOrbit)
         self.solPlanetPaths = {
             name: self._planetOrbitPath(self.planetCatalog.planets[name])
             for name in SOL_PLANET_NAMES
-        }
-        self.proximaPlanetPathsLocal = {
-            planet.planetId: orbitPathInOrbitalPlane(
-                self.orbitCalculator,
-                planet.semiMajorAxisAu,
-                planet.eccentricity,
-                planet.argumentPeriapsisDeg,
-            )
-            for planet in self.proximaPlanets
         }
 
         self._viewFocus = np.zeros(3)
@@ -2665,6 +2648,58 @@ class SolCentauriCinematicAnimator:
         )
         plt.close(self.figure)
         print(f'Saved {outputPath}')
+
+
+class SolCentauriCinematicAnimator(SolScaleCinematicAnimator):
+    """Flight from our solar system through α Cen AB to Proxima planets."""
+
+    def __init__(
+        self,
+        system: StarSystem,
+        style: str = 'default',
+        figureSizeInches: tuple[float, float] = DEFAULT_FIGURE_SIZE_INCHES,
+        dpi: int = DEFAULT_DPI,
+        starsCsvPath: str = 'data/nearby_stars_30.csv',
+        *,
+        useBlenderBodies: bool = False,
+    ):
+        if system.systemId != 'alpha_centauri':
+            raise ValueError(f'Expected alpha_centauri, got {system.systemId!r}')
+
+        self.system = system
+        self.transform = SolCentauriFrameTransform.fromStarSystem(system)
+        barycenterSolAu = np.asarray(self.transform.originSolAu, dtype=float)
+        # Orbit roles needed before shared init (field-star filter uses system_id only).
+        self.primaryOrbit = self._requireOrbit('primary')
+        self.secondaryOrbit = self._requireOrbit('secondary')
+        self.proximaOrbit = self._requireOrbit('wide_companion')
+        self.proximaPlanets = system.planetsForHost(self.proximaOrbit.starUuid)
+        # Keep AB/Proxima on the travel camera — orbital-plane "arrival" spins caused flippy orbits.
+        super().__init__(
+            style=style,
+            figureSizeInches=figureSizeInches,
+            dpi=dpi,
+            starsCsvPath=starsCsvPath,
+            useBlenderBodies=useBlenderBodies,
+            destinationSolAu=barycenterSolAu,
+            startHalfWidthLy=START_HALF_WIDTH_LY,
+            arriveHalfWidthAu=AB_HALF_WIDTH_AU,
+            wideSystemHalfWidthAu=WIDE_HALF_WIDTH_AU,
+            destinationWideHalfWidthAu=PROXIMA_WIDE_HALF_AU,
+            destinationInnerHalfWidthAu=PROXIMA_INNER_HALF_AU,
+        )
+        self.primaryOrbitPathSol = self._orbitPathSol(self.primaryOrbit)
+        self.secondaryOrbitPathSol = self._orbitPathSol(self.secondaryOrbit)
+        self.proximaOrbitPathSol = self._orbitPathSol(self.proximaOrbit)
+        self.proximaPlanetPathsLocal = {
+            planet.planetId: orbitPathInOrbitalPlane(
+                self.orbitCalculator,
+                planet.semiMajorAxisAu,
+                planet.eccentricity,
+                planet.argumentPeriapsisDeg,
+            )
+            for planet in self.proximaPlanets
+        }
 
 
 def renderSolCentauriCinematicAnimations(
