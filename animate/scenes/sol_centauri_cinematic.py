@@ -238,6 +238,15 @@ WIDE_OUT_END = 0.935
 PROXIMA_TRAVEL_END = 0.96
 # Longer, slower tighten onto b/d so the final zoom does not rush.
 PROXIMA_INNER_ARRIVE = 0.985
+# Blender-only α Cen arrival beats (#63). Classic dotted mode keeps the constants above.
+# AB approach → AB hold → triple wide hold → Proxima dive → Proxima-wide hold → inner.
+ARRIVAL_AB_TRAVEL_END = 0.76
+ARRIVAL_AB_HOLD_END = 0.835
+ARRIVAL_WIDE_OUT_ARRIVE = 0.87
+ARRIVAL_WIDE_HOLD_END = 0.91
+ARRIVAL_PROXIMA_DIVE_END = 0.945
+ARRIVAL_PROXIMA_WIDE_HOLD_END = 0.97
+ARRIVAL_PROXIMA_INNER_ARRIVE = 0.99
 CAMERA_ELEVATION_DEG = 22.0
 SOL_ELEVATION_DEG = 28.0
 # Top-down open so the Moon orbit fills the viewport (3D foreshortening shrinks it).
@@ -455,16 +464,27 @@ def stagedLogDive(
     return logLerp(scales[segmentIndex], scales[segmentIndex + 1], local)
 
 
-def travelProgress(frame: int, animationFrames: int) -> float:
+def travelProgress(
+    frame: int,
+    animationFrames: int,
+    *,
+    abTravelEnd: float = AB_TRAVEL_END,
+) -> float:
     """0 while still at Sol → 1 once the camera has arrived at α Cen AB."""
     linear = timelineProgress(frame, animationFrames)
-    return segmentProgress(linear, PULLBACK_END, AB_TRAVEL_END)
+    return segmentProgress(linear, PULLBACK_END, abTravelEnd)
 
 
-def proximaTravelProgress(frame: int, animationFrames: int) -> float:
-    """0 at AB → 1 once the camera has arrived at Proxima."""
+def proximaTravelProgress(
+    frame: int,
+    animationFrames: int,
+    *,
+    wideHoldEnd: float = WIDE_OUT_END,
+    proximaDiveEnd: float = PROXIMA_TRAVEL_END,
+) -> float:
+    """0 at triple-wide hold end → 1 once the dive reaches Proxima-wide scale."""
     linear = timelineProgress(frame, animationFrames)
-    return segmentProgress(linear, WIDE_OUT_END, PROXIMA_TRAVEL_END)
+    return segmentProgress(linear, wideHoldEnd, proximaDiveEnd)
 
 
 def spectralClassColor(stellarClass: object, *, fallback: str) -> str:
@@ -736,6 +756,39 @@ class SolCentauriCinematicAnimator:
         """Timeline fraction when the Earth(-Moon) open ends and the Sol dive begins."""
         return SOL_EARTH_BLENDER_DWELL_END if self.useBlenderBodies else SOL_EARTH_DWELL_END
 
+    def _abTravelEnd(self) -> float:
+        return ARRIVAL_AB_TRAVEL_END if self.useBlenderBodies else AB_TRAVEL_END
+
+    def _abHoldEnd(self) -> float:
+        return ARRIVAL_AB_HOLD_END if self.useBlenderBodies else AB_HOLD_END
+
+    def _wideOutArrive(self) -> float:
+        return ARRIVAL_WIDE_OUT_ARRIVE if self.useBlenderBodies else WIDE_OUT_ARRIVE
+
+    def _wideHoldEnd(self) -> float:
+        return ARRIVAL_WIDE_HOLD_END if self.useBlenderBodies else WIDE_OUT_END
+
+    def _proximaDiveEnd(self) -> float:
+        return ARRIVAL_PROXIMA_DIVE_END if self.useBlenderBodies else PROXIMA_TRAVEL_END
+
+    def _proximaWideHoldEnd(self) -> float:
+        """Blender: linger at Proxima-wide before inner tighten. Classic: no extra hold."""
+        return ARRIVAL_PROXIMA_WIDE_HOLD_END if self.useBlenderBodies else PROXIMA_TRAVEL_END
+
+    def _proximaInnerArrive(self) -> float:
+        return ARRIVAL_PROXIMA_INNER_ARRIVE if self.useBlenderBodies else PROXIMA_INNER_ARRIVE
+
+    def _travelProgress(self, frame: int) -> float:
+        return travelProgress(frame, self.animationFrames, abTravelEnd=self._abTravelEnd())
+
+    def _proximaTravelProgress(self, frame: int) -> float:
+        return proximaTravelProgress(
+            frame,
+            self.animationFrames,
+            wideHoldEnd=self._wideHoldEnd(),
+            proximaDiveEnd=self._proximaDiveEnd(),
+        )
+
     def _solOpeningHalfWidthAu(self, linear: float) -> float:
         """Earth → belt/Jupiter linger → outer/Kuiper linger."""
         dwellEnd = self._earthDwellEnd()
@@ -896,9 +949,15 @@ class SolCentauriCinematicAnimator:
 
     def _cameraState(self, frame: int) -> tuple[np.ndarray, float]:
         linear = timelineProgress(frame, self.animationFrames)
-        abProgress = travelProgress(frame, self.animationFrames)
-        proximaProgress = proximaTravelProgress(frame, self.animationFrames)
+        abProgress = self._travelProgress(frame)
+        proximaProgress = self._proximaTravelProgress(frame)
         proximaSol = self._proximaPositionSol(frame)
+        abHoldEnd = self._abHoldEnd()
+        wideOutArrive = self._wideOutArrive()
+        wideHoldEnd = self._wideHoldEnd()
+        proximaDiveEnd = self._proximaDiveEnd()
+        proximaWideHoldEnd = self._proximaWideHoldEnd()
+        proximaInnerArrive = self._proximaInnerArrive()
 
         if linear <= SOL_HOLD_END:
             return self._solOpeningCameraState(frame, linear)
@@ -906,23 +965,22 @@ class SolCentauriCinematicAnimator:
         if linear <= PULLBACK_END:
             return np.zeros(3), self._pullbackHalfWidthAu(linear)
 
-        if linear <= AB_HOLD_END:
+        if linear <= abHoldEnd:
             focus = self._abFocusProgress(abProgress) * self.barycenterSolAu
             return focus, self._abLegHalfWidthAu(focus, abProgress)
 
-        if linear <= WIDE_OUT_ARRIVE:
-            pull = segmentProgress(linear, AB_HOLD_END, WIDE_OUT_ARRIVE)
+        if linear <= wideOutArrive:
+            pull = segmentProgress(linear, abHoldEnd, wideOutArrive)
             return self.barycenterSolAu.copy(), stagedLogDive(
                 self.abHalfWidthAu, self.wideHalfWidthAu, (400.0, 3000.0), pull
             )
 
-        if linear <= WIDE_OUT_END:
+        if linear <= wideHoldEnd:
             # Hold on the three-star view: A–B with Proxima on its wide orbit.
             return self.barycenterSolAu.copy(), self.wideHalfWidthAu
 
         # After the triple pause, dive straight onto Proxima (not the AB–Proxima midpoint).
-        # Do not re-run a Sol-framing "cruise" — that pulled the camera back out to ~10⁵ AU.
-        if linear <= PROXIMA_TRAVEL_END:
+        if linear <= proximaDiveEnd:
             return proximaSol.copy(), stagedLogDive(
                 self.wideHalfWidthAu,
                 self.proximaWideHalfWidthAu,
@@ -930,8 +988,12 @@ class SolCentauriCinematicAnimator:
                 proximaProgress,
             )
 
-        if linear <= PROXIMA_INNER_ARRIVE:
-            tighten = segmentProgress(linear, PROXIMA_TRAVEL_END, PROXIMA_INNER_ARRIVE)
+        if linear <= proximaWideHoldEnd:
+            # Blender arrival beat: linger at Proxima-wide before the b/d close-up.
+            return proximaSol.copy(), self.proximaWideHalfWidthAu
+
+        if linear <= proximaInnerArrive:
+            tighten = segmentProgress(linear, proximaWideHoldEnd, proximaInnerArrive)
             # Bias time toward the start of the dive so the last stretch eases in.
             tighten = tighten**1.35
             return proximaSol.copy(), logLerp(
@@ -954,8 +1016,8 @@ class SolCentauriCinematicAnimator:
         focus, halfWidthAu = self._cameraState(frame)
         self._viewFocus = focus
         self._viewHalfWidthAu = halfWidthAu
-        abProgress = travelProgress(frame, self.animationFrames)
-        proximaProgress = proximaTravelProgress(frame, self.animationFrames)
+        abProgress = self._travelProgress(frame)
+        proximaProgress = self._proximaTravelProgress(frame)
         linear = timelineProgress(frame, self.animationFrames)
 
         self._drawPath(frame, focus, abProgress, proximaProgress, halfWidthAu, linear)
@@ -1008,10 +1070,10 @@ class SolCentauriCinematicAnimator:
         halfWidthAu: float,
         linear: float,
     ) -> None:
-        if halfWidthAu < 200.0 and abProgress < 0.05 and linear < AB_HOLD_END:
+        if halfWidthAu < 200.0 and abProgress < 0.05 and linear < self._abHoldEnd():
             return
 
-        if linear < WIDE_OUT_END:
+        if linear < self._wideHoldEnd():
             path = np.vstack((np.zeros(3), self.barycenterSolAu))
             self.axes.plot(
                 path[:, 0], path[:, 1], path[:, 2], color=self.pathColor, linewidth=1.2, alpha=0.4
@@ -1994,12 +2056,12 @@ class SolCentauriCinematicAnimator:
     ) -> None:
         if halfWidthAu < 100.0 and abProgress < 0.05:
             return
-        if linear >= PROXIMA_TRAVEL_END:
+        if linear >= self._proximaDiveEnd():
             return
 
         primary = self._starPositionSol(self.primaryOrbit, frame, ANIMATION_SPEED_AB)
         secondary = self._starPositionSol(self.secondaryOrbit, frame, ANIMATION_SPEED_AB)
-        showBinaryDetail = halfWidthAu < 140.0 and abProgress > 0.2 and linear < WIDE_OUT_END
+        showBinaryDetail = halfWidthAu < 140.0 and abProgress > 0.2 and linear < self._wideHoldEnd()
 
         if showBinaryDetail:
             for path, color in (
@@ -2012,7 +2074,7 @@ class SolCentauriCinematicAnimator:
 
         if halfWidthAu > 200.0:
             self._drawAbUnresolved(halfWidthAu, linear)
-            if linear >= AB_HOLD_END:
+            if linear >= self._abHoldEnd():
                 self._drawProximaWideMarker(frame)
             return
 
@@ -2105,7 +2167,7 @@ class SolCentauriCinematicAnimator:
     def _drawAbUnresolved(self, halfWidthAu: float, linear: float) -> None:
         marker = self.barycenterSolAu
         size = np.clip(52.0 * (self.startHalfWidthAu / halfWidthAu) ** 0.35, 36.0, 190.0)
-        label = 'α Cen A/B' if linear >= AB_HOLD_END else 'α Centauri (next system)'
+        label = 'α Cen A/B' if linear >= self._abHoldEnd() else 'α Centauri (next system)'
         self._drawStarMarker(marker, STAR_COLORS['primary'], size)
         self._label3d(marker, f'  {label}', color=self.labelColor, fontsize=9)
 
@@ -2123,7 +2185,7 @@ class SolCentauriCinematicAnimator:
         self._label3d(proximaSol, '  Proxima', color=self.labelColor, fontsize=10)
 
     def _drawProxima(self, frame: int, halfWidthAu: float, linear: float) -> None:
-        if linear < WIDE_OUT_END or halfWidthAu > 80.0:
+        if linear < self._wideHoldEnd() or halfWidthAu > 80.0:
             return
 
         proximaSol = self._proximaPositionSol(frame)
@@ -2271,13 +2333,61 @@ class SolCentauriCinematicAnimator:
             )
         return None
 
+    def _blenderArrivalCaption(
+        self, abProgress: float, halfWidthAu: float, linear: float
+    ) -> tuple[str, str] | None:
+        """Beat-specific HUD copy for staged blender α Cen arrival (#63)."""
+        if linear < PULLBACK_END:
+            return None
+        remainingLy = (1.0 - abProgress) * self.distanceLy
+        if linear < self._abTravelEnd() and abProgress < AB_CRUISE_END:
+            return ('Flying toward Alpha Centauri', f'{remainingLy:.2f} light-years remaining')
+        if linear < self._abTravelEnd():
+            return ('Arriving at Alpha Centauri', f'Scale ~{halfWidthAu:.0f} AU across')
+        if linear < self._abHoldEnd():
+            return (
+                'Alpha Centauri A–B',
+                'Textured Rigil Kentaurus and Toliman at their barycenter',
+            )
+        if linear < self._wideOutArrive():
+            return ('Zooming out from A–B', 'Looking for Proxima on its wide orbit')
+        if linear < self._wideHoldEnd():
+            return (
+                'Alpha Centauri triple system',
+                'Proxima on its wide ~8.7 kau path around A–B',
+            )
+        if linear < self._proximaDiveEnd():
+            return (
+                'Diving in to Proxima Centauri',
+                'From the triple system down to Proxima’s planets',
+            )
+        if linear < self._proximaWideHoldEnd():
+            return (
+                'Proxima Centauri system',
+                'Confirmed planets d & b · disputed c on a wider orbit',
+            )
+        if halfWidthAu > PROXIMA_INNER_HALF_AU * 1.3:
+            return (
+                'Proxima Centauri system',
+                'Closing in on the inner planets',
+            )
+        return (
+            'Proxima b and d up close',
+            'Habitable-zone world b · inner planet d · c lies farther out',
+        )
+
     def _caption(
         self, abProgress: float, proximaProgress: float, halfWidthAu: float, linear: float
     ) -> tuple[str, str]:
-        remainingLy = (1.0 - abProgress) * self.distanceLy
+        del proximaProgress  # arrival captions are timeline / half-width gated
         solCaption = self._solCaption(halfWidthAu, linear)
         if solCaption is not None:
             return solCaption
+        if self.useBlenderBodies:
+            arrival = self._blenderArrivalCaption(abProgress, halfWidthAu, linear)
+            if arrival is not None:
+                return arrival
+        remainingLy = (1.0 - abProgress) * self.distanceLy
         if linear < AB_TRAVEL_END and abProgress < AB_CRUISE_END:
             return ('Flying toward Alpha Centauri', f'{remainingLy:.2f} light-years remaining')
         if linear < AB_HOLD_END:
@@ -2344,17 +2454,17 @@ class SolCentauriCinematicAnimator:
             else:
                 elev = SOL_ELEVATION_DEG
             azim = self.solAzimuthDeg
-        elif linear < AB_TRAVEL_END:
+        elif linear < self._abTravelEnd():
             # Ease Sol → travel once, then hold steady through pan + AB dive (no spin).
             blend = segmentProgress(linear, PULLBACK_END, PULLBACK_END + 0.02)
             elev = SOL_ELEVATION_DEG + blend * (CAMERA_ELEVATION_DEG - SOL_ELEVATION_DEG)
             azim = lerpAngleDeg(self.solAzimuthDeg, self.travelAzimuthDeg, blend)
-        elif linear < PROXIMA_TRAVEL_END:
-            # Steady travel camera through AB hold, wide-out, and Proxima approach.
+        elif linear < self._proximaWideHoldEnd():
+            # Steady travel camera through AB hold, wide-out, dive, and Proxima-wide hold.
             elev, azim = CAMERA_ELEVATION_DEG, self.travelAzimuthDeg
         else:
             # Gentle tilt-up for the Proxima close-up — azimuth stays put (no orbit flip).
-            blend = segmentProgress(linear, PROXIMA_TRAVEL_END, PROXIMA_INNER_ARRIVE)
+            blend = segmentProgress(linear, self._proximaWideHoldEnd(), self._proximaInnerArrive())
             elev = CAMERA_ELEVATION_DEG + blend * (PROXIMA_ELEVATION_DEG - CAMERA_ELEVATION_DEG)
             azim = self.travelAzimuthDeg
 
