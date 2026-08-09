@@ -83,6 +83,14 @@ BLENDER_PLANET_BODY_SCALE = {
     'Uranus': 1.05,
     'Neptune': 1.0,
     'Pluto': 0.32,
+    # Proxima finale — readable at ~2 AU wide and capped at the 0.055 AU close-up.
+    'Proxima b': 0.90,
+    'Proxima d': 0.58,
+}
+# Cap on-screen size so Proxima planets do not swallow the finale frame.
+BLENDER_PLANET_MAX_FRAC = {
+    'Proxima b': 0.048,
+    'Proxima d': 0.034,
 }
 BLENDER_MOON_BODY_SCALE = {
     'Moon': 0.35,
@@ -1589,6 +1597,8 @@ class SolCentauriCinematicAnimator:
         if catalogName in BLENDER_STAR_BODY_SCALE:
             maxFrac = BLENDER_STAR_MAX_FRAC.get(catalogName)
             return min(rawFrac, maxFrac) if maxFrac is not None else rawFrac
+        if catalogName in BLENDER_PLANET_MAX_FRAC:
+            return min(rawFrac, BLENDER_PLANET_MAX_FRAC[catalogName])
         floor = 0.0035
         if catalogName is not None:
             appearance = appearanceForCatalogName(catalogName)
@@ -1645,6 +1655,8 @@ class SolCentauriCinematicAnimator:
                 'Alpha Centauri A': 'α Cen A',
                 'Alpha Centauri B': 'α Cen B',
                 'Proxima Centauri': 'Proxima Centauri',
+                'Proxima b': 'b',
+                'Proxima d': 'd',
             }.get(name, name)
             self.bodyOverlay.text(
                 textX,
@@ -2242,13 +2254,35 @@ class SolCentauriCinematicAnimator:
         position = self._proximaPlanetPositionSol(planet, frame)
         if not self._inView(position, margin=1.15):
             return
+        shortName = planet.name.replace('Proxima ', '')
+        suffix = '' if confirmed else ' ?'
+        labelSize = 10.0 if confirmed else 8.0
+        bodyScale = BLENDER_PLANET_BODY_SCALE.get(planet.name)
+        queued = False
+        if (
+            confirmed
+            and bodyScale is not None
+            and self.useBlenderBodies
+            and halfWidthAu <= PROXIMA_WIDE_HALF_AU * 1.15
+        ):
+            queued = self._queueBlenderBody(
+                planet.name,
+                position,
+                frame,
+                halfWidthAu,
+                openCloseup=halfWidthAu <= PROXIMA_INNER_HALF_AU * 2.5,
+                bodyScale=bodyScale,
+                orbitalPhaseRad=None,
+                suppressDotFallback=True,
+            )
+        if queued:
+            self._pendingBlenderLabels.append((planet.name, position.copy(), labelSize, bodyScale))
+            return
         # Grow with zoom-in so b/d stay readable as the orbit fills the frame
         # (matplotlib scatter is screen-fixed; without this they look like they shrink).
         baseSize = 56.0 if confirmed else 32.0
         zoomBoost = np.clip(PROXIMA_WIDE_HALF_AU / max(halfWidthAu, 1e-6), 1.0, 12.0)
         markerSize = baseSize * (zoomBoost**0.65)
-        shortName = planet.name.replace('Proxima ', '')
-        suffix = '' if confirmed else ' ?'
         self.axes.scatter(
             [position[0]],
             [position[1]],
@@ -2263,7 +2297,7 @@ class SolCentauriCinematicAnimator:
             position,
             f'  {shortName}{suffix}',
             color=self.labelColor,
-            fontsize=10 if confirmed else 8,
+            fontsize=int(labelSize),
             alpha=0.95 if confirmed else 0.7,
         )
 

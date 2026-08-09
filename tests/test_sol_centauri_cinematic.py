@@ -663,6 +663,43 @@ class CinematicTransformTests(unittest.TestCase):
 
             plt.close(animator.figure)
 
+    def test_blender_proxima_planets_capped_on_finale(self) -> None:
+        """Proxima b/d billboards stay textured but capped at the inner close-up."""
+        from animate.scenes.sol_centauri_cinematic import (
+            BLENDER_PLANET_BODY_SCALE,
+            BLENDER_PLANET_MAX_FRAC,
+            PROXIMA_INNER_HALF_AU,
+            PROXIMA_WIDE_HALF_AU,
+        )
+
+        paths = defaultDataPaths(REPO_ROOT)
+        animator = SolCentauriCinematicAnimator(
+            self.system,
+            starsCsvPath=paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            for name in ('Proxima b', 'Proxima d'):
+                wideFrac = animator._blenderBillboardFracRadius(
+                    PROXIMA_WIDE_HALF_AU,
+                    BLENDER_PLANET_BODY_SCALE[name],
+                    catalogName=name,
+                )
+                innerFrac = animator._blenderBillboardFracRadius(
+                    PROXIMA_INNER_HALF_AU,
+                    BLENDER_PLANET_BODY_SCALE[name],
+                    catalogName=name,
+                )
+                self.assertIsNotNone(wideFrac)
+                self.assertIsNotNone(innerFrac)
+                assert wideFrac is not None and innerFrac is not None
+                self.assertGreater(wideFrac, 0.004)
+                self.assertEqual(innerFrac, BLENDER_PLANET_MAX_FRAC[name])
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
     def test_classic_arrival_skips_proxima_wide_hold(self) -> None:
         """Dotted mode has no extra Proxima-wide plateau after the dive."""
         frames = self.animator.animationFrames

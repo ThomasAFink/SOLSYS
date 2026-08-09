@@ -167,6 +167,29 @@ class BodyAppearanceTests(unittest.TestCase):
             True,
         )
 
+    def test_proxima_planet_packs_resolve(self) -> None:
+        from animate.scenes.blender.body_scene import buildBodyScene
+        from animate.scenes.blender.export_body import bodyOutputDirectory
+
+        for catalogName, bodyId in (('Proxima b', 'proxima_b'), ('Proxima d', 'proxima_d')):
+            appearance = appearanceForCatalogName(catalogName)
+            self.assertIsNotNone(appearance, catalogName)
+            assert appearance is not None
+            self.assertEqual(appearance.kind, 'planet')
+            self.assertEqual(appearance.bodyId, bodyId)
+            self.assertTrue(appearance.atmosphere.enabled)
+            maps = appearance.textures.existingMaps()
+            self.assertIn('color', maps)
+            self.assertTrue(maps['color'].is_file())
+            scene = buildBodyScene(catalogName, frameCount=8)
+            self.assertEqual(scene.body.kind, 'planet')
+            self.assertEqual(scene.body.systemId, 'alpha_centauri')
+            self.assertTrue(
+                bodyOutputDirectory('planet', catalogName)
+                .as_posix()
+                .endswith(f'planets/{bodyId}')
+            )
+
     def test_alpha_centauri_star_packs_are_emissive(self) -> None:
         from animate.scenes.blender.body_scene import buildBodyScene
         from animate.scenes.blender.export_body import bodyOutputDirectory
@@ -246,6 +269,8 @@ class BodyAppearanceTests(unittest.TestCase):
             'Mercury',
             'Neptune',
             'Pluto',
+            'Proxima b',
+            'Proxima d',
             'Saturn',
             'Uranus',
             'Venus',
