@@ -488,7 +488,7 @@ TRAPPIST-1 (issue #7) is a single-host ultracool dwarf (~40.7 ly) with seven con
 
 Blender close-ups (issue #69): `render.py blender --body "TRAPPIST-1 b"` … `"TRAPPIST-1 h" --flyby` / `--spin` write under `output/animate/blender/planets/trappist-1_<letter>/`.
 
-Sol → TRAPPIST-1 cinematic (issue #71): `--system sol_trappist` reuses the Sol opening / pullback from the α Cen tour, then cruises to TRAPPIST-1 at true Sol XYZ (~40.7 ly; no AB-style frame transform), holds the seven-planet chain with a schematic habitable-zone band, lingers on temperate candidates **e** and **f**, then eases to the full b–h finale. With `--blender-bodies`, billboards use the TRAPPIST spin packs (host stays a scatter marker until a star pack exists):
+Sol → TRAPPIST-1 cinematic (issue #71): `--system sol_trappist` reuses the Sol opening / pullback from the α Cen tour, then cruises to TRAPPIST-1 at true Sol XYZ (~40.7 ly; no AB-style frame transform), holds the seven-planet chain with a schematic habitable-zone band, pans/zooms onto temperate candidates **e** and **f**, then returns to the full b–h finale. With `--blender-bodies`, billboards use the TRAPPIST spin packs (host stays a scatter marker until a star pack exists):
 
 - `output/animate/sol_trappist/sol_trappist_cinematic_{light,dark}.gif` — classic scatter-dot bodies
 - `output/animate/sol_trappist/blender/sol_trappist_cinematic_blender_{light,dark}.gif` — Blender Sol + TRAPPIST planet billboards
