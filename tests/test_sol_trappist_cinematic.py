@@ -15,10 +15,15 @@ from animate.scenes.sol_centauri_cinematic import (
 )
 from animate.scenes.sol_trappist_cinematic import (
     ARRIVAL_TRAPPIST_HOLD_END,
+    ARRIVAL_TRAPPIST_HZ_HOLD_END,
     ARRIVAL_TRAPPIST_INNER_ARRIVE,
     FIELD_STARS_MAX_LY,
     START_HALF_WIDTH_LY,
     TRAPPIST_ARRIVE_HALF_AU,
+    TRAPPIST_HZ_FOCUS_NAMES,
+    TRAPPIST_HZ_HALF_AU,
+    TRAPPIST_HZ_INNER_AU,
+    TRAPPIST_HZ_OUTER_AU,
     TRAPPIST_INNER_HALF_AU,
     TRAPPIST_WIDE_HALF_AU,
     SolTrappistCinematicAnimator,
@@ -168,7 +173,7 @@ class SolTrappistCinematicTests(unittest.TestCase):
 
             plt.close(animator.figure)
 
-    def test_blender_inner_arrive_uses_wide_then_inner(self) -> None:
+    def test_blender_wide_hz_then_full_chain(self) -> None:
         animator = SolTrappistCinematicAnimator(
             self.system,
             starsCsvPath=self.paths['starsCsvPath'],
@@ -182,10 +187,28 @@ class SolTrappistCinematicTests(unittest.TestCase):
             _, wideHalf = animator._cameraState(wideFrame)
             self.assertAlmostEqual(wideHalf, TRAPPIST_WIDE_HALF_AU, places=5)
 
+            hzFrame = int(ARRIVAL_TRAPPIST_HZ_HOLD_END * (animator.animationFrames - 1)) - 2
+            focus, hzHalf = animator._cameraState(hzFrame)
+            np.testing.assert_allclose(focus, animator.hostSolAu, atol=1e-9)
+            self.assertAlmostEqual(hzHalf, TRAPPIST_HZ_HALF_AU, places=5)
+            self.assertLess(hzHalf, wideHalf)
+
+            # e and f sit inside the schematic HZ; b is interior; h is exterior.
+            byName = {planet.name: planet for planet in animator.trappistPlanets}
+            self.assertGreater(byName['TRAPPIST-1 e'].semiMajorAxisAu, TRAPPIST_HZ_INNER_AU)
+            self.assertLess(byName['TRAPPIST-1 e'].semiMajorAxisAu, TRAPPIST_HZ_OUTER_AU)
+            self.assertGreater(byName['TRAPPIST-1 f'].semiMajorAxisAu, TRAPPIST_HZ_INNER_AU)
+            self.assertLess(byName['TRAPPIST-1 f'].semiMajorAxisAu, TRAPPIST_HZ_OUTER_AU)
+            self.assertLess(byName['TRAPPIST-1 b'].semiMajorAxisAu, TRAPPIST_HZ_INNER_AU)
+            self.assertGreater(byName['TRAPPIST-1 h'].semiMajorAxisAu, TRAPPIST_HZ_OUTER_AU)
+            self.assertEqual(TRAPPIST_HZ_FOCUS_NAMES, ('TRAPPIST-1 e', 'TRAPPIST-1 f'))
+
             innerFrame = int(ARRIVAL_TRAPPIST_INNER_ARRIVE * (animator.animationFrames - 1))
             focus, innerHalf = animator._cameraState(innerFrame)
             np.testing.assert_allclose(focus, animator.hostSolAu, atol=1e-9)
             self.assertAlmostEqual(innerHalf, TRAPPIST_INNER_HALF_AU, places=5)
+            # Finale pulls slightly wider than the HZ linger so b–h all read.
+            self.assertGreater(innerHalf, hzHalf)
             self.assertLess(innerHalf, TRAPPIST_WIDE_HALF_AU)
         finally:
             import matplotlib.pyplot as plt
