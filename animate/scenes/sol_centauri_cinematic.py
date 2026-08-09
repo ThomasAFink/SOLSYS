@@ -83,14 +83,14 @@ BLENDER_PLANET_BODY_SCALE = {
     'Uranus': 1.05,
     'Neptune': 1.0,
     'Pluto': 0.32,
-    # Proxima finale — readable at ~2 AU wide and capped at the 0.055 AU close-up.
-    'Proxima b': 0.90,
-    'Proxima d': 0.58,
+    # Proxima finale — smaller than the Proxima photosphere at every finale zoom.
+    'Proxima b': 0.35,
+    'Proxima d': 0.22,
 }
-# Cap on-screen size so Proxima planets do not swallow the finale frame.
+# Cap on-screen size so Proxima planets stay under the star disk.
 BLENDER_PLANET_MAX_FRAC = {
-    'Proxima b': 0.048,
-    'Proxima d': 0.034,
+    'Proxima b': 0.028,
+    'Proxima d': 0.020,
 }
 BLENDER_MOON_BODY_SCALE = {
     'Moon': 0.35,
@@ -129,14 +129,15 @@ BLENDER_STAR_BODY_SCALE = {
     'Sun': 5.5,
     'Alpha Centauri A': 48.0,
     'Alpha Centauri B': 40.0,
-    'Proxima Centauri': 0.55,
+    # Under Proxima d's orbit (~0.029 AU); larger than b/d planet billboards.
+    'Proxima Centauri': 0.75,
 }
 # Cap on-screen size for non-Sol stars so the Proxima dive does not fill the frame.
 BLENDER_STAR_MAX_FRAC = {
     'Alpha Centauri A': 0.055,
     'Alpha Centauri B': 0.048,
     # Keep under planet orbit fracs through the wide→inner tighten.
-    'Proxima Centauri': 0.05,
+    'Proxima Centauri': 0.055,
 }
 # Sol outer-system readability floor (figure fraction). Raw world scale alone
 # shrinks below floored planet disks at Saturn/Kuiper and the Sun vanishes.
@@ -1568,36 +1569,19 @@ class SolCentauriCinematicAnimator:
         frac = self.figure.transFigure.inverted().transform(display)
         return frac, self._cameraDepthKey(center)
 
-    def _isOccludedByStarDisk(
-        self,
-        frac: np.ndarray,
-        fracRadius: float,
-        depth: float,
-        starDisks: list[tuple[np.ndarray, float, float]],
-    ) -> bool:
-        """True when this disk sits under a closer star photosphere on screen."""
-        for starFrac, starRadius, starDepth in starDisks:
-            if depth >= starDepth:
-                continue
-            sep = float(np.hypot(frac[0] - starFrac[0], frac[1] - starFrac[1]))
-            if sep < starRadius - 0.35 * fracRadius:
-                return True
-        return False
-
     def _flushBlenderBodyOverlays(self, halfWidthAu: float) -> None:
         """Project queued bodies and paint Blender spin-loop frames into this frame."""
         if not self._pendingBlenderBodies or self.blenderSprites is None:
             return
         # Far → near so closer disks (and their labels) cover bodies behind stars.
+        # Partial occultations keep the free limb: the star PNG's opaque disk covers
+        # overlap; do not hard-cull whole planets when only partly behind the star.
         pending = sorted(
             self._pendingBlenderBodies,
             key=lambda item: self._cameraDepthKey(item[1]),
         )
         self._blenderBodyPaintZorder = {}
-        prepared: list[
-            tuple[str, np.ndarray, int, bool, float | None, np.ndarray, float, float]
-        ] = []
-        for (
+        for rank, (
             catalogName,
             center,
             frame,
@@ -1605,7 +1589,7 @@ class SolCentauriCinematicAnimator:
             openCloseup,
             bodyScale,
             orbitalPhaseRad,
-        ) in pending:
+        ) in enumerate(pending):
             if (
                 self._blenderBillboardRadiusAu(
                     bodyHalfWidth,
@@ -1624,41 +1608,7 @@ class SolCentauriCinematicAnimator:
             projected = self._projectBlenderOverlay(center)
             if projected is None:
                 continue
-            frac, depth = projected
-            prepared.append(
-                (
-                    catalogName,
-                    center,
-                    frame,
-                    openCloseup,
-                    orbitalPhaseRad,
-                    frac,
-                    fracRadius,
-                    depth,
-                )
-            )
-
-        starDisks = [
-            (frac, fracRadius, depth)
-            for catalogName, _, _, _, _, frac, fracRadius, depth in prepared
-            if catalogName in BLENDER_STAR_BODY_SCALE
-        ]
-
-        paintRank = 0
-        for (
-            catalogName,
-            center,
-            frame,
-            openCloseup,
-            orbitalPhaseRad,
-            frac,
-            fracRadius,
-            depth,
-        ) in prepared:
-            if catalogName not in BLENDER_STAR_BODY_SCALE and self._isOccludedByStarDisk(
-                frac, fracRadius, depth, starDisks
-            ):
-                continue
+            frac, _depth = projected
             if catalogName in BLENDER_STAR_BODY_SCALE:
                 resolution = 768
             elif openCloseup:
@@ -1673,8 +1623,7 @@ class SolCentauriCinematicAnimator:
             )
             if disk is None:
                 continue
-            paintZ = 5 + paintRank
-            paintRank += 1
+            paintZ = 5 + rank
             self._blenderBodyPaintZorder[
                 (catalogName, float(center[0]), float(center[1]), float(center[2]))
             ] = paintZ
