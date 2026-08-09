@@ -185,9 +185,33 @@ class BodyAppearanceTests(unittest.TestCase):
             self.assertEqual(scene.body.kind, 'planet')
             self.assertEqual(scene.body.systemId, 'alpha_centauri')
             self.assertTrue(
+                bodyOutputDirectory('planet', catalogName).as_posix().endswith(f'planets/{bodyId}')
+            )
+
+    def test_trappist_1_planet_packs_resolve(self) -> None:
+        from animate.scenes.blender.body_scene import buildBodyScene
+        from animate.scenes.blender.export_body import bodyOutputDirectory, bodyStem
+
+        letters = ('b', 'c', 'd', 'e', 'f', 'g', 'h')
+        for letter in letters:
+            catalogName = f'TRAPPIST-1 {letter}'
+            bodyId = f'trappist_1_{letter}'
+            appearance = appearanceForCatalogName(catalogName)
+            self.assertIsNotNone(appearance, catalogName)
+            assert appearance is not None
+            self.assertEqual(appearance.kind, 'planet')
+            self.assertEqual(appearance.bodyId, bodyId)
+            self.assertTrue(appearance.atmosphere.enabled)
+            maps = appearance.textures.existingMaps()
+            self.assertIn('color', maps)
+            self.assertTrue(maps['color'].is_file())
+            scene = buildBodyScene(catalogName, frameCount=8)
+            self.assertEqual(scene.body.kind, 'planet')
+            self.assertEqual(scene.body.systemId, 'trappist_1')
+            self.assertTrue(
                 bodyOutputDirectory('planet', catalogName)
                 .as_posix()
-                .endswith(f'planets/{bodyId}')
+                .endswith(f'planets/{bodyStem(catalogName)}')
             )
 
     def test_alpha_centauri_star_packs_are_emissive(self) -> None:
@@ -212,9 +236,7 @@ class BodyAppearanceTests(unittest.TestCase):
             self.assertEqual(scene.body.kind, 'star')
             self.assertEqual(scene.body.name, catalogName)
             self.assertTrue(
-                bodyOutputDirectory('star', catalogName)
-                .as_posix()
-                .endswith(f'stars/{bodyId}')
+                bodyOutputDirectory('star', catalogName).as_posix().endswith(f'stars/{bodyId}')
             )
 
     def test_earth_pack_resolves_color_map(self) -> None:
@@ -272,6 +294,13 @@ class BodyAppearanceTests(unittest.TestCase):
             'Proxima b',
             'Proxima d',
             'Saturn',
+            'TRAPPIST-1 b',
+            'TRAPPIST-1 c',
+            'TRAPPIST-1 d',
+            'TRAPPIST-1 e',
+            'TRAPPIST-1 f',
+            'TRAPPIST-1 g',
+            'TRAPPIST-1 h',
             'Uranus',
             'Venus',
         )

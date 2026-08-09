@@ -15,6 +15,7 @@ data/textures/
     ├── sun/                   # Sol photosphere (emissive star close-up)
     ├── alpha_centauri_a/ …    # α Cen A/B + Proxima star (spectral-tint from Sol)
     ├── proxima_b/ proxima_d/  # Proxima planets (gallery-grade; cinematic finale)
+    ├── trappist_1_b/ … _h/    # TRAPPIST-1 planets (gallery-grade)
     ├── mercury/ … pluto/      # Sol planet packs (color; rings where applicable)
     ├── io/ … charon/          # major moon packs (airless; Titan haze in code)
     └── ceres/ … eris/         # asteroids / dwarf planets (airless)
@@ -118,6 +119,22 @@ Fully procedural equirect maps for the Sol→α Cen cinematic finale (`kind=plan
 
 - CLI: `render.py blender --body "Proxima b"` / `"Proxima d" --flyby` / `--spin`
 - Disputed Proxima c stays a scatter marker (no pack yet)
+
+## TRAPPIST-1 planets (b–h)
+
+Fully procedural equirect maps for the seven confirmed TRAPPIST-1 worlds (`kind=planet`). No spacecraft mosaics and **not** remixed Earth/Mars plates. Schematic diameters in `planets.csv`.
+
+| Body | Pack notes | Primary source |
+|------|------------|----------------|
+| TRAPPIST-1 b | Hot tidally locked “eyeball” rock (`bodies/trappist_1_b/`) | Generated in-repo (fBm + domain warp) |
+| TRAPPIST-1 c | Warm eyeball rock (`bodies/trappist_1_c/`) | Generated in-repo (fBm + domain warp) |
+| TRAPPIST-1 d | Dry cratered rock (`bodies/trappist_1_d/`) | Generated in-repo (fBm + crater mask) |
+| TRAPPIST-1 e | Temperate alien land / ink seas (`bodies/trappist_1_e/`) | Generated in-repo (fBm + domain warp) |
+| TRAPPIST-1 f | Cool alien land / deep seas (`bodies/trappist_1_f/`) | Generated in-repo (fBm + domain warp) |
+| TRAPPIST-1 g | Cold icy rock (`bodies/trappist_1_g/`) | Generated in-repo (fBm + crater mask) |
+| TRAPPIST-1 h | Outer cold rock / frost (`bodies/trappist_1_h/`) | Generated in-repo (fBm + crater mask) |
+
+- CLI: `render.py blender --body "TRAPPIST-1 b"` … `"TRAPPIST-1 h" --flyby` / `--spin`
 
 ## Asteroids & dwarf planets
 
