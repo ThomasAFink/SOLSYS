@@ -16,8 +16,10 @@ from animate.scenes.sol_centauri_cinematic import (
 from animate.scenes.sol_trappist_cinematic import (
     ANIMATION_SPEED_TRAPPIST_PLANETS,
     ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE,
-    ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE,
-    ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END,
+    ARRIVAL_TRAPPIST_E_ARRIVE,
+    ARRIVAL_TRAPPIST_E_HOLD_END,
+    ARRIVAL_TRAPPIST_F_ARRIVE,
+    ARRIVAL_TRAPPIST_F_HOLD_END,
     ARRIVAL_TRAPPIST_HOLD_END,
     ARRIVAL_TRAPPIST_HZ_ARRIVE,
     ARRIVAL_TRAPPIST_HZ_HOLD_END,
@@ -25,13 +27,13 @@ from animate.scenes.sol_trappist_cinematic import (
     FIELD_STARS_MAX_LY,
     START_HALF_WIDTH_LY,
     TRAPPIST_ARRIVE_HALF_AU,
-    TRAPPIST_CANDIDATE_BODY_SCALE,
-    TRAPPIST_CANDIDATE_HALF_AU,
     TRAPPIST_HZ_FOCUS_NAMES,
     TRAPPIST_HZ_HALF_AU,
     TRAPPIST_HZ_INNER_AU,
     TRAPPIST_HZ_OUTER_AU,
     TRAPPIST_INNER_HALF_AU,
+    TRAPPIST_PLANET_HALF_AU,
+    TRAPPIST_PLANET_HERO_SCALE,
     TRAPPIST_WIDE_HALF_AU,
     SolTrappistCinematicAnimator,
 )
@@ -180,7 +182,7 @@ class SolTrappistCinematicTests(unittest.TestCase):
 
             plt.close(animator.figure)
 
-    def test_blender_wide_hz_then_full_chain(self) -> None:
+    def test_blender_wide_hz_then_sequential_planet_portraits(self) -> None:
         animator = SolTrappistCinematicAnimator(
             self.system,
             starsCsvPath=self.paths['starsCsvPath'],
@@ -200,44 +202,49 @@ class SolTrappistCinematicTests(unittest.TestCase):
             self.assertAlmostEqual(hzHalf, TRAPPIST_HZ_HALF_AU, places=5)
             self.assertLess(hzHalf, wideHalf)
 
-            # e and f sit inside the schematic HZ; b is interior; h is exterior.
             byName = {planet.name: planet for planet in animator.trappistPlanets}
             self.assertGreater(byName['TRAPPIST-1 e'].semiMajorAxisAu, TRAPPIST_HZ_INNER_AU)
             self.assertLess(byName['TRAPPIST-1 e'].semiMajorAxisAu, TRAPPIST_HZ_OUTER_AU)
             self.assertGreater(byName['TRAPPIST-1 f'].semiMajorAxisAu, TRAPPIST_HZ_INNER_AU)
             self.assertLess(byName['TRAPPIST-1 f'].semiMajorAxisAu, TRAPPIST_HZ_OUTER_AU)
-            self.assertLess(byName['TRAPPIST-1 b'].semiMajorAxisAu, TRAPPIST_HZ_INNER_AU)
-            self.assertGreater(byName['TRAPPIST-1 h'].semiMajorAxisAu, TRAPPIST_HZ_OUTER_AU)
             self.assertEqual(TRAPPIST_HZ_FOCUS_NAMES, ('TRAPPIST-1 e', 'TRAPPIST-1 f'))
 
-            # Candidate beat pans onto e/f — not host-centered — and goes tighter than HZ.
-            candFrame = (
-                int(ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END * (animator.animationFrames - 1)) - 2
-            )
-            candFocus, candHalf = animator._cameraState(candFrame)
-            expectedFocus = animator._candidateFocusSol(candFrame)
-            np.testing.assert_allclose(candFocus, expectedFocus, atol=1e-9)
-            self.assertAlmostEqual(candHalf, TRAPPIST_CANDIDATE_HALF_AU, places=5)
-            self.assertAlmostEqual(candHalf, SOL_EARTH_CLOSE_HALF_AU, places=5)
-            self.assertLess(candHalf, hzHalf)
-            self.assertGreater(float(np.linalg.norm(candFocus - animator.hostSolAu)), 0.01)
-
-            # HZ + candidate holds linger (longer than the zooms into them).
             frames = animator.animationFrames - 1
-            hzHoldFrames = int((ARRIVAL_TRAPPIST_HZ_HOLD_END - ARRIVAL_TRAPPIST_HZ_ARRIVE) * frames)
-            candHoldFrames = int(
-                (ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END - ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE) * frames
-            )
-            self.assertGreaterEqual(hzHoldFrames, 50)
-            self.assertGreaterEqual(candHoldFrames, 65)
+            eFrame = int(ARRIVAL_TRAPPIST_E_HOLD_END * frames) - 2
+            eFocus, eHalf = animator._cameraState(eFrame)
+            expectedE = animator._planetFocusSol('TRAPPIST-1 e', eFrame)
+            np.testing.assert_allclose(eFocus, expectedE, atol=1e-9)
+            self.assertAlmostEqual(eHalf, TRAPPIST_PLANET_HALF_AU, places=5)
+            self.assertLess(eHalf, hzHalf)
+            self.assertEqual(animator._portraitHeroName(eFrame), 'TRAPPIST-1 e')
 
-            innerFrame = int(ARRIVAL_TRAPPIST_INNER_ARRIVE * (animator.animationFrames - 1))
+            fFrame = int(ARRIVAL_TRAPPIST_F_HOLD_END * frames) - 2
+            fFocus, fHalf = animator._cameraState(fFrame)
+            expectedF = animator._planetFocusSol('TRAPPIST-1 f', fFrame)
+            np.testing.assert_allclose(fFocus, expectedF, atol=1e-9)
+            self.assertAlmostEqual(fHalf, TRAPPIST_PLANET_HALF_AU, places=5)
+            self.assertEqual(animator._portraitHeroName(fFrame), 'TRAPPIST-1 f')
+            # Sequential: e then f are distinct look-ats.
+            self.assertGreater(float(np.linalg.norm(eFocus - fFocus)), 0.005)
+
+            # Portrait disks stay under e↔f orbital spacing (~0.009 AU).
+            heroRadius = (
+                BLENDER_PLANET_BODY_SCALE['TRAPPIST-1 e']
+                * TRAPPIST_PLANET_HERO_SCALE
+                * (SOL_EARTH_HALF_AU * 0.18)
+            )
+            self.assertLess(heroRadius * 2.0, 0.009)
+
+            innerFrame = int(ARRIVAL_TRAPPIST_INNER_ARRIVE * frames)
             focus, innerHalf = animator._cameraState(innerFrame)
             np.testing.assert_allclose(focus, animator.hostSolAu, atol=1e-9)
             self.assertAlmostEqual(innerHalf, TRAPPIST_INNER_HALF_AU, places=5)
-            # Finale returns to host and pulls wider than the candidate close-up.
-            self.assertGreater(innerHalf, candHalf)
+            self.assertGreater(innerHalf, eHalf)
             self.assertLess(innerHalf, TRAPPIST_WIDE_HALF_AU)
+
+            # e/f holds each linger.
+            self.assertGreaterEqual(int((ARRIVAL_TRAPPIST_E_HOLD_END - ARRIVAL_TRAPPIST_E_ARRIVE) * frames), 30)
+            self.assertGreaterEqual(int((ARRIVAL_TRAPPIST_F_HOLD_END - ARRIVAL_TRAPPIST_F_ARRIVE) * frames), 30)
         finally:
             import matplotlib.pyplot as plt
 
@@ -255,9 +262,8 @@ class SolTrappistCinematicTests(unittest.TestCase):
             hzHold = int(
                 ((ARRIVAL_TRAPPIST_HZ_ARRIVE + ARRIVAL_TRAPPIST_HZ_HOLD_END) / 2) * (frames - 1)
             )
-            candHold = int(
-                ((ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE + ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END) / 2)
-                * (frames - 1)
+            eHold = int(
+                ((ARRIVAL_TRAPPIST_E_ARRIVE + ARRIVAL_TRAPPIST_E_HOLD_END) / 2) * (frames - 1)
             )
             self.assertAlmostEqual(
                 animator._trappistPlanetAnimationSpeed(early),
@@ -268,13 +274,12 @@ class SolTrappistCinematicTests(unittest.TestCase):
                 ANIMATION_SPEED_TRAPPIST_PLANETS,
             )
             self.assertAlmostEqual(
-                animator._trappistPlanetAnimationSpeed(candHold),
+                animator._trappistPlanetAnimationSpeed(eHold),
                 ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE,
             )
-            # Accumulated clock must keep advancing (no reverse) when the rate eases down.
             days = [
                 animator._trappistMotionDays(frame)
-                for frame in range(hzHold - 2, min(frames, candHold + 3))
+                for frame in range(hzHold - 2, min(frames, eHold + 3))
             ]
             self.assertGreater(days[-1], days[0])
             for previous, current in zip(days, days[1:], strict=False):
@@ -283,53 +288,30 @@ class SolTrappistCinematicTests(unittest.TestCase):
             planet = animator._planetByName('TRAPPIST-1 e')
             senses: list[float] = []
             previousPos = animator._trappistPlanetPositionSol(planet, hzHold - 2)
-            for frame in range(hzHold - 1, min(frames, candHold + 3)):
+            for frame in range(hzHold - 1, min(frames, eHold + 3)):
                 position = animator._trappistPlanetPositionSol(planet, frame)
                 radial = previousPos - animator.hostSolAu
                 delta = position - previousPos
                 senses.append(float(radial[0] * delta[1] - radial[1] * delta[0]))
                 previousPos = position
-            # Orbital sense (radial × step) must not flip when the rate eases down.
             nonzero = [value for value in senses if abs(value) > 1e-16]
             self.assertTrue(nonzero)
             self.assertEqual(len({1 if value > 0 else -1 for value in nonzero}), 1)
 
-            # Chain markers stay modest; candidate hero matches Earth-open on-screen size.
-            chainScale = BLENDER_PLANET_BODY_SCALE['TRAPPIST-1 e']
-            wideFrac = animator._blenderBillboardFracRadius(
-                TRAPPIST_WIDE_HALF_AU, chainScale, catalogName='TRAPPIST-1 e'
-            )
-            candFrac = animator._blenderBillboardFracRadius(
-                TRAPPIST_CANDIDATE_HALF_AU,
-                TRAPPIST_CANDIDATE_BODY_SCALE,
-                catalogName='TRAPPIST-1 e',
-            )
-            earthFrac = animator._blenderBillboardFracRadius(
-                SOL_EARTH_CLOSE_HALF_AU, 1.0, catalogName='Earth'
-            )
-            self.assertIsNotNone(wideFrac)
-            self.assertIsNotNone(candFrac)
-            self.assertIsNotNone(earthFrac)
-            assert wideFrac is not None and candFrac is not None and earthFrac is not None
-            self.assertLess(wideFrac, 0.006)
-            self.assertGreater(candFrac, 0.25)
-            self.assertAlmostEqual(candFrac, earthFrac, places=3)
-
-            # Candidate close-up must still queue e (SMA > halfWidth must not cull it).
-            animator._viewFocus = animator._candidateFocusSol(candHold)
-            animator._viewHalfWidthAu = TRAPPIST_CANDIDATE_HALF_AU
+            # Portrait queues only the hero (not both e and f at once).
+            animator._viewFocus = animator._planetFocusSol('TRAPPIST-1 e', eHold)
+            animator._viewHalfWidthAu = TRAPPIST_PLANET_HALF_AU
             animator._pendingBlenderBodies = []
-            animator._drawOneTrappistPlanet(
-                planet,
-                candHold,
-                TRAPPIST_CANDIDATE_HALF_AU,
-                hzFocus=True,
-            )
+            for world in animator.trappistPlanets:
+                animator._drawOneTrappistPlanet(
+                    world,
+                    eHold,
+                    TRAPPIST_PLANET_HALF_AU,
+                    hzFocus=True,
+                    heroName='TRAPPIST-1 e',
+                )
             queued = [entry[0] for entry in animator._pendingBlenderBodies]
-            self.assertIn('TRAPPIST-1 e', queued)
-            # Hero paint scale should be Earth-matched.
-            eEntry = next(entry for entry in animator._pendingBlenderBodies if entry[0] == 'TRAPPIST-1 e')
-            self.assertAlmostEqual(float(eEntry[5]), TRAPPIST_CANDIDATE_BODY_SCALE, places=5)
+            self.assertEqual(queued, ['TRAPPIST-1 e'])
         finally:
             import matplotlib.pyplot as plt
 
@@ -343,7 +325,6 @@ class SolTrappistCinematicTests(unittest.TestCase):
             useBlenderBodies=True,
         )
         try:
-            # Need at least one TRAPPIST spin pack on disk for the no-dot path.
             available = [
                 planet.name
                 for planet in animator.trappistPlanets
@@ -371,14 +352,13 @@ class SolTrappistCinematicTests(unittest.TestCase):
             animator.axes.scatter = scatterSpy  # type: ignore[method-assign]
             animator._queueBlenderBody = queueSpy  # type: ignore[method-assign]
 
-            # Sample half-widths from arrive → wide → HZ → candidate (disk gate opens mid-dive).
             halfWidths = [
                 TRAPPIST_ARRIVE_HALF_AU,
                 TRAPPIST_WIDE_HALF_AU * 2.5,
                 TRAPPIST_WIDE_HALF_AU * 2.0,
                 TRAPPIST_WIDE_HALF_AU,
                 TRAPPIST_HZ_HALF_AU,
-                TRAPPIST_CANDIDATE_HALF_AU,
+                TRAPPIST_PLANET_HALF_AU,
                 TRAPPIST_INNER_HALF_AU,
             ]
             for halfWidth in halfWidths:
@@ -395,6 +375,7 @@ class SolTrappistCinematicTests(unittest.TestCase):
                         frame=0,
                         halfWidthAu=float(halfWidth),
                         hzFocus=hzFocus,
+                        heroName=None,
                     )
                     self.assertEqual(
                         scatterHits,
