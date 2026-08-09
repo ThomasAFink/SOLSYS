@@ -270,6 +270,29 @@ class SolTrappistCinematicTests(unittest.TestCase):
                 animator._trappistPlanetAnimationSpeed(candHold),
                 ANIMATION_SPEED_TRAPPIST_PLANETS_CLOSE,
             )
+            # Accumulated clock must keep advancing (no reverse) when the rate eases down.
+            days = [
+                animator._trappistMotionDays(frame)
+                for frame in range(hzHold - 2, min(frames, candHold + 3))
+            ]
+            self.assertGreater(days[-1], days[0])
+            for previous, current in zip(days, days[1:], strict=False):
+                self.assertGreaterEqual(current, previous)
+
+            planet = animator._planetByName('TRAPPIST-1 e')
+            senses: list[float] = []
+            previousPos = animator._trappistPlanetPositionSol(planet, hzHold - 2)
+            for frame in range(hzHold - 1, min(frames, candHold + 3)):
+                position = animator._trappistPlanetPositionSol(planet, frame)
+                radial = previousPos - animator.hostSolAu
+                delta = position - previousPos
+                senses.append(float(radial[0] * delta[1] - radial[1] * delta[0]))
+                previousPos = position
+            # Orbital sense (radial × step) must not flip when the rate eases down.
+            nonzero = [value for value in senses if abs(value) > 1e-16]
+            self.assertTrue(nonzero)
+            self.assertEqual(len({1 if value > 0 else -1 for value in nonzero}), 1)
+
             # e/f billboards grow from wide → candidate (not pinned by a tiny MAX_FRAC).
             scale = BLENDER_PLANET_BODY_SCALE['TRAPPIST-1 e']
             wideFrac = animator._blenderBillboardFracRadius(
@@ -283,6 +306,19 @@ class SolTrappistCinematicTests(unittest.TestCase):
             assert wideFrac is not None and candFrac is not None
             self.assertLess(wideFrac, 0.006)
             self.assertGreater(candFrac, wideFrac * 2.5)
+
+            # Candidate close-up must still queue e (SMA > halfWidth must not cull it).
+            animator._viewFocus = animator._candidateFocusSol(candHold)
+            animator._viewHalfWidthAu = TRAPPIST_CANDIDATE_HALF_AU
+            animator._pendingBlenderBodies = []
+            animator._drawOneTrappistPlanet(
+                planet,
+                candHold,
+                TRAPPIST_CANDIDATE_HALF_AU,
+                hzFocus=True,
+            )
+            queued = [name for name, *_ in animator._pendingBlenderBodies]
+            self.assertIn('TRAPPIST-1 e', queued)
         finally:
             import matplotlib.pyplot as plt
 
