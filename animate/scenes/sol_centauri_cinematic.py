@@ -152,7 +152,9 @@ BLENDER_STAR_BILLBOARD_HALF_AU_BY_BODY = {
     'Sun': (0.0, min(95.0, SOL_OUTER_LINGER_HALF_AU * 2.2)),
     'Alpha Centauri A': (8.0, 140.0),
     'Alpha Centauri B': (8.0, 140.0),
-    'Proxima Centauri': (0.08, 80.0),
+    # Min 0: keep the photosphere through the Proxima-planet finale (0.055 AU).
+    # The old 0.08 floor dropped texture and snapped to a tiny scatter marker.
+    'Proxima Centauri': (0.0, 80.0),
 }
 # Back-compat alias used by Sol-draw path + tests (Sol window).
 BLENDER_STAR_BILLBOARD_HALF_AU = BLENDER_STAR_BILLBOARD_HALF_AU_BY_BODY['Sun']
@@ -2178,9 +2180,11 @@ class SolCentauriCinematicAnimator:
         position = self._proximaPlanetPositionSol(planet, frame)
         if not self._inView(position, margin=1.15):
             return
-        markerSize = 48.0 if confirmed else 28.0
-        if halfWidthAu <= PROXIMA_INNER_HALF_AU * 1.6:
-            markerSize *= 1.8
+        # Grow with zoom-in so b/d stay readable as the orbit fills the frame
+        # (matplotlib scatter is screen-fixed; without this they look like they shrink).
+        baseSize = 56.0 if confirmed else 32.0
+        zoomBoost = np.clip(PROXIMA_WIDE_HALF_AU / max(halfWidthAu, 1e-6), 1.0, 12.0)
+        markerSize = baseSize * (zoomBoost**0.65)
         shortName = planet.name.replace('Proxima ', '')
         suffix = '' if confirmed else ' ?'
         self.axes.scatter(
@@ -2190,7 +2194,7 @@ class SolCentauriCinematicAnimator:
             color=planet.color,
             s=markerSize,
             alpha=1.0 if confirmed else 0.65,
-            depthshade=True,
+            depthshade=False,
             zorder=6,
         )
         self._label3d(
