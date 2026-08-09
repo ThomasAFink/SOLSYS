@@ -16,6 +16,7 @@ from animate.scenes.blender.export_body import exportBodyScene
 from animate.scenes.blender.flyby_scene import renderPlanetFlyby, renderPlanetSpin
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
+from animate.scenes.sol_trappist_cinematic import renderSolTrappistCinematicAnimations
 from animate.scenes.tabbys_star import renderTabbysStarAnimations
 from animate.scenes.trappist_1 import renderTrappist1Animations
 from static import renderAll as renderStatic
@@ -105,6 +106,7 @@ def buildParser() -> argparse.ArgumentParser:
             'sol',
             'alpha_centauri',
             'sol_centauri',
+            'sol_trappist',
             'barnards_star',
             'trappist_1',
             'tabbys_star',
@@ -116,6 +118,7 @@ def buildParser() -> argparse.ArgumentParser:
         help=(
             'Which scene set to render (default: sol). '
             'sol_centauri = Sol-to-Alpha Centauri cinematic; '
+            'sol_trappist = Sol-to-TRAPPIST-1 cinematic; '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -136,8 +139,8 @@ def buildParser() -> argparse.ArgumentParser:
         '--blender-bodies',
         action='store_true',
         help=(
-            'For --system sol_centauri: composite Blender spin-loop frames for Sol '
-            'planets/moons/asteroids (lazy-loaded; requires prior: blender --spin)'
+            'For --system sol_centauri / sol_trappist: composite Blender spin-loop '
+            'frames (lazy-loaded; requires prior: blender --spin)'
         ),
     )
 
@@ -168,6 +171,7 @@ def buildParser() -> argparse.ArgumentParser:
             'sol',
             'alpha_centauri',
             'sol_centauri',
+            'sol_trappist',
             'barnards_star',
             'trappist_1',
             'tabbys_star',
@@ -316,6 +320,13 @@ def _renderAnimations(
         )
     if systemChoice in ('sol_centauri', 'all'):
         renderSolCentauriCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_CINEMATIC,
+            starsCsvPath=starsCsvPath,
+            useBlenderBodies=useBlenderBodies,
+        )
+    if systemChoice in ('sol_trappist', 'all'):
+        renderSolTrappistCinematicAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_CINEMATIC,
             starsCsvPath=starsCsvPath,
