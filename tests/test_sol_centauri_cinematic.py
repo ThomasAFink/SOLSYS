@@ -298,8 +298,10 @@ class CinematicTransformTests(unittest.TestCase):
                 BLENDER_STAR_BODY_SCALE['Proxima Centauri'],
                 catalogName='Proxima Centauri',
             )
+            from animate.scenes.sol_centauri_cinematic import PROXIMA_INNER_HALF_AU
+
             proxInner = animator._blenderBillboardFracRadius(
-                0.1,
+                PROXIMA_INNER_HALF_AU,
                 BLENDER_STAR_BODY_SCALE['Proxima Centauri'],
                 catalogName='Proxima Centauri',
             )
@@ -312,21 +314,22 @@ class CinematicTransformTests(unittest.TestCase):
             self.assertGreater(aFrac, 0.015)
             self.assertGreater(bFrac, 0.012)
             self.assertLess(aFrac, BLENDER_STAR_MAX_FRAC['Alpha Centauri A'])
+            # Finale must keep the capped photosphere — not drop to scatter.
             self.assertEqual(proxInner, BLENDER_STAR_MAX_FRAC['Proxima Centauri'])
+            self.assertIsNotNone(
+                animator._blenderBillboardRadiusAu(
+                    PROXIMA_INNER_HALF_AU,
+                    openCloseup=True,
+                    bodyScale=BLENDER_STAR_BODY_SCALE['Proxima Centauri'],
+                    catalogName='Proxima Centauri',
+                )
+            )
             self.assertIsNone(
                 animator._blenderBillboardRadiusAu(
                     5.0,
                     openCloseup=True,
                     bodyScale=BLENDER_STAR_BODY_SCALE['Alpha Centauri A'],
                     catalogName='Alpha Centauri A',
-                )
-            )
-            self.assertIsNone(
-                animator._blenderBillboardRadiusAu(
-                    0.05,
-                    openCloseup=True,
-                    bodyScale=BLENDER_STAR_BODY_SCALE['Proxima Centauri'],
-                    catalogName='Proxima Centauri',
                 )
             )
         finally:
