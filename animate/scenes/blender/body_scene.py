@@ -512,5 +512,5 @@ def buildBodyScene(
         f'Unknown body {bodyName!r}. Known stars: {knownStars}. '
         f'Known planets: {knownPlanets}. Known moons: {knownMoons}. '
         f'Known asteroids: {knownAsteroids}. '
-        f'Also: SystemCatalog exoplanets (e.g. "Proxima b").'
+        f'Also: SystemCatalog exoplanets (e.g. "Proxima b", "TRAPPIST-1 b").'
     )
