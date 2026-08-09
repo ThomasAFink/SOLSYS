@@ -14,6 +14,7 @@ from animate.scenes.sol_centauri_cinematic import (
     ANIMATION_SPEED_SOL_NEAR,
     BLENDER_STAR_BILLBOARD_HALF_AU,
     BLENDER_STAR_BODY_SCALE,
+    EARTH_GLOBE_RADIUS_AU,
     PROXIMA_TRAVEL_END,
     PROXIMA_WIDE_HALF_AU,
     PULLBACK_END,
@@ -244,13 +245,31 @@ class CinematicTransformTests(unittest.TestCase):
             outerFrac = animator._blenderBillboardFracRadius(
                 SOL_OUTER_LINGER_HALF_AU, sunScale, catalogName='Sun'
             )
-            fracs = (nearFrac, innerFrac, beltFrac, saturnFrac, outerFrac)
-            self.assertTrue(all(f is not None for f in fracs))
-            assert all(f is not None for f in fracs)
-            for earlier, later in zip(fracs[:-1], fracs[1:], strict=True):
+            self.assertTrue(
+                all(f is not None for f in (nearFrac, innerFrac, beltFrac, saturnFrac, outerFrac))
+            )
+            assert (
+                nearFrac is not None
+                and innerFrac is not None
+                and beltFrac is not None
+                and saturnFrac is not None
+                and outerFrac is not None
+            )
+            # Monotonic shrink through Saturn; Kuiper uses an outer readability floor.
+            for earlier, later in zip(
+                (nearFrac, innerFrac, beltFrac),
+                (innerFrac, beltFrac, saturnFrac),
+                strict=True,
+            ):
                 self.assertGreater(earlier, later)
-            # Near-Sun should still read as a clear hero disk.
-            self.assertGreater(nearFrac, 0.04)
+            # Near-Sun should still read as a clear hero disk (under Mercury's orbit).
+            self.assertGreater(nearFrac, 0.028)
+            self.assertLess(
+                EARTH_GLOBE_RADIUS_AU * sunScale,
+                0.35,
+            )
+            # Outer floor keeps Sol visible above shrinking planet disks at Kuiper.
+            self.assertGreaterEqual(outerFrac, 0.008)
             starMax = BLENDER_STAR_BILLBOARD_HALF_AU[1]
             self.assertGreater(starMax, SOL_OUTER_LINGER_HALF_AU)
             self.assertIsNone(
@@ -315,6 +334,18 @@ class CinematicTransformTests(unittest.TestCase):
             self.assertLess(aFrac, BLENDER_STAR_MAX_FRAC['Alpha Centauri A'])
             # Finale must keep the capped photosphere — not drop to scatter.
             self.assertEqual(proxInner, BLENDER_STAR_MAX_FRAC['Proxima Centauri'])
+            # World radius must sit inside Proxima d/b orbits or planets ride the disk.
+            proxRadiusAu = EARTH_GLOBE_RADIUS_AU * BLENDER_STAR_BODY_SCALE['Proxima Centauri']
+            self.assertLess(proxRadiusAu, 0.025)
+            for half in (PROXIMA_WIDE_HALF_AU, 0.4, 0.15, PROXIMA_INNER_HALF_AU):
+                starFrac = animator._blenderBillboardFracRadius(
+                    half,
+                    BLENDER_STAR_BODY_SCALE['Proxima Centauri'],
+                    catalogName='Proxima Centauri',
+                )
+                self.assertIsNotNone(starFrac)
+                assert starFrac is not None
+                self.assertLess(starFrac, 0.029 / (2.0 * half))
             self.assertIsNotNone(
                 animator._blenderBillboardRadiusAu(
                     PROXIMA_INNER_HALF_AU,
