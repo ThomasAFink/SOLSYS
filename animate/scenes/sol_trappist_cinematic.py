@@ -8,24 +8,12 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
-from solsys.motion import AnimatedAsteroidPopulation, AsteroidPopulationCounts
-from solsys.physics import (
-    AstronomicalConstants,
-    FamousAsteroidCatalog,
-    OrbitCalculator,
-    PlanetCatalog,
-)
-from solsys.physics.catalogs.moon_catalog import MoonCatalog
 from solsys.physics.catalogs.system_catalog import StarSystem, SystemCatalog, SystemPlanet
 
-from animate.animation_styles import ASTEROID_RENDER_STYLES
-from animate.blender_body_sprites import BlenderBodySpriteAtlas
 from animate.scenes.exoplanet_system import bodyPositionInOrbitalPlane, orbitPathInOrbitalPlane
 from animate.scenes.sol_centauri_cinematic import (
     AB_CRUISE_END,
     AB_FOCUS_ARRIVE,
-    ANIMATION_FRAMES,
     BLENDER_PLANET_BODY_SCALE,
     CAMERA_ELEVATION_DEG,
     DEFAULT_DPI,
@@ -36,11 +24,9 @@ from animate.scenes.sol_centauri_cinematic import (
     SOL_EARTH_CLOSE_HALF_AU,
     SOL_EARTH_HALF_AU,
     SOL_ELEVATION_DEG,
-    SOL_HALF_WIDTH_AU,
     SOL_HOLD_END,
     SOL_NEAR_SUN_HALF_AU,
-    SOL_PLANET_NAMES,
-    SolCentauriCinematicAnimator,
+    SolScaleCinematicAnimator,
     lerpAngleDeg,
     logLerp,
     parseApparentMagnitude,
@@ -82,7 +68,7 @@ OUTPUT_DIRECTORY = 'output/animate/sol_trappist'
 BLENDER_OUTPUT_DIRECTORY = 'output/animate/sol_trappist/blender'
 
 
-class SolTrappistCinematicAnimator(SolCentauriCinematicAnimator):
+class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
     """Flight from our solar system to the TRAPPIST-1 planets."""
 
     def __init__(
@@ -95,10 +81,6 @@ class SolTrappistCinematicAnimator(SolCentauriCinematicAnimator):
         *,
         useBlenderBodies: bool = False,
     ):
-        # Parent __init__ hard-requires alpha_centauri and builds AB/Proxima orbits.
-        # TRAPPIST reimplements the Sol-shared figure/population setup and overrides
-        # destination camera/draw/caption methods instead of calling super().__init__.
-        # codeql[py/missing-call-to-init]
         if system.systemId != 'trappist_1':
             raise ValueError(f'Expected trappist_1, got {system.systemId!r}')
         if not system.stars:
@@ -109,80 +91,27 @@ class SolTrappistCinematicAnimator(SolCentauriCinematicAnimator):
             raise ValueError('TRAPPIST-1 host is missing Sol XYZ in the star catalog')
 
         self.system = system
-        self.figureSizeInches = figureSizeInches
-        self.dpi = dpi
-        self.animationFrames = ANIMATION_FRAMES
-        self.useBlenderBodies = useBlenderBodies
-        self.constants = AstronomicalConstants()
-        self.orbitCalculator = OrbitCalculator()
-        self.planetCatalog = PlanetCatalog(self.constants)
-        self.moonCatalog = MoonCatalog()
-
         self.hostStar = host
         self.hostSolAu = np.array(
             [host.positionX, host.positionY, host.positionZ],
             dtype=float,
         )
-        # Parent camera / path code keys off barycenterSolAu as the destination.
-        self.barycenterSolAu = self.hostSolAu.copy()
-        self.distanceLy = float(np.linalg.norm(self.hostSolAu) / self.constants.lightYearToAu)
         self.trappistPlanets = tuple(
             sorted(system.planets, key=lambda planet: planet.semiMajorAxisAu)
         )
-
-        # Unused α Cen fields — kept so inherited helpers that touch names do not explode.
-        self.transform = None
-        self.primaryOrbit = None
-        self.secondaryOrbit = None
-        self.proximaOrbit = None
-        self.proximaPlanets = self.trappistPlanets
-        self.primaryOrbitPathSol = np.zeros((0, 3))
-        self.secondaryOrbitPathSol = np.zeros((0, 3))
-        self.proximaOrbitPathSol = np.zeros((0, 3))
-
-        self.asteroidPopulation = AnimatedAsteroidPopulation(
-            self.constants,
-            AsteroidPopulationCounts(
-                asteroidBelt=480,
-                hildas=140,
-                trojansAndGreeks=90,
-                kuiperBelt=900,
-                oortCloud=4500,
-            ),
-            includeKuiperAndOort=True,
-            useSphericalShell3d=True,
+        super().__init__(
+            style=style,
+            figureSizeInches=figureSizeInches,
+            dpi=dpi,
+            starsCsvPath=starsCsvPath,
+            useBlenderBodies=useBlenderBodies,
+            destinationSolAu=self.hostSolAu,
+            startHalfWidthLy=START_HALF_WIDTH_LY,
+            arriveHalfWidthAu=TRAPPIST_ARRIVE_HALF_AU,
+            wideSystemHalfWidthAu=TRAPPIST_ARRIVE_HALF_AU,
+            destinationWideHalfWidthAu=TRAPPIST_WIDE_HALF_AU,
+            destinationInnerHalfWidthAu=TRAPPIST_INNER_HALF_AU,
         )
-        self.famousAsteroidCatalog = FamousAsteroidCatalog()
-        self._fixedOortX: np.ndarray | None = None
-        self._fixedOortY: np.ndarray | None = None
-        self._fixedOortZ: np.ndarray | None = None
-
-        plt.style.use(style)
-        self.isDark = style == 'dark_background'
-        self.labelColor = '#F0F0F0' if self.isDark else '#202020'
-        self.fieldStarColor = '#E8E8E8' if self.isDark else '#505050'
-        self.pathColor = '#9EC9FF' if self.isDark else '#2F6FBF'
-        self.hudColor = '#D8EEFF' if self.isDark else '#103050'
-        self.orbitColor = '#B0B0B0' if self.isDark else '#606060'
-        self.renderStyle = ASTEROID_RENDER_STYLES['dark' if self.isDark else 'light']
-
-        self.solEarthHalfWidthAu = SOL_EARTH_HALF_AU
-        self.solHalfWidthAu = SOL_HALF_WIDTH_AU
-        self.startHalfWidthAu = START_HALF_WIDTH_LY * self.constants.lightYearToAu
-        self.abHalfWidthAu = TRAPPIST_ARRIVE_HALF_AU
-        self.wideHalfWidthAu = TRAPPIST_ARRIVE_HALF_AU
-        self.proximaWideHalfWidthAu = TRAPPIST_WIDE_HALF_AU
-        self.proximaInnerHalfWidthAu = TRAPPIST_INNER_HALF_AU
-        self.proximaHalfWidthAu = TRAPPIST_INNER_HALF_AU
-        pathAzimuth = float(np.degrees(np.arctan2(self.hostSolAu[1], self.hostSolAu[0])))
-        self.travelAzimuthDeg = pathAzimuth + 55.0
-        self.solAzimuthDeg = pathAzimuth + 35.0
-
-        self.fieldStars = self._loadFieldStars(starsCsvPath)
-        self.solPlanetPaths = {
-            name: self._planetOrbitPath(self.planetCatalog.planets[name])
-            for name in SOL_PLANET_NAMES
-        }
         self.trappistPlanetPathsLocal = {
             planet.planetId: orbitPathInOrbitalPlane(
                 self.orbitCalculator,
@@ -192,32 +121,6 @@ class SolTrappistCinematicAnimator(SolCentauriCinematicAnimator):
             )
             for planet in self.trappistPlanets
         }
-        self.proximaPlanetPathsLocal = self.trappistPlanetPathsLocal
-
-        self._viewFocus = np.zeros(3)
-        self._viewHalfWidthAu = self.solEarthHalfWidthAu
-        self.figure = plt.figure(figsize=figureSizeInches, dpi=dpi, layout='none')
-        self.axes = self.figure.add_axes((0.0, 0.0, 1.0, 1.0), projection='3d')
-        self.bodyOverlay = self.figure.add_axes((0.0, 0.0, 1.0, 1.0), facecolor='none', zorder=20)
-        self.bodyOverlay.set_axis_off()
-        self.bodyOverlay.patch.set_alpha(0.0)
-        self.bodyOverlay.set_xlim(0.0, 1.0)
-        self.bodyOverlay.set_ylim(0.0, 1.0)
-        self._pendingBlenderBodies: list[
-            tuple[str, np.ndarray, int, float, bool, float, float | None]
-        ] = []
-        self._pendingBlenderLabels: list[tuple[str, np.ndarray, float, float]] = []
-        self._blenderBodyPaintZorder: dict[tuple[str, float, float, float], int] = {}
-        self.blenderSprites: BlenderBodySpriteAtlas | None = None
-        if self.useBlenderBodies:
-            themeName = 'dark' if self.isDark else 'light'
-            self.blenderSprites = BlenderBodySpriteAtlas(themeName)
-            print(
-                'Blender spin loops: lazy-load by zoom stage '
-                f'(theme={themeName}; Earth/Moon probed: '
-                f'Earth={"on" if self.blenderSprites.hasEarth else "missing"}, '
-                f'Moon={"on" if self.blenderSprites.hasMoon else "missing"})'
-            )
 
     def _abTravelEnd(self) -> float:
         return ARRIVAL_TRAPPIST_TRAVEL_END if self.useBlenderBodies else TRAPPIST_TRAVEL_END
