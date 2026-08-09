@@ -160,8 +160,8 @@ class SolTrappistCinematicTests(unittest.TestCase):
             for fraction in np.linspace(holdEnd, diveEnd, 25):
                 frame = int(fraction * (frames - 1))
                 _, halfWidth = animator._cameraState(frame)
-                self.assertLessEqual(halfWidth, holdHalf * 1.01)
-                self.assertLessEqual(halfWidth, previous * 1.01)
+                self.assertLessEqual(halfWidth, holdHalf + 1e-9)
+                self.assertLessEqual(halfWidth, previous + 1e-9)
                 previous = halfWidth
         finally:
             import matplotlib.pyplot as plt
