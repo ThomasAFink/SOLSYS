@@ -14,12 +14,14 @@ from animate.scenes.sol_centauri_cinematic import (
     SOL_HOLD_END,
 )
 from animate.scenes.sol_trappist_cinematic import (
+    ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END,
     ARRIVAL_TRAPPIST_HOLD_END,
     ARRIVAL_TRAPPIST_HZ_HOLD_END,
     ARRIVAL_TRAPPIST_INNER_ARRIVE,
     FIELD_STARS_MAX_LY,
     START_HALF_WIDTH_LY,
     TRAPPIST_ARRIVE_HALF_AU,
+    TRAPPIST_CANDIDATE_HALF_AU,
     TRAPPIST_HZ_FOCUS_NAMES,
     TRAPPIST_HZ_HALF_AU,
     TRAPPIST_HZ_INNER_AU,
@@ -203,12 +205,23 @@ class SolTrappistCinematicTests(unittest.TestCase):
             self.assertGreater(byName['TRAPPIST-1 h'].semiMajorAxisAu, TRAPPIST_HZ_OUTER_AU)
             self.assertEqual(TRAPPIST_HZ_FOCUS_NAMES, ('TRAPPIST-1 e', 'TRAPPIST-1 f'))
 
+            # Candidate beat pans onto e/f — not host-centered.
+            candFrame = (
+                int(ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END * (animator.animationFrames - 1)) - 2
+            )
+            candFocus, candHalf = animator._cameraState(candFrame)
+            expectedFocus = animator._candidateFocusSol(candFrame)
+            np.testing.assert_allclose(candFocus, expectedFocus, atol=1e-9)
+            self.assertAlmostEqual(candHalf, TRAPPIST_CANDIDATE_HALF_AU, places=5)
+            self.assertLess(candHalf, hzHalf)
+            self.assertGreater(float(np.linalg.norm(candFocus - animator.hostSolAu)), 0.01)
+
             innerFrame = int(ARRIVAL_TRAPPIST_INNER_ARRIVE * (animator.animationFrames - 1))
             focus, innerHalf = animator._cameraState(innerFrame)
             np.testing.assert_allclose(focus, animator.hostSolAu, atol=1e-9)
             self.assertAlmostEqual(innerHalf, TRAPPIST_INNER_HALF_AU, places=5)
-            # Finale pulls slightly wider than the HZ linger so b–h all read.
-            self.assertGreater(innerHalf, hzHalf)
+            # Finale returns to host and pulls wider than the candidate close-up.
+            self.assertGreater(innerHalf, candHalf)
             self.assertLess(innerHalf, TRAPPIST_WIDE_HALF_AU)
         finally:
             import matplotlib.pyplot as plt

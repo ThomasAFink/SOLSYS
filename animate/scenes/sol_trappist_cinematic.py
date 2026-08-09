@@ -47,15 +47,18 @@ ANIMATION_SPEED_TRAPPIST_PLANETS = 0.20
 # Arrival: host readable; planets still tiny. Finale matches exoplanet scene (~0.09 AU).
 TRAPPIST_ARRIVE_HALF_AU = 2.0
 TRAPPIST_WIDE_HALF_AU = 0.15
-# HZ linger frames e (~0.029 AU) and f (~0.038 AU); g sits near the outer edge.
+# HZ overview frames the band; candidate close-up centers e/f (not the host).
 TRAPPIST_HZ_HALF_AU = 0.052
+TRAPPIST_CANDIDATE_HALF_AU = 0.030
 TRAPPIST_INNER_HALF_AU = 0.09
 # Monotonic tighten from arrive → planet-wide (no Proxima-style zoom-out waypoints).
 TRAPPIST_DIVE_WAYPOINTS_AU = (1.0, 0.4)
 TRAPPIST_HZ_DIVE_WAYPOINTS_AU = (0.10, 0.07)
+TRAPPIST_CANDIDATE_DIVE_WAYPOINTS_AU = (0.042, 0.035)
 TRAPPIST_ELEVATION_DEG = 58.0
 # Steeper view so the HZ annulus reads as a band, not a foreshortened line.
 TRAPPIST_HZ_ELEVATION_DEG = 62.0
+TRAPPIST_CANDIDATE_ELEVATION_DEG = 55.0
 # Schematic conservative liquid-water HZ for an ultracool dwarf (not a climate model).
 # Spans roughly outside d through e/f; g rides the outer rim.
 TRAPPIST_HZ_INNER_AU = 0.024
@@ -67,20 +70,24 @@ TRAPPIST_HZ_COLOR_LIGHT = '#1B8A4A'
 # Classic dotted timeline (after shared Sol open / pullback).
 TRAPPIST_TRAVEL_END = 0.82
 TRAPPIST_ARRIVE_HOLD_END = 0.87
-TRAPPIST_DIVE_END = 0.91
-TRAPPIST_WIDE_HOLD_END = 0.93
-TRAPPIST_HZ_ARRIVE = 0.95
-TRAPPIST_HZ_HOLD_END = 0.97
-TRAPPIST_INNER_ARRIVE = 0.985
+TRAPPIST_DIVE_END = 0.905
+TRAPPIST_WIDE_HOLD_END = 0.92
+TRAPPIST_HZ_ARRIVE = 0.935
+TRAPPIST_HZ_HOLD_END = 0.945
+TRAPPIST_CANDIDATE_ARRIVE = 0.96
+TRAPPIST_CANDIDATE_HOLD_END = 0.98
+TRAPPIST_INNER_ARRIVE = 0.99
 
-# Blender arrival: wide chain → HZ (e/f) linger → full-chain finale.
+# Blender: wide chain → HZ band → pan/zoom onto e & f → full-chain finale.
 ARRIVAL_TRAPPIST_TRAVEL_END = 0.80
 ARRIVAL_TRAPPIST_HOLD_END = 0.845
-ARRIVAL_TRAPPIST_DIVE_END = 0.875
-ARRIVAL_TRAPPIST_WIDE_HOLD_END = 0.895
-ARRIVAL_TRAPPIST_HZ_ARRIVE = 0.92
-ARRIVAL_TRAPPIST_HZ_HOLD_END = 0.95
-ARRIVAL_TRAPPIST_INNER_ARRIVE = 0.975
+ARRIVAL_TRAPPIST_DIVE_END = 0.872
+ARRIVAL_TRAPPIST_WIDE_HOLD_END = 0.888
+ARRIVAL_TRAPPIST_HZ_ARRIVE = 0.905
+ARRIVAL_TRAPPIST_HZ_HOLD_END = 0.918
+ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE = 0.942
+ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END = 0.968
+ARRIVAL_TRAPPIST_INNER_ARRIVE = 0.985
 
 OUTPUT_DIRECTORY = 'output/animate/sol_trappist'
 BLENDER_OUTPUT_DIRECTORY = 'output/animate/sol_trappist/blender'
@@ -174,8 +181,34 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
     def _hzHoldEnd(self) -> float:
         return ARRIVAL_TRAPPIST_HZ_HOLD_END if self.useBlenderBodies else TRAPPIST_HZ_HOLD_END
 
+    def _candidateArrive(self) -> float:
+        return (
+            ARRIVAL_TRAPPIST_CANDIDATE_ARRIVE
+            if self.useBlenderBodies
+            else TRAPPIST_CANDIDATE_ARRIVE
+        )
+
+    def _candidateHoldEnd(self) -> float:
+        return (
+            ARRIVAL_TRAPPIST_CANDIDATE_HOLD_END
+            if self.useBlenderBodies
+            else TRAPPIST_CANDIDATE_HOLD_END
+        )
+
     def _proximaInnerArrive(self) -> float:
         return ARRIVAL_TRAPPIST_INNER_ARRIVE if self.useBlenderBodies else TRAPPIST_INNER_ARRIVE
+
+    def _planetByName(self, name: str) -> SystemPlanet:
+        for planet in self.trappistPlanets:
+            if planet.name == name:
+                return planet
+        raise KeyError(name)
+
+    def _candidateFocusSol(self, frame: int) -> np.ndarray:
+        """Look-at point between e and f so both HZ candidates stay in frame."""
+        planetE = self._trappistPlanetPositionSol(self._planetByName('TRAPPIST-1 e'), frame)
+        planetF = self._trappistPlanetPositionSol(self._planetByName('TRAPPIST-1 f'), frame)
+        return 0.62 * planetE + 0.38 * planetF
 
     def _loadFieldStars(self, starsCsvPath: str) -> pd.DataFrame:
         catalog = SystemCatalog(starsCsvPath=starsCsvPath).starCatalog
@@ -237,7 +270,10 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         wideHoldEnd = self._proximaWideHoldEnd()
         hzArrive = self._hzArrive()
         hzHoldEnd = self._hzHoldEnd()
+        candidateArrive = self._candidateArrive()
+        candidateHoldEnd = self._candidateHoldEnd()
         innerArrive = self._proximaInnerArrive()
+        candidateFocus = self._candidateFocusSol(frame)
 
         if linear <= SOL_HOLD_END:
             return self._solOpeningCameraState(frame, linear)
@@ -272,10 +308,27 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         if linear <= hzHoldEnd:
             return host.copy(), TRAPPIST_HZ_HALF_AU
 
+        if linear <= candidateArrive:
+            # Pan off the star onto e/f while tightening into a planet-scale frame.
+            blend = smootherstep(segmentProgress(linear, hzHoldEnd, candidateArrive))
+            focus = (1.0 - blend) * host + blend * candidateFocus
+            halfWidth = stagedLogDive(
+                TRAPPIST_HZ_HALF_AU,
+                TRAPPIST_CANDIDATE_HALF_AU,
+                TRAPPIST_CANDIDATE_DIVE_WAYPOINTS_AU,
+                blend,
+            )
+            return focus, halfWidth
+
+        if linear <= candidateHoldEnd:
+            return candidateFocus.copy(), TRAPPIST_CANDIDATE_HALF_AU
+
         if linear <= innerArrive:
-            # Ease out from the HZ linger so the full resonant chain re-enters frame.
-            pull = segmentProgress(linear, hzHoldEnd, innerArrive) ** 1.15
-            return host.copy(), logLerp(TRAPPIST_HZ_HALF_AU, TRAPPIST_INNER_HALF_AU, pull)
+            # Return to the host and ease out so the full resonant chain re-enters frame.
+            blend = smootherstep(segmentProgress(linear, candidateHoldEnd, innerArrive))
+            focus = (1.0 - blend) * candidateFocus + blend * host
+            halfWidth = logLerp(TRAPPIST_CANDIDATE_HALF_AU, TRAPPIST_INNER_HALF_AU, blend)
+            return focus, halfWidth
 
         return host.copy(), self.proximaInnerHalfWidthAu
 
@@ -359,12 +412,17 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             self._label3d(host, f'  {label}', color=self.labelColor, fontsize=9)
             return
 
+        candidateFocus = (
+            self._hzHoldEnd() < linear <= self._candidateHoldEnd()
+            or halfWidthAu <= TRAPPIST_CANDIDATE_HALF_AU * 1.05
+        )
         hzFocus = (
-            self._hzArrive() <= linear <= self._hzHoldEnd()
+            candidateFocus
+            or self._hzArrive() <= linear <= self._hzHoldEnd()
             or abs(halfWidthAu - TRAPPIST_HZ_HALF_AU) < 1e-3
         )
         if halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.15:
-            self._drawHabitableZoneBand(halfWidthAu, hzFocus=hzFocus)
+            self._drawHabitableZoneBand(halfWidthAu, hzFocus=hzFocus or candidateFocus)
 
         starSize = 520.0 if halfWidthAu <= TRAPPIST_INNER_HALF_AU * 1.8 else 320.0
         self._drawStarMarker(
@@ -428,17 +486,22 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             )
 
         # Screen-space label (3D text vanishes into the foreshortened ring).
-        scaleNote = ''
-        if halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.15:
-            scaleNote = ' · e & f'
+        if halfWidthAu <= TRAPPIST_CANDIDATE_HALF_AU * 1.08:
+            label = 'Habitable-zone worlds e & f'
+        elif halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.15:
+            label = 'Habitable zone (schematic) · e & f'
+        else:
+            label = 'Habitable zone (schematic)'
         self.bodyOverlay.text(
             0.50,
             0.11,
-            f'Habitable zone (schematic){scaleNote}',
+            label,
             ha='center',
             va='center',
             color=color,
-            fontsize=12 if hzFocus else 11,
+            fontsize=13
+            if halfWidthAu <= TRAPPIST_CANDIDATE_HALF_AU * 1.08
+            else (12 if hzFocus else 11),
             fontweight='bold',
             alpha=0.95,
             zorder=25,
@@ -563,10 +626,15 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             )
         if linear < self._hzHoldEnd():
             return (
+                'TRAPPIST-1 habitable zone',
+                'Schematic temperate belt · e and f orbit inside it',
+            )
+        if linear < self._candidateHoldEnd():
+            return (
                 'TRAPPIST-1 e and f',
                 'Temperate-zone candidates · e is the strongest HZ case',
             )
-        if halfWidthAu > TRAPPIST_INNER_HALF_AU * 0.98 and linear < self._proximaInnerArrive():
+        if linear < self._proximaInnerArrive():
             return (
                 'TRAPPIST-1 system',
                 'Pulling back to the full resonant chain',
@@ -602,11 +670,16 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
                 'Diving in to TRAPPIST-1',
                 'From interstellar cruise down to the inner planets',
             )
-        if linear < self._hzHoldEnd() and halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.05:
-            if halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.1:
+        if linear < self._candidateHoldEnd() and halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.05:
+            if halfWidthAu <= TRAPPIST_CANDIDATE_HALF_AU * 1.15:
                 return (
                     'TRAPPIST-1 e and f',
                     'Temperate-zone candidates · e is the strongest HZ case',
+                )
+            if halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.1:
+                return (
+                    'TRAPPIST-1 habitable zone',
+                    'Schematic temperate belt · e and f orbit inside it',
                 )
             return (
                 'TRAPPIST-1 system',
@@ -662,10 +735,16 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             blend = segmentProgress(linear, self._proximaWideHoldEnd(), self._hzArrive())
             elev = CAMERA_ELEVATION_DEG + blend * (TRAPPIST_HZ_ELEVATION_DEG - CAMERA_ELEVATION_DEG)
             azim = self.travelAzimuthDeg
-        else:
-            blend = segmentProgress(linear, self._hzHoldEnd(), self._proximaInnerArrive())
+        elif linear < self._candidateHoldEnd():
+            blend = segmentProgress(linear, self._hzHoldEnd(), self._candidateArrive())
             elev = TRAPPIST_HZ_ELEVATION_DEG + blend * (
-                TRAPPIST_ELEVATION_DEG - TRAPPIST_HZ_ELEVATION_DEG
+                TRAPPIST_CANDIDATE_ELEVATION_DEG - TRAPPIST_HZ_ELEVATION_DEG
+            )
+            azim = self.travelAzimuthDeg
+        else:
+            blend = segmentProgress(linear, self._candidateHoldEnd(), self._proximaInnerArrive())
+            elev = TRAPPIST_CANDIDATE_ELEVATION_DEG + blend * (
+                TRAPPIST_ELEVATION_DEG - TRAPPIST_CANDIDATE_ELEVATION_DEG
             )
             azim = self.travelAzimuthDeg
 
