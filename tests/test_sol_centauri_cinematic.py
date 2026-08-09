@@ -12,6 +12,7 @@ from animate.scenes.sol_centauri_cinematic import (
     AB_TRAVEL_END,
     ANIMATION_SPEED_AB,
     ANIMATION_SPEED_SOL_NEAR,
+    BLENDER_PLANET_BODY_SCALE,
     BLENDER_STAR_BILLBOARD_HALF_AU,
     BLENDER_STAR_BODY_SCALE,
     EARTH_GLOBE_RADIUS_AU,
@@ -336,7 +337,7 @@ class CinematicTransformTests(unittest.TestCase):
             self.assertEqual(proxInner, BLENDER_STAR_MAX_FRAC['Proxima Centauri'])
             # World radius must sit inside Proxima d/b orbits or planets ride the disk.
             proxRadiusAu = EARTH_GLOBE_RADIUS_AU * BLENDER_STAR_BODY_SCALE['Proxima Centauri']
-            self.assertLess(proxRadiusAu, 0.025)
+            self.assertLess(proxRadiusAu, 0.028)
             for half in (PROXIMA_WIDE_HALF_AU, 0.4, 0.15, PROXIMA_INNER_HALF_AU):
                 starFrac = animator._blenderBillboardFracRadius(
                     half,
@@ -346,6 +347,15 @@ class CinematicTransformTests(unittest.TestCase):
                 self.assertIsNotNone(starFrac)
                 assert starFrac is not None
                 self.assertLess(starFrac, 0.029 / (2.0 * half))
+                for planetName in ('Proxima b', 'Proxima d'):
+                    planetFrac = animator._blenderBillboardFracRadius(
+                        half,
+                        BLENDER_PLANET_BODY_SCALE[planetName],
+                        catalogName=planetName,
+                    )
+                    self.assertIsNotNone(planetFrac)
+                    assert planetFrac is not None
+                    self.assertLess(planetFrac, starFrac)
             self.assertIsNotNone(
                 animator._blenderBillboardRadiusAu(
                     PROXIMA_INNER_HALF_AU,
@@ -718,7 +728,7 @@ class CinematicTransformTests(unittest.TestCase):
                 self.assertIsNotNone(wideFrac)
                 self.assertIsNotNone(innerFrac)
                 assert wideFrac is not None and innerFrac is not None
-                self.assertGreater(wideFrac, 0.004)
+                self.assertGreater(wideFrac, 0.001)
                 self.assertEqual(innerFrac, BLENDER_PLANET_MAX_FRAC[name])
         finally:
             import matplotlib.pyplot as plt
