@@ -48,6 +48,8 @@ Earth uses NASA Blue Marble color + cloud maps under `data/textures/bodies/earth
 
 Proxima planets (`--body "Proxima b"` / `"Proxima d"`, `kind=planet`) write under `planets/proxima_b/` / `planets/proxima_d/` and composite into the cinematic finale with `--blender-bodies`.
 
+TRAPPIST-1 planets (`--body "TRAPPIST-1 b"` … `"TRAPPIST-1 h"`, `kind=planet`) write under `planets/trappist-1_<letter>/` (stem from the catalog display name).
+
 ```bash
 .venv/bin/python render.py blender --body Moon --flyby
 ```
