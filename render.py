@@ -18,6 +18,7 @@ from animate.scenes.interstellar_objects import renderInterstellarObjectAnimatio
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
 from animate.scenes.sol_trappist_cinematic import renderSolTrappistCinematicAnimations
 from animate.scenes.tabbys_star import renderTabbysStarAnimations
+from animate.scenes.tabbys_star_cinematic import renderTabbysStarCinematicAnimations
 from animate.scenes.trappist_1 import renderTrappist1Animations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
@@ -110,6 +111,7 @@ def buildParser() -> argparse.ArgumentParser:
             'barnards_star',
             'trappist_1',
             'tabbys_star',
+            'tabbys_star_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -119,6 +121,7 @@ def buildParser() -> argparse.ArgumentParser:
             'Which scene set to render (default: sol). '
             'sol_centauri = Sol-to-Alpha Centauri cinematic; '
             'sol_trappist = Sol-to-TRAPPIST-1 cinematic; '
+            'tabbys_star_cinematic = Kepler lightcurve cinema (LOS dust occultation); '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -175,6 +178,7 @@ def buildParser() -> argparse.ArgumentParser:
             'barnards_star',
             'trappist_1',
             'tabbys_star',
+            'tabbys_star_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -348,6 +352,13 @@ def _renderAnimations(
         renderTabbysStarAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_2D,
+            starsCsvPath=starsCsvPath,
+        )
+    # Explicit only — keep `all` from growing another long cinematic bake.
+    if systemChoice == 'tabbys_star_cinematic':
+        renderTabbysStarCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_CINEMATIC,
             starsCsvPath=starsCsvPath,
         )
     if systemChoice == 'oumuamua':
