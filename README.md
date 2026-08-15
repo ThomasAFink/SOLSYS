@@ -536,7 +536,17 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 ## Roadmap
 
-- Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
-- More Blender close-ups (additional moons, asteroids, planets) via shared `data/textures/bodies/` packs
-- Optional TRAPPIST-1 host-star Blender photosphere pack for arrival billboards
-- Additional destination cinematics (Barnard's Star) on the Sol→TRAPPIST pattern when a new odyssey chapter is wanted
+Season backlog (opened after 0.3.18):
+
+- **Measurement / stay-with-object:** Betelgeuse variability cinema (#84) after pack (#85); pattern from Tabby (#73)
+- **Deep time:** K–Pg Earth cinema (#86)
+- **Cosmic timeline:** Local Group / MW–Andromeda (#87) — “galaxy + Local Group” brainstorm
+- **ISM:** Nebulas schematic cinema (#81)
+- **Odyssey (optional):** Sol → Barnard's Star (#89)
+- **Craft / inventory:** TRAPPIST-1 host pack (#88); more Blender body packs (#90); more star portraits (#82); more SystemCatalog systems (#91)
+- **Wild-card:** something entirely different (#83) — brief before code
+
+Older craft notes:
+
+- Additional destination cinematics reuse the Sol→TRAPPIST pattern when a new odyssey chapter is wanted (#89)
+- Optional TRAPPIST-1 host-star Blender photosphere pack for arrival billboards (#88)
