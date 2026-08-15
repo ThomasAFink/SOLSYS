@@ -538,7 +538,7 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse variability cinema (#84) after pack (#85); pattern from Tabby (#73)
+- **Measurement / stay-with-object:** Betelgeuse variability cinema (#84) after pack (#85); pattern from Tabby (#73); exoplanet **transit** lightcurve cinema (#95 — planet dips, not dust)
 - **Deep time:** K–Pg Earth cinema (#86)
 - **Cosmic timeline:** Local Group / MW–Andromeda (#87) — “galaxy + Local Group” brainstorm
 - **Mission timeline:** Cassini Saturn tour (#93); Voyager Grand Tour flybys (#94)
