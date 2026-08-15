@@ -458,7 +458,7 @@
     "bodyId": "europa",
     "kind": "moon",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/europa/color.png"
+      "color": "data/textures/bodies/europa/color.png"
     },
     "roughness": 0.55,
     "specular": 0.18

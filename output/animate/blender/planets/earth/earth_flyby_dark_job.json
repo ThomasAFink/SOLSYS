@@ -672,8 +672,8 @@
     "bodyId": "earth",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/earth/color.png",
-      "clouds": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/earth/clouds.png"
+      "color": "data/textures/bodies/earth/color.png",
+      "clouds": "data/textures/bodies/earth/clouds.png"
     },
     "roughness": 0.58,
     "specular": 0.18,

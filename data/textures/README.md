@@ -15,6 +15,7 @@ data/textures/
     ├── sun/                   # Sol photosphere (emissive star close-up)
     ├── alpha_centauri_a/ …    # α Cen A/B + Proxima star (spectral-tint from Sol)
     ├── proxima_b/ proxima_d/  # Proxima planets (gallery-grade; cinematic finale)
+    ├── trappist_1/            # TRAPPIST-1 host star (M8V tint from Sol)
     ├── trappist_1_b/ … _h/    # TRAPPIST-1 planets (gallery-grade)
     ├── mercury/ … pluto/      # Sol planet packs (color; rings where applicable)
     ├── io/ … charon/          # major moon packs (airless; Titan haze in code)
@@ -53,7 +54,7 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
 - **Atmosphere / clouds:** none (airless pack in `body_appearance.py`)
 - **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/))
 
-## Stars (Sol + α Centauri + Tabby's)
+## Stars (Sol + α Centauri + Tabby's + TRAPPIST-1)
 
 Equirectangular photosphere maps for Blender star close-ups (`kind=star`). Rendered emissive (not a matte ball under a key lamp); no fresnel atmosphere shell (that read as a hard ring).
 
@@ -64,10 +65,11 @@ Equirectangular photosphere maps for Blender star close-ups (`kind=star`). Rende
 | Alpha Centauri B | K1V warmer/orange tint (`bodies/alpha_centauri_b/`) | Derived from SSS Sol photosphere |
 | Proxima Centauri | M5.5Ve red tint (`bodies/proxima_centauri/`) | Derived from SSS Sol photosphere |
 | Tabby's Star | F3V cooler/whiter tint (`bodies/tabbys_star/`; aliases KIC 8462852) | Derived from SSS Sol photosphere |
+| TRAPPIST-1 | M8V ultracool-dwarf tint — deeper and dimmer than Proxima (`bodies/trappist_1/`) | Derived from SSS Sol photosphere |
 
 - **SSS textures:** free with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/).
-- α Cen / Proxima / Tabby's packs keep Sol granulation with a blackbody-style RGB balance shift until dedicated photosphere maps are packaged.
-- CLI: `render.py blender --body "Alpha Centauri A"` / `"Alpha Centauri B"` / `"Proxima Centauri"` / `"Tabby's Star"`.
+- α Cen / Proxima / Tabby's / TRAPPIST-1 packs keep Sol granulation with a blackbody-style RGB balance shift until dedicated photosphere maps are packaged.
+- CLI: `render.py blender --body "Alpha Centauri A"` / `"Alpha Centauri B"` / `"Proxima Centauri"` / `"Tabby's Star"` / `"TRAPPIST-1"`.
 
 ## Sol planets (Mercury–Neptune + Pluto)
 

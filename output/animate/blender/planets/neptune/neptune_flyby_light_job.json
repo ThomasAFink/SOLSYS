@@ -674,8 +674,8 @@
     "bodyId": "neptune",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/neptune/color.png",
-      "rings": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/neptune/rings.png"
+      "color": "data/textures/bodies/neptune/color.png",
+      "rings": "data/textures/bodies/neptune/rings.png"
     },
     "roughness": 0.45,
     "specular": 0.2,

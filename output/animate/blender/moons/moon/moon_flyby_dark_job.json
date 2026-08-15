@@ -672,7 +672,7 @@
     "bodyId": "moon",
     "kind": "moon",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/moon/color.png"
+      "color": "data/textures/bodies/moon/color.png"
     },
     "roughness": 0.82,
     "specular": 0.04

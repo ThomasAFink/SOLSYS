@@ -458,7 +458,7 @@
     "bodyId": "tabbys_star",
     "kind": "star",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/tabbys_star/color.png"
+      "color": "data/textures/bodies/tabbys_star/color.png"
     },
     "roughness": 0.95,
     "specular": 0.0

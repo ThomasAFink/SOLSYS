@@ -458,7 +458,7 @@
     "bodyId": "titan",
     "kind": "moon",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/titan/color.png"
+      "color": "data/textures/bodies/titan/color.png"
     },
     "roughness": 0.65,
     "specular": 0.1,
