@@ -372,9 +372,6 @@ class BodyAppearanceTests(unittest.TestCase):
                 self.assertTrue(resolveJobPath(value).is_file(), f'{name}.{key} = {value}')
 
     def test_committed_flyby_jobs_have_no_machine_paths(self) -> None:
-        import json
-        import subprocess
-
         from animate.scenes.blender.body_appearance import REPO_ROOT
 
         listing = subprocess.run(
