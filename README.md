@@ -541,6 +541,7 @@ Season backlog (opened after 0.3.18):
 - **Measurement / stay-with-object:** Betelgeuse variability cinema (#84) after pack (#85); pattern from Tabby (#73)
 - **Deep time:** K–Pg Earth cinema (#86)
 - **Cosmic timeline:** Local Group / MW–Andromeda (#87) — “galaxy + Local Group” brainstorm
+- **Mission timeline:** Cassini Saturn tour (#93); Voyager Grand Tour flybys (#94)
 - **ISM:** Nebulas schematic cinema (#81)
 - **Odyssey (optional):** Sol → Barnard's Star (#89)
 - **Craft / inventory:** TRAPPIST-1 host pack (#88); more Blender body packs (#90); more star portraits (#82); more SystemCatalog systems (#91)
