@@ -147,6 +147,7 @@ class BodyAppearanceTests(unittest.TestCase):
                 'KIC 8462852',
                 'Proxima Centauri',
                 'Sun',
+                'TRAPPIST-1',
                 "Tabby's Star",
             ),
         )
@@ -242,6 +243,30 @@ class BodyAppearanceTests(unittest.TestCase):
                 bodyOutputDirectory('star', catalogName).as_posix().endswith(f'stars/{bodyId}')
             )
 
+    def test_trappist_1_host_pack_is_emissive_ultracool_dwarf(self) -> None:
+        from animate.scenes.blender.body_scene import buildBodyScene
+        from animate.scenes.blender.export_body import bodyOutputDirectory, bodyStem
+
+        appearance = appearanceForCatalogName('TRAPPIST-1')
+        self.assertIsNotNone(appearance)
+        assert appearance is not None
+        self.assertEqual(appearance.kind, 'star')
+        self.assertEqual(appearance.bodyId, 'trappist_1')
+        self.assertFalse(appearance.atmosphere.enabled)
+        maps = appearance.textures.existingMaps()
+        self.assertIn('color', maps)
+        self.assertTrue(maps['color'].is_file())
+        scene = buildBodyScene('TRAPPIST-1', frameCount=8)
+        self.assertEqual(scene.body.kind, 'star')
+        self.assertEqual(scene.body.systemId, 'trappist_1')
+        # M8V dwarf: an order of magnitude smaller than Sol, smaller than Proxima.
+        self.assertLess(scene.body.diameterKm, 250_000.0)
+        # Texture folder is underscored; output dirs keep the hyphenated catalog stem.
+        self.assertEqual(bodyStem('TRAPPIST-1'), 'trappist-1')
+        self.assertTrue(
+            bodyOutputDirectory('star', 'TRAPPIST-1').as_posix().endswith('stars/trappist-1')
+        )
+
     def test_earth_pack_resolves_color_map(self) -> None:
         appearance = appearanceForCatalogName('Earth')
         self.assertIsNotNone(appearance)
@@ -327,6 +352,43 @@ class BodyAppearanceTests(unittest.TestCase):
         self.assertIn('rings', job)
         self.assertAlmostEqual(job['rings']['tiltDeg'], 26.7)
         self.assertIn('rings', job['textures'])
+
+    def test_job_texture_paths_are_repo_relative(self) -> None:
+        """Job JSON is committed with the frames — absolute paths pin it to one machine."""
+        from animate.scenes.blender.body_appearance import REPO_ROOT
+        from animate.scenes.blender.render_flyby import resolveJobPath
+
+        for name in ('Earth', 'Saturn', 'Sun', 'TRAPPIST-1'):
+            appearance = appearanceForCatalogName(name)
+            self.assertIsNotNone(appearance, name)
+            assert appearance is not None
+            textures = appearance.toJobDict()['textures']
+            self.assertTrue(textures, name)
+            for key, value in textures.items():
+                self.assertFalse(Path(value).is_absolute(), f'{name}.{key} = {value}')
+                self.assertTrue(value.startswith('data/textures/'), f'{name}.{key} = {value}')
+                # Blender resolves relative job paths against the repo root.
+                self.assertEqual(resolveJobPath(value), REPO_ROOT / value)
+                self.assertTrue(resolveJobPath(value).is_file(), f'{name}.{key} = {value}')
+
+    def test_committed_flyby_jobs_have_no_machine_paths(self) -> None:
+        from animate.scenes.blender.body_appearance import REPO_ROOT
+
+        listing = subprocess.run(
+            ['git', 'ls-files', 'output/**/*_job.json'],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+        )
+        jobPaths = [line for line in listing.stdout.split() if line]
+        if not jobPaths:
+            self.skipTest('no committed flyby jobs')
+        for jobPath in jobPaths:
+            payload = json.loads((REPO_ROOT / jobPath).read_text(encoding='utf-8'))
+            textures = (payload.get('appearance') or {}).get('textures') or {}
+            for key, value in textures.items():
+                self.assertFalse(Path(value).is_absolute(), f'{jobPath}:{key} = {value}')
 
     def test_ice_giant_rings_present_but_subtler(self) -> None:
         for name in ('Uranus', 'Neptune'):

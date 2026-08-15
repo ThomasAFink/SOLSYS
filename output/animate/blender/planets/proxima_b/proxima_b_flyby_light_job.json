@@ -674,7 +674,7 @@
     "bodyId": "proxima_b",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/proxima_b/color.png"
+      "color": "data/textures/bodies/proxima_b/color.png"
     },
     "roughness": 0.68,
     "specular": 0.08,

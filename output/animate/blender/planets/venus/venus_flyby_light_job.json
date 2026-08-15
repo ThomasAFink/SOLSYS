@@ -674,7 +674,7 @@
     "bodyId": "venus",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/venus/color.png"
+      "color": "data/textures/bodies/venus/color.png"
     },
     "roughness": 0.62,
     "specular": 0.12,

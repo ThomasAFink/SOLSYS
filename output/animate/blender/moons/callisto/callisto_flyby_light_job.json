@@ -674,7 +674,7 @@
     "bodyId": "callisto",
     "kind": "moon",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/callisto/color.png"
+      "color": "data/textures/bodies/callisto/color.png"
     },
     "roughness": 0.8,
     "specular": 0.05

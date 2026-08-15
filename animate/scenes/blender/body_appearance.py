@@ -13,6 +13,20 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 TEXTURE_BODIES_ROOT = REPO_ROOT / 'data' / 'textures' / 'bodies'
 
 
+def jobTexturePath(path: Path) -> str:
+    """Serialize a texture for a flyby job: repo-relative POSIX where possible.
+
+    Job JSON is committed alongside the rendered frames, so an absolute path
+    would pin the artifact to one machine. ``render_flyby`` resolves relative
+    entries against the repo root (same rule as ``outputDirectory``).
+    """
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return str(resolved)
+
+
 @dataclass(frozen=True)
 class BodyTextureMaps:
     """Optional equirectangular maps. Missing paths fall back to catalog color."""
@@ -91,7 +105,7 @@ class BodyAppearance:
     rings: BodyRings = BodyRings()
 
     def toJobDict(self) -> dict:
-        maps = {key: str(path) for key, path in self.textures.existingMaps().items()}
+        maps = {key: jobTexturePath(path) for key, path in self.textures.existingMaps().items()}
         payload = {
             'bodyId': self.bodyId,
             'kind': self.kind,
@@ -211,6 +225,7 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
     _star('alpha_centauri_b', 'Alpha Centauri B'),
     _star('proxima_centauri', 'Proxima Centauri'),
     _star('tabbys_star', "Tabby's Star", 'KIC 8462852'),
+    _star('trappist_1', 'TRAPPIST-1'),
     _planet(
         'mercury',
         'Mercury',

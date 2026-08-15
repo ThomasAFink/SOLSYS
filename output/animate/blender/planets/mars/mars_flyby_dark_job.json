@@ -674,7 +674,7 @@
     "bodyId": "mars",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/mars/color.png"
+      "color": "data/textures/bodies/mars/color.png"
     },
     "roughness": 0.72,
     "specular": 0.08,

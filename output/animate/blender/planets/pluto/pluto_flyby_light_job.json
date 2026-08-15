@@ -674,7 +674,7 @@
     "bodyId": "pluto",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/pluto/color.png"
+      "color": "data/textures/bodies/pluto/color.png"
     },
     "roughness": 0.8,
     "specular": 0.05

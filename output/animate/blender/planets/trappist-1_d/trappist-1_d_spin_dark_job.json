@@ -458,7 +458,7 @@
     "bodyId": "trappist_1_d",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/trappist_1_d/color.png"
+      "color": "data/textures/bodies/trappist_1_d/color.png"
     },
     "roughness": 0.74,
     "specular": 0.05,

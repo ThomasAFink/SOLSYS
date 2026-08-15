@@ -364,7 +364,8 @@ class _StarSpec:
     systemId: str
 
 
-# Sol + α Cen companions + Tabby's. Diameters ≈ catalog R★ × IAU nominal solar diameter.
+# Sol + α Cen companions + Tabby's + TRAPPIST-1.
+# Diameters ≈ catalog R★ × IAU nominal solar diameter.
 _STAR_SPECS: dict[str, _StarSpec] = {
     'Sun': _StarSpec('Sun', 1_392_700.0, 'gold', 25.0, 'sol'),
     'Alpha Centauri A': _StarSpec(
@@ -377,6 +378,8 @@ _STAR_SPECS: dict[str, _StarSpec] = {
     # F3V · R★ ≈ 1.43 R☉ (nearby_stars_30); ~0.88 d rotation → gallery spin uses 5 d schema.
     "Tabby's Star": _StarSpec("Tabby's Star", 1_991_600.0, '#F8F0D8', 5.0, 'tabbys_star'),
     'KIC 8462852': _StarSpec("Tabby's Star", 1_991_600.0, '#F8F0D8', 5.0, 'tabbys_star'),
+    # M8V ultracool dwarf · R★ ≈ 0.119 R☉; ~3.3 d rotation (Spitzer/K2 spot period).
+    'TRAPPIST-1': _StarSpec('TRAPPIST-1', 166_000.0, '#FF6B4A', 3.3, 'trappist_1'),
 }
 
 

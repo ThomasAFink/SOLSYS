@@ -674,7 +674,7 @@
     "bodyId": "io",
     "kind": "moon",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/io/color.png"
+      "color": "data/textures/bodies/io/color.png"
     },
     "roughness": 0.7,
     "specular": 0.08

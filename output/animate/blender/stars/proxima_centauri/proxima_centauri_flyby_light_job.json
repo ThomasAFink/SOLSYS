@@ -674,7 +674,7 @@
     "bodyId": "proxima_centauri",
     "kind": "star",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/proxima_centauri/color.png"
+      "color": "data/textures/bodies/proxima_centauri/color.png"
     },
     "roughness": 0.95,
     "specular": 0.0

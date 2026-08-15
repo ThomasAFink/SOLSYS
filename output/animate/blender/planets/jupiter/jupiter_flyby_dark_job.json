@@ -674,7 +674,7 @@
     "bodyId": "jupiter",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/jupiter/color.png"
+      "color": "data/textures/bodies/jupiter/color.png"
     },
     "roughness": 0.48,
     "specular": 0.22,

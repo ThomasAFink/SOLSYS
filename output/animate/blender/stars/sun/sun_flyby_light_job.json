@@ -674,7 +674,7 @@
     "bodyId": "sun",
     "kind": "star",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/sun/color.png"
+      "color": "data/textures/bodies/sun/color.png"
     },
     "roughness": 0.95,
     "specular": 0.0

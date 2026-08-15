@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 from animate.scenes.sol_centauri_cinematic import (
     BLENDER_PLANET_BODY_SCALE,
+    BLENDER_STAR_BODY_SCALE,
     PULLBACK_END,
     SOL_EARTH_CLOSE_HALF_AU,
     SOL_EARTH_HALF_AU,
@@ -243,8 +244,12 @@ class SolTrappistCinematicTests(unittest.TestCase):
             self.assertLess(innerHalf, TRAPPIST_WIDE_HALF_AU)
 
             # e/f holds each linger.
-            self.assertGreaterEqual(int((ARRIVAL_TRAPPIST_E_HOLD_END - ARRIVAL_TRAPPIST_E_ARRIVE) * frames), 30)
-            self.assertGreaterEqual(int((ARRIVAL_TRAPPIST_F_HOLD_END - ARRIVAL_TRAPPIST_F_ARRIVE) * frames), 30)
+            self.assertGreaterEqual(
+                int((ARRIVAL_TRAPPIST_E_HOLD_END - ARRIVAL_TRAPPIST_E_ARRIVE) * frames), 30
+            )
+            self.assertGreaterEqual(
+                int((ARRIVAL_TRAPPIST_F_HOLD_END - ARRIVAL_TRAPPIST_F_ARRIVE) * frames), 30
+            )
         finally:
             import matplotlib.pyplot as plt
 
@@ -381,12 +386,57 @@ class SolTrappistCinematicTests(unittest.TestCase):
                         scatterHits,
                         before,
                         msg=(
-                            f'{planet.name} used a catalog scatter at '
-                            f'halfWidth={halfWidth:.4f} AU'
+                            f'{planet.name} used a catalog scatter at halfWidth={halfWidth:.4f} AU'
                         ),
                     )
 
             self.assertTrue(queued, 'expected at least one TRAPPIST billboard queue')
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+    def test_host_photosphere_billboards_once_the_chain_reveals(self) -> None:
+        """Cruise keeps the scatter marker; chain reveal swaps to the M8V pack."""
+        animator = SolTrappistCinematicAnimator(
+            self.system,
+            starsCsvPath=self.paths['starsCsvPath'],
+            useBlenderBodies=True,
+        )
+        try:
+            if not animator._blenderBodyAvailable('TRAPPIST-1'):
+                self.skipTest('TRAPPIST-1 host spin pack not present')
+
+            # Host disk must stay inside the innermost orbit (b, a≈0.0115 AU) or the
+            # chain would appear to graze the photosphere.
+            hostRadiusAu = BLENDER_STAR_BODY_SCALE['TRAPPIST-1'] * (SOL_EARTH_HALF_AU * 0.18)
+            innermost = min(planet.semiMajorAxisAu for planet in animator.trappistPlanets)
+            self.assertLess(hostRadiusAu, innermost * 0.5)
+
+            linear = animator._abHoldEnd() + 1e-3
+            queuedAt: dict[float, bool] = {}
+            for halfWidth in (
+                TRAPPIST_ARRIVE_HALF_AU,
+                TRAPPIST_WIDE_HALF_AU,
+                TRAPPIST_HZ_HALF_AU,
+            ):
+                animator._viewFocus = animator.hostSolAu.copy()
+                animator._viewHalfWidthAu = float(halfWidth)
+                animator._pendingBlenderBodies = []
+                animator._drawTrappistDestination(
+                    0,
+                    float(halfWidth),
+                    1.0,
+                    linear,
+                )
+                queuedAt[float(halfWidth)] = any(
+                    entry[0] == 'TRAPPIST-1' for entry in animator._pendingBlenderBodies
+                )
+
+            # Far out the world-fixed disk is a speck — the marker still owns the frame.
+            self.assertFalse(queuedAt[TRAPPIST_ARRIVE_HALF_AU])
+            self.assertTrue(queuedAt[TRAPPIST_WIDE_HALF_AU])
+            self.assertTrue(queuedAt[TRAPPIST_HZ_HALF_AU])
         finally:
             import matplotlib.pyplot as plt
 

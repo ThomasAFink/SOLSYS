@@ -458,7 +458,7 @@
     "bodyId": "ganymede",
     "kind": "moon",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/ganymede/color.png"
+      "color": "data/textures/bodies/ganymede/color.png"
     },
     "roughness": 0.72,
     "specular": 0.08
