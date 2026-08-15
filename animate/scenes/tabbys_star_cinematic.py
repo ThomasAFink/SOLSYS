@@ -35,9 +35,9 @@ ANIMATION_FRAMES = 480
 TABBYS_CATALOG_NAME = "Tabby's Star"
 STAR_DISPLAY_RESOLUTION = 512
 # Photosphere panel uses normalized coords; star disk radius in those units.
-STAR_DISK_RADIUS = 0.38
-# Fixed framing — no dip push-in (that read as the star swelling).
-STAR_PANEL_HALF_WIDTH = 0.72
+# ~2× prior framing so the disk + occulting dust fill the hero plane.
+STAR_DISK_RADIUS = 0.76
+STAR_PANEL_HALF_WIDTH = 0.82
 
 
 def _debrisCatalogForIndex(index: int) -> str:
