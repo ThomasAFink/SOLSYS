@@ -210,6 +210,7 @@ _BODY_APPEARANCES: tuple[BodyAppearance, ...] = (
     _star('alpha_centauri_a', 'Alpha Centauri A'),
     _star('alpha_centauri_b', 'Alpha Centauri B'),
     _star('proxima_centauri', 'Proxima Centauri'),
+    _star('tabbys_star', "Tabby's Star", 'KIC 8462852'),
     _planet(
         'mercury',
         'Mercury',
