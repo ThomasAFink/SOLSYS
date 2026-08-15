@@ -53,7 +53,7 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
 - **Atmosphere / clouds:** none (airless pack in `body_appearance.py`)
 - **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/))
 
-## Stars (Sol + α Centauri)
+## Stars (Sol + α Centauri + Tabby's)
 
 Equirectangular photosphere maps for Blender star close-ups (`kind=star`). Rendered emissive (not a matte ball under a key lamp); no fresnel atmosphere shell (that read as a hard ring).
 
@@ -63,10 +63,11 @@ Equirectangular photosphere maps for Blender star close-ups (`kind=star`). Rende
 | Alpha Centauri A | G2V-ish spectral tint of Sol map (`bodies/alpha_centauri_a/`) | Derived from SSS Sol photosphere |
 | Alpha Centauri B | K1V warmer/orange tint (`bodies/alpha_centauri_b/`) | Derived from SSS Sol photosphere |
 | Proxima Centauri | M5.5Ve red tint (`bodies/proxima_centauri/`) | Derived from SSS Sol photosphere |
+| Tabby's Star | F3V cooler/whiter tint (`bodies/tabbys_star/`; aliases KIC 8462852) | Derived from SSS Sol photosphere |
 
 - **SSS textures:** free with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/).
-- α Cen / Proxima packs keep Sol granulation with a blackbody-style RGB balance shift until dedicated photosphere maps are packaged.
-- CLI: `render.py blender --body "Alpha Centauri A"` / `"Alpha Centauri B"` / `"Proxima Centauri"`.
+- α Cen / Proxima / Tabby's packs keep Sol granulation with a blackbody-style RGB balance shift until dedicated photosphere maps are packaged.
+- CLI: `render.py blender --body "Alpha Centauri A"` / `"Alpha Centauri B"` / `"Proxima Centauri"` / `"Tabby's Star"`.
 
 ## Sol planets (Mercury–Neptune + Pluto)
 

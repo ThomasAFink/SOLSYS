@@ -18,7 +18,8 @@ _KIND_DIRECTORY: dict[str, str] = {
 
 
 def bodyStem(bodyName: str) -> str:
-    return bodyName.lower().replace(' ', '_')
+    # Strip apostrophes so "Tabby's Star" → tabbys_star (stable output dirs).
+    return bodyName.lower().replace("'", '').replace(' ', '_')
 
 
 def bodyOutputDirectory(

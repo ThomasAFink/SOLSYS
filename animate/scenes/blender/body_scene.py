@@ -361,14 +361,22 @@ class _StarSpec:
     diameterKm: float
     color: str
     periodDays: float  # approximate equatorial rotation (spin metadata only)
+    systemId: str
 
 
-# Sol + α Cen companions. Diameters ≈ catalog R★ × IAU nominal solar diameter.
+# Sol + α Cen companions + Tabby's. Diameters ≈ catalog R★ × IAU nominal solar diameter.
 _STAR_SPECS: dict[str, _StarSpec] = {
-    'Sun': _StarSpec('Sun', 1_392_700.0, 'gold', 25.0),
-    'Alpha Centauri A': _StarSpec('Alpha Centauri A', 1_701_000.0, '#F6D56A', 22.0),
-    'Alpha Centauri B': _StarSpec('Alpha Centauri B', 1_201_000.0, '#E8A050', 41.0),
-    'Proxima Centauri': _StarSpec('Proxima Centauri', 214_500.0, '#E07060', 83.0),
+    'Sun': _StarSpec('Sun', 1_392_700.0, 'gold', 25.0, 'sol'),
+    'Alpha Centauri A': _StarSpec(
+        'Alpha Centauri A', 1_701_000.0, '#F6D56A', 22.0, 'alpha_centauri'
+    ),
+    'Alpha Centauri B': _StarSpec(
+        'Alpha Centauri B', 1_201_000.0, '#E8A050', 41.0, 'alpha_centauri'
+    ),
+    'Proxima Centauri': _StarSpec('Proxima Centauri', 214_500.0, '#E07060', 83.0, 'alpha_centauri'),
+    # F3V · R★ ≈ 1.43 R☉ (nearby_stars_30); ~0.88 d rotation → gallery spin uses 5 d schema.
+    "Tabby's Star": _StarSpec("Tabby's Star", 1_991_600.0, '#F8F0D8', 5.0, 'tabbys_star'),
+    'KIC 8462852': _StarSpec("Tabby's Star", 1_991_600.0, '#F8F0D8', 5.0, 'tabbys_star'),
 }
 
 
@@ -399,7 +407,7 @@ def buildStarBodyScene(
     body = BodySceneBody(
         name=spec.name,
         kind='star',
-        systemId='sol' if spec.name == 'Sun' else 'alpha_centauri',
+        systemId=spec.systemId,
         semiMajorAxisAu=0.0,
         eccentricity=0.0,
         inclinationDeg=0.0,
