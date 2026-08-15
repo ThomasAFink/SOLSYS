@@ -538,14 +538,16 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); exoplanet transits (#95); solar cycle (#102); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); **technosignature LC teaching contrast (#112)**; Breakthrough Listen waterfall (#113); Dyson limits / IR non-detection (#114)
-- **Deep time:** K–Pg (#86); Moon-forming impact (#106); Snowball/O₂ (#107); Apophis 2029 (#108)
-- **Encounters / formation:** Solar stellar flybys (#96); formation (#97); Oort rain aftermath (#120)
-- **Cosmic timeline:** Local Group / MW–Andromeda (#87)
+- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); exoplanet transits (#95); solar cycle (#102); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); Type Ia ladder (#126); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136)
+- **Deep time:** K–Pg (#86); Moon-forming (#106); Snowball/O₂ (#107); Apophis (#108)
+- **Encounters / formation:** Solar flybys (#96); formation (#97); Oort rain (#120); interstellar vs Oort taxonomy (#135)
+- **Cosmic timeline:** Local Group (#87); Hubble Deep Field (#141)
 - **Mission timeline:** Cassini (#93); Voyager (#94); New Horizons (#98); Parker (#99); Galileo/Juno (#100); Apollo (#101)
-- **Geometry / stay-with-body:** Lagrange parking (#116); Proxima b terminator (#117); TRAPPIST resonance metronome (#118); stellar lensing (#119); Arecibo message geometry (#115)
-- **Scale / catalog:** Gaia sky (#109); HZ ladder (#110); rogue planets (#111); units bumper (#122)
-- **Craft / perception:** true vs false-color Sol (#121)
+- **Stay-with-body / Sol system craft:** Io volcanoes (#128); Enceladus plumes (#129); Venus hell-twin (#130); Saturn hexagon (#132); ring shepherds (#133); Jupiter Trojans (#134); ocean worlds cutaway (#137); Proxima terminator (#117); TRAPPIST resonance (#118)
+- **Geometry:** Lagrange (#116); lensing (#119); Arecibo message (#115); parallax blink (#142); aberration/pointing (#143)
+- **History of science:** Kepler/Mars (#139); Le Verrier/Neptune (#140)
+- **Scale / catalog:** Gaia (#109); HZ ladder (#110); rogue planets (#111); units bumper (#122)
+- **Craft / perception:** true vs false-color Sol (#121); Earth night-lights bumper (#138); sky-map projections (#144)
 - **ISM:** Nebulas (#81)
 - **Odyssey (optional):** Sol → Barnard's (#89)
 - **Craft / inventory:** TRAPPIST-1 host (#88); more Blender packs (#90); more star portraits (#82); more SystemCatalog systems (#91)
