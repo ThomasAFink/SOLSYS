@@ -45,9 +45,10 @@ SOLSYS/
 │   ├── planets.csv                                # Exoplanets linked by host_star_uuid
 │   ├── interstellar_objects.csv                   # 1I/2I/3I hyperbolic visitors
 │   ├── tabbys_star_lightcurve.csv                 # Downsampled Kepler LC for Tabby's Star inset
-│   └── textures/                                  # Blender body maps (earth/…; moons/asteroids later)
+│   └── textures/                                  # Body maps + debris occultation sprites
 │       ├── README.md                              # Attribution + pack layout
-│       └── bodies/{earth,moon}/…                  # NASA Blue Marble / LROC packs
+│       ├── bodies/{earth,moon,…}/…                # NASA / SSS / procedural equirect packs
+│       └── debris/clump_{a,b,c}.png               # Soft dust clumps for stellar occultation (#78)
 │
 ├── animate/                                       # MAIN PRODUCT — GIF animations
 │   ├── __init__.py
@@ -519,5 +520,6 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
 - More Blender close-ups (additional moons, asteroids, planets) via shared `data/textures/bodies/` packs
-- Additional destination cinematics (Barnard's Star, Tabby's Star) on the Sol→TRAPPIST pattern
+- Tabby's Star **lightcurve cinema** (#73) after soft debris occultation packs (#78)
 - Optional TRAPPIST-1 host-star Blender photosphere pack for arrival billboards
+- Additional destination cinematics (Barnard's Star) on the Sol→TRAPPIST pattern when a new odyssey chapter is wanted
