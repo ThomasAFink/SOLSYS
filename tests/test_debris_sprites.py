@@ -38,13 +38,18 @@ class DebrisSpritesTests(unittest.TestCase):
         rgba = renderDebrisClumpRgba(DEBRIS_CLUMPS[0], size=128)
         self.assertEqual(rgba.shape, (128, 128, 4))
         alpha = rgba[..., 3]
-        self.assertGreater(float(alpha.max()), 0.35)
+        self.assertGreater(float(alpha.max()), 0.55)
         self.assertLess(float(alpha.min()), 0.05)
         # Corners should be mostly empty (soft cloud, not a filled square).
         corner = float(alpha[2, 2] + alpha[2, -3] + alpha[-3, 2] + alpha[-3, -3]) / 4.0
         self.assertLess(corner, 0.08)
-        # Not a near-solid asteroid disk: mean alpha stays modest.
-        self.assertLess(float(alpha.mean()), 0.35)
+        # Dense enough to dim a photosphere, still a soft cloud (not a filled disk).
+        self.assertLess(float(alpha.mean()), 0.48)
+        # Dark enough to silhouette against a bright star disk.
+        opaque = alpha > 0.4
+        self.assertTrue(bool(np.any(opaque)))
+        meanRgb = float(np.mean(rgba[..., :3][opaque]))
+        self.assertLess(meanRgb, 0.22)
 
     def test_clumps_differ_from_each_other(self) -> None:
         frames = [renderDebrisClumpRgba(spec, size=96) for spec in DEBRIS_CLUMPS]
