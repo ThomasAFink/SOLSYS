@@ -538,13 +538,15 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse variability cinema (#84) after pack (#85); pattern from Tabby (#73); exoplanet **transit** lightcurve cinema (#95 — planet dips, not dust)
-- **Deep time:** K–Pg Earth cinema (#86)
-- **Cosmic timeline:** Local Group / MW–Andromeda (#87) — “galaxy + Local Group” brainstorm
-- **Mission timeline:** Cassini Saturn tour (#93); Voyager Grand Tour flybys (#94)
-- **ISM:** Nebulas schematic cinema (#81)
-- **Odyssey (optional):** Sol → Barnard's Star (#89)
-- **Craft / inventory:** TRAPPIST-1 host pack (#88); more Blender body packs (#90); more star portraits (#82); more SystemCatalog systems (#91)
+- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby pattern (#73); exoplanet transits (#95); solar cycle (#102); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105)
+- **Deep time:** K–Pg (#86); Moon-forming impact (#106); Snowball/O₂ (#107); Apophis 2029 (#108)
+- **Encounters / formation:** Solar stellar flybys — HD 7977 / Scholz / Gliese 710 (#96); Solar System formation (#97)
+- **Cosmic timeline:** Local Group / MW–Andromeda (#87)
+- **Mission timeline:** Cassini (#93); Voyager (#94); New Horizons (#98); Parker (#99); Galileo/Juno (#100); Apollo (#101)
+- **Scale / catalog:** Gaia sky (#109); HZ ladder (#110); rogue planets (#111)
+- **ISM:** Nebulas (#81)
+- **Odyssey (optional):** Sol → Barnard's (#89)
+- **Craft / inventory:** TRAPPIST-1 host (#88); more Blender packs (#90); more star portraits (#82); more SystemCatalog systems (#91)
 - **Wild-card:** something entirely different (#83) — brief before code
 
 Older craft notes:
