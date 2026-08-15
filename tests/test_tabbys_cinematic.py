@@ -73,9 +73,7 @@ class TabbysStarPackTests(unittest.TestCase):
         self.assertEqual(scene.body.systemId, 'tabbys_star')
         self.assertEqual(bodyStem("Tabby's Star"), 'tabbys_star')
         self.assertTrue(
-            bodyOutputDirectory('star', "Tabby's Star")
-            .as_posix()
-            .endswith('stars/tabbys_star')
+            bodyOutputDirectory('star', "Tabby's Star").as_posix().endswith('stars/tabbys_star')
         )
 
 
@@ -117,10 +115,12 @@ class TabbysCinematicAnimatorTests(unittest.TestCase):
                 self.assertLess(float(animator.fluxByFrame[clump.crossingFrame]), 0.99)
             # No Sol travel language in the title path — system stays Tabby.
             self.assertEqual(animator.system.systemId, 'tabbys_star')
-            # Deepest push is strongest at the deepest clump.
-            peak = animator._deepestPush(animator.deepestClump.crossingFrame)
-            quiet = animator._deepestPush(0)
-            self.assertGreater(peak, quiet)
+            # Framing stays fixed (no dip zoom that reads as the star swelling).
+            animator.update(0)
+            quietLim = animator.starAxes.get_xlim()
+            animator.update(animator.deepestClump.crossingFrame)
+            deepLim = animator.starAxes.get_xlim()
+            self.assertEqual(quietLim, deepLim)
         finally:
             import matplotlib.pyplot as plt
 

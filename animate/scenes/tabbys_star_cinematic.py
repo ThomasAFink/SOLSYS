@@ -36,10 +36,8 @@ TABBYS_CATALOG_NAME = "Tabby's Star"
 STAR_DISPLAY_RESOLUTION = 512
 # Photosphere panel uses normalized coords; star disk radius in those units.
 STAR_DISK_RADIUS = 0.38
-# Push-in during deepest dip (panel zoom via axis limits).
-QUIET_HALF_WIDTH = 0.72
-DEEP_HALF_WIDTH = 0.52
-DEEPEST_HOLD_RADIUS_FRAMES = 28
+# Fixed framing — no dip push-in (that read as the star swelling).
+STAR_PANEL_HALF_WIDTH = 0.72
 
 
 def _debrisCatalogForIndex(index: int) -> str:
@@ -139,12 +137,6 @@ class TabbysStarCinematicAnimator:
                     raise FileNotFoundError(f'Missing debris sprite {name!r} (issue #78)')
                 self._debrisCache[name] = loadDebrisSprite(name, size=320)
 
-    def _deepestPush(self, frame: int) -> float:
-        """0 quiet → 1 at deepest dip hold (slight photosphere push-in)."""
-        center = self.deepestClump.crossingFrame
-        distance = abs(frame - center)
-        return float(np.clip(1.0 - distance / DEEPEST_HOLD_RADIUS_FRAMES, 0.0, 1.0))
-
     def _compositeOccultation(self, starRgba: np.ndarray, frame: int) -> np.ndarray:
         """Alpha-composite dip-scaled debris in front of the photosphere."""
         canvas = starRgba.copy()
@@ -197,8 +189,7 @@ class TabbysStarCinematicAnimator:
             for spine in axes.spines.values():
                 spine.set_visible(False)
 
-        push = self._deepestPush(frame)
-        half = QUIET_HALF_WIDTH + (DEEP_HALF_WIDTH - QUIET_HALF_WIDTH) * push
+        half = STAR_PANEL_HALF_WIDTH
         self.starAxes.set_xlim(-half, half)
         self.starAxes.set_ylim(-half, half)
         self.starAxes.set_aspect('equal')
