@@ -47,25 +47,26 @@ DEBRIS_CLUMPS: tuple[DebrisClumpSpec, ...] = (
         'clump_a',
         'Debris Clump A',
         seed=101,
-        rgb=(0.42, 0.34, 0.26),
+        # Near-silhouette browns — must read against a bright photosphere.
+        rgb=(0.14, 0.10, 0.07),
         stretch=(1.35, 0.78),
-        density=0.55,
+        density=0.72,
     ),
     DebrisClumpSpec(
         'clump_b',
         'Debris Clump B',
         seed=202,
-        rgb=(0.32, 0.30, 0.28),
+        rgb=(0.10, 0.09, 0.08),
         stretch=(0.85, 1.25),
-        density=0.62,
+        density=0.78,
     ),
     DebrisClumpSpec(
         'clump_c',
         'Debris Clump C',
         seed=303,
-        rgb=(0.38, 0.28, 0.22),
+        rgb=(0.12, 0.08, 0.05),
         stretch=(1.15, 1.05),
-        density=0.48,
+        density=0.68,
     ),
 )
 
@@ -182,22 +183,23 @@ def renderDebrisClumpRgba(spec: DebrisClumpSpec, *, size: int = DEFAULT_SPRITE_S
     warped = _fbm(xw * 4.0, yw * 4.0, octaves=5, seed=spec.seed + 7)
 
     # Soft irregular mask: envelope + noise threshold (not a hard ellipse).
-    envelope = np.clip(1.0 - radius * (0.72 + 0.35 * (1.0 - spec.density)), 0.0, 1.0) ** 1.35
+    envelope = np.clip(1.0 - radius * (0.68 + 0.32 * (1.0 - spec.density)), 0.0, 1.0) ** 1.2
     field = 0.45 * warped + 0.30 * base + 0.25 * mid
-    density = np.clip((field - (0.42 - 0.12 * spec.density)) * (2.8 + 1.5 * spec.density), 0.0, 1.0)
+    density = np.clip((field - (0.34 - 0.14 * spec.density)) * (3.4 + 1.8 * spec.density), 0.0, 1.0)
     alpha = envelope * density
-    # Soft outer falloff + speckled rock grains.
-    alpha *= 0.55 + 0.45 * fine
-    alpha = np.clip(alpha, 0.0, 1.0)
-    alpha = alpha**0.85
+    # Soft outer falloff + speckled rock grains (keep peak opacity high for star contrast).
+    alpha *= 0.72 + 0.28 * fine
+    alpha = np.clip(alpha * (0.92 + 0.35 * spec.density), 0.0, 1.0)
+    # Mild lift in midtones so thin wisps still dim the photosphere.
+    alpha = np.clip(alpha**0.72, 0.0, 1.0)
 
     rgb = np.empty((size, size, 3), dtype=np.float64)
-    grain = (fine - 0.5) * 0.12
-    rgb[..., 0] = np.clip(spec.rgb[0] + 0.10 * base + grain, 0.0, 1.0)
-    rgb[..., 1] = np.clip(spec.rgb[1] + 0.08 * mid + grain * 0.8, 0.0, 1.0)
-    rgb[..., 2] = np.clip(spec.rgb[2] + 0.06 * warped + grain * 0.5, 0.0, 1.0)
-    # Slightly darker core so the clump reads when over a bright photosphere.
-    core = np.clip(1.0 - radius * 0.55, 0.55, 1.0)
+    grain = (fine - 0.5) * 0.06
+    rgb[..., 0] = np.clip(spec.rgb[0] + 0.05 * base + grain, 0.0, 1.0)
+    rgb[..., 1] = np.clip(spec.rgb[1] + 0.04 * mid + grain * 0.8, 0.0, 1.0)
+    rgb[..., 2] = np.clip(spec.rgb[2] + 0.03 * warped + grain * 0.5, 0.0, 1.0)
+    # Dark core so the clump silhouettes against a bright photosphere.
+    core = np.clip(1.0 - radius * 0.85, 0.22, 0.78)
     rgb *= core[..., None]
 
     rgba = np.concatenate([rgb, alpha[..., None]], axis=-1)

@@ -165,9 +165,9 @@ data/textures/debris/
 
 | Catalog name | File | Notes |
 |--------------|------|--------|
-| Debris Clump A | `clump_a.png` | Warm brown dust aggregate |
-| Debris Clump B | `clump_b.png` | Cooler gray rock-dust |
-| Debris Clump C | `clump_c.png` | Warmer irregular clump |
+| Debris Clump A | `clump_a.png` | Dark warm dust aggregate (photosphere silhouette) |
+| Debris Clump B | `clump_b.png` | Dark cool gray rock-dust |
+| Debris Clump C | `clump_c.png` | Dark warm irregular clump |
 
 - **API:** `animate.debris_sprites` (`loadDebrisSprite`, `debrisSpriteAvailable`, `writeDebrisClumpTextures`)
 - **Generate / QA:** `.venv/bin/python -m animate.debris_sprites` writes textures and optional Sol-spin occultation previews under `output/animate/debris/qa_occultation_{light,dark}.png`
