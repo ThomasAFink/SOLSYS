@@ -66,6 +66,7 @@ SOLSYS/
 │       ├── barnards_star.py                       # Barnard's Star planets via exoplanet_system
 │       ├── trappist_1.py                          # TRAPPIST-1 planets via exoplanet_system
 │       ├── tabbys_star.py                         # Tabby's Star dust-cloud dimming schematic
+│       ├── tabbys_star_cinematic.py               # Tabby's lightcurve cinema (#73; LC + occultation)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
@@ -88,6 +89,7 @@ SOLSYS/
 │   ├── test_frame_transform.py                    # Sol ↔ α Cen frame transform
 │   ├── test_sol_centauri_cinematic.py             # Sol → α Cen cinematic helpers
 │   ├── test_sol_trappist_cinematic.py             # Sol → TRAPPIST-1 cinematic helpers
+│   ├── test_tabbys_cinematic.py                   # Tabby's lightcurve cinema (#73)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -122,7 +124,8 @@ SOLSYS/
 │   │   └── blender/                           # cinematic with TRAPPIST b–h billboards
 │   ├── barnards_star/                         # barnards_star_planets_{light,dark}.gif
 │   ├── trappist_1/                            # trappist_1_planets_{light,dark}.gif
-│   ├── tabbys_star/                           # tabbys_star_dust_{light,dark}.gif
+│   ├── tabbys_star/                           # dust schematic + cinematic/
+│   │   └── cinematic/                         # tabbys_star_cinematic_{light,dark}.gif
 │   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
 │   └── blender/{planets,moons}/<body>/        # body JSON + *_flyby_{light,dark}.gif
     ├── 2d/                                        # Static top-down zoom JPGs (*_{light,dark}.jpg)
@@ -166,6 +169,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Sol TRAPPIST blender light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_trappist/blender/sol_trappist_cinematic_blender_light.gif?raw=true) | ![Sol TRAPPIST blender dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol_trappist/blender/sol_trappist_cinematic_blender_dark.gif?raw=true) |
+
+**Tabby's Star lightcurve cinema (Kepler + photosphere occultation)**
+
+| Light | Dark |
+|-------|------|
+| ![Tabby cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/tabbys_star/cinematic/tabbys_star_cinematic_light.gif?raw=true) | ![Tabby cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/tabbys_star/cinematic/tabbys_star_cinematic_dark.gif?raw=true) |
 
 **Earth Blender close-up**
 
@@ -216,6 +225,7 @@ solsys.motion    → moving asteroid fields for animation frames
 | Alpha Centauri A | ![α Cen A light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_a/alpha_centauri_a_flyby_light.gif?raw=true) | ![α Cen A dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_a/alpha_centauri_a_flyby_dark.gif?raw=true) |
 | Alpha Centauri B | ![α Cen B light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_b/alpha_centauri_b_flyby_light.gif?raw=true) | ![α Cen B dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/alpha_centauri_b/alpha_centauri_b_flyby_dark.gif?raw=true) |
 | Proxima Centauri | ![Proxima light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/proxima_centauri/proxima_centauri_flyby_light.gif?raw=true) | ![Proxima dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/proxima_centauri/proxima_centauri_flyby_dark.gif?raw=true) |
+| Tabby's Star | ![Tabby's light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/tabbys_star/tabbys_star_spin_light.gif?raw=true) | ![Tabby's dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/stars/tabbys_star/tabbys_star_spin_dark.gif?raw=true) |
 | Proxima b | ![Proxima b light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_b/proxima_b_flyby_light.gif?raw=true) | ![Proxima b dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_b/proxima_b_flyby_dark.gif?raw=true) |
 | Proxima d | ![Proxima d light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_d/proxima_d_flyby_light.gif?raw=true) | ![Proxima d dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/proxima_d/proxima_d_flyby_dark.gif?raw=true) |
 | TRAPPIST-1 b | ![TRAPPIST-1 b light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_b/trappist-1_b_flyby_light.gif?raw=true) | ![TRAPPIST-1 b dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/blender/planets/trappist-1_b/trappist-1_b_flyby_dark.gif?raw=true) |
@@ -364,6 +374,8 @@ Or render by product:
 .venv/bin/python render.py animate --system barnards_star
 .venv/bin/python render.py animate --system trappist_1
 .venv/bin/python render.py animate --system tabbys_star
+.venv/bin/python render.py blender --body "Tabby's Star" --spin --theme all
+.venv/bin/python render.py animate --system tabbys_star_cinematic
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
@@ -451,7 +463,7 @@ Cinematic billboards (issue #49) extend `--blender-bodies` beyond Earth/Moon:
 Star close-ups (`kind=star`, issues #50 / #59):
 
 - `render.py blender --body Sun --flyby` / `--spin` → `output/animate/blender/stars/sun/`
-- `render.py blender --body "Alpha Centauri A"` / `"Alpha Centauri B"` / `"Proxima Centauri"` → `stars/<id>/`
+- `render.py blender --body "Alpha Centauri A"` / `"Alpha Centauri B"` / `"Proxima Centauri"` / `"Tabby's Star"` → `stars/<id>/`
 - Emissive photosphere (not a yellow diffuse planet under a key lamp; no atmosphere shell)
 - With `--blender-bodies`, the Sol→α Cen cinematic composites A/B (AB hold) and Proxima (dive) spin billboards when on-screen
 
@@ -494,9 +506,15 @@ Sol → TRAPPIST-1 cinematic (issue #71): `--system sol_trappist` reuses the Sol
 - `output/animate/sol_trappist/sol_trappist_cinematic_{light,dark}.gif` — classic scatter-dot bodies
 - `output/animate/sol_trappist/blender/sol_trappist_cinematic_blender_{light,dark}.gif` — Blender Sol + TRAPPIST planet billboards
 
-Tabby's Star (issue #17 / Boyajian's Star / KIC 8462852) has no confirmed planets. The scene visualizes the leading **uneven circumstellar dust / debris** explanation for its irregular Kepler dips (not a megastructure). Animations render to `output/animate/tabbys_star/`:
+Tabby's Star (issue #17 / Boyajian's Star / KIC 8462852) has no confirmed planets. The schematic visualizes the leading **uneven circumstellar dust / debris** explanation for its irregular Kepler dips (not a megastructure). Animations render to `output/animate/tabbys_star/`:
 
-- `tabbys_star_dust_{light,dark}.gif` — real Kepler LC (`data/tabbys_star_lightcurve.csv`); orbiting dust clumps of different sizes cross the LOS at observed dip times
+- `tabbys_star_dust_{light,dark}.gif` — top-down schematic; real Kepler LC (`data/tabbys_star_lightcurve.csv`); orbiting dust clumps cross the LOS at observed dip times
+
+**Lightcurve cinema** (issue #73) is a different grammar from Sol→destination odysseys: the Kepler flux **is** the timeline. A dedicated F3V Blender photosphere (`render.py blender --body "Tabby's Star" --spin`) sits behind soft debris sprites (#78) that occult the disk on real dips:
+
+- `cinematic/tabbys_star_cinematic_{light,dark}.gif` — measurement-led edit (no Sol open / cruise)
+
+CLI: `render.py animate --system tabbys_star_cinematic` (requires the Tabby's spin pack first).
 
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
@@ -520,6 +538,5 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 - Additional star systems via `SystemCatalog` / `data/systems.csv` (`exoplanet_system.py` for planet disks; dedicated scenes for dust / other phenomena)
 - More Blender close-ups (additional moons, asteroids, planets) via shared `data/textures/bodies/` packs
-- Tabby's Star **lightcurve cinema** (#73) after soft debris occultation packs (#78)
 - Optional TRAPPIST-1 host-star Blender photosphere pack for arrival billboards
 - Additional destination cinematics (Barnard's Star) on the Sol→TRAPPIST pattern when a new odyssey chapter is wanted

@@ -222,6 +222,7 @@ class BodyAppearanceTests(unittest.TestCase):
             ('Alpha Centauri A', 'alpha_centauri_a'),
             ('Alpha Centauri B', 'alpha_centauri_b'),
             ('Proxima Centauri', 'proxima_centauri'),
+            ("Tabby's Star", 'tabbys_star'),
         ):
             appearance = appearanceForCatalogName(catalogName)
             self.assertIsNotNone(appearance, catalogName)
