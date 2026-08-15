@@ -150,6 +150,9 @@ BLENDER_STAR_BODY_SCALE = {
     'Alpha Centauri B': 40.0,
     # Under Proxima d's orbit (~0.029 AU); larger than b/d planet billboards.
     'Proxima Centauri': 0.75,
+    # Ultracool dwarf: must stay well inside TRAPPIST-1 b's orbit (~0.0115 AU),
+    # so the seven-world chain still reads as orbiting the host.
+    'TRAPPIST-1': 0.17,
 }
 # Cap on-screen size for non-Sol stars so the Proxima dive does not fill the frame.
 BLENDER_STAR_MAX_FRAC = {
@@ -157,6 +160,7 @@ BLENDER_STAR_MAX_FRAC = {
     'Alpha Centauri B': 0.048,
     # Keep under planet orbit fracs through the wide→inner tighten.
     'Proxima Centauri': 0.055,
+    'TRAPPIST-1': 0.055,
 }
 # Sol outer-system readability floor (figure fraction). Raw world scale alone
 # shrinks below floored planet disks at Saturn/Kuiper and the Sun vanishes.
@@ -199,6 +203,10 @@ BLENDER_STAR_BILLBOARD_HALF_AU_BY_BODY = {
     # Min 0: keep the photosphere through the Proxima-planet finale (0.055 AU).
     # The old 0.08 floor dropped texture and snapped to a tiny scatter marker.
     'Proxima Centauri': (0.0, 80.0),
+    # Only once the camera is tight enough for the chain reveal (~0.15 AU wide):
+    # farther out the world-fixed disk is a sub-pixel speck, so the cruise and
+    # dive keep the scatter marker instead.
+    'TRAPPIST-1': (0.0, 0.2),
 }
 # Back-compat alias used by Sol-draw path + tests (Sol window).
 BLENDER_STAR_BILLBOARD_HALF_AU = BLENDER_STAR_BILLBOARD_HALF_AU_BY_BODY['Sun']

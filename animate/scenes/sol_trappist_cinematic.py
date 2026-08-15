@@ -16,6 +16,7 @@ from animate.scenes.sol_centauri_cinematic import (
     AB_CRUISE_END,
     AB_FOCUS_ARRIVE,
     BLENDER_PLANET_BODY_SCALE,
+    BLENDER_STAR_BODY_SCALE,
     CAMERA_ELEVATION_DEG,
     DEFAULT_DPI,
     DEFAULT_FIGURE_SIZE_INCHES,
@@ -500,8 +501,8 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
         if halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.15 and hostCentered and not planetPortrait:
             self._drawHabitableZoneBand(halfWidthAu, hzFocus=hzFocus)
 
-        # Screen-fixed host marker: keep it dominant over the smaller planet disks
-        # on the first chain reveal (no TRAPPIST star spin pack yet).
+        # Textured M8V photosphere once the camera is tight enough for the chain;
+        # otherwise a screen-fixed marker that stays dominant over the planet disks.
         if halfWidthAu <= TRAPPIST_PLANET_HALF_AU * 1.15:
             starSize = 280.0
         elif halfWidthAu <= TRAPPIST_HZ_HALF_AU * 1.15:
@@ -510,19 +511,36 @@ class SolTrappistCinematicAnimator(SolScaleCinematicAnimator):
             starSize = 720.0
         else:
             starSize = 420.0
-        self._drawStarMarker(
-            host,
-            TRAPPIST_1_STAR_COLOR,
-            starSize,
-            zorder=self._scatterDepthZorder(host, base=5),
-        )
+        labelSize = 11.0 if halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.05 else 10.0
         if not planetPortrait or hostCentered:
-            self._label3d(
+            self._drawNamedStar(
+                'TRAPPIST-1',
                 host,
-                '  TRAPPIST-1',
-                color=self.labelColor,
-                fontsize=11.0 if halfWidthAu <= TRAPPIST_WIDE_HALF_AU * 1.05 else 10.0,
+                frame,
+                halfWidthAu,
+                markerColor=TRAPPIST_1_STAR_COLOR,
+                markerSize=starSize,
+                classicLabel='  TRAPPIST-1',
+                labelSize=labelSize,
             )
+        else:
+            queued = self.useBlenderBodies and self._queueBlenderBody(
+                'TRAPPIST-1',
+                host,
+                frame,
+                halfWidthAu,
+                openCloseup=True,
+                bodyScale=BLENDER_STAR_BODY_SCALE['TRAPPIST-1'],
+                orbitalPhaseRad=None,
+                suppressDotFallback=True,
+            )
+            if not queued:
+                self._drawStarMarker(
+                    host,
+                    TRAPPIST_1_STAR_COLOR,
+                    starSize,
+                    zorder=self._scatterDepthZorder(host, base=5),
+                )
 
         for planet in self.trappistPlanets:
             self._drawOneTrappistPlanet(

@@ -147,6 +147,7 @@ class BodyAppearanceTests(unittest.TestCase):
                 'KIC 8462852',
                 'Proxima Centauri',
                 'Sun',
+                'TRAPPIST-1',
                 "Tabby's Star",
             ),
         )
@@ -241,6 +242,30 @@ class BodyAppearanceTests(unittest.TestCase):
             self.assertTrue(
                 bodyOutputDirectory('star', catalogName).as_posix().endswith(f'stars/{bodyId}')
             )
+
+    def test_trappist_1_host_pack_is_emissive_ultracool_dwarf(self) -> None:
+        from animate.scenes.blender.body_scene import buildBodyScene
+        from animate.scenes.blender.export_body import bodyOutputDirectory, bodyStem
+
+        appearance = appearanceForCatalogName('TRAPPIST-1')
+        self.assertIsNotNone(appearance)
+        assert appearance is not None
+        self.assertEqual(appearance.kind, 'star')
+        self.assertEqual(appearance.bodyId, 'trappist_1')
+        self.assertFalse(appearance.atmosphere.enabled)
+        maps = appearance.textures.existingMaps()
+        self.assertIn('color', maps)
+        self.assertTrue(maps['color'].is_file())
+        scene = buildBodyScene('TRAPPIST-1', frameCount=8)
+        self.assertEqual(scene.body.kind, 'star')
+        self.assertEqual(scene.body.systemId, 'trappist_1')
+        # M8V dwarf: an order of magnitude smaller than Sol, smaller than Proxima.
+        self.assertLess(scene.body.diameterKm, 250_000.0)
+        # Texture folder is underscored; output dirs keep the hyphenated catalog stem.
+        self.assertEqual(bodyStem('TRAPPIST-1'), 'trappist-1')
+        self.assertTrue(
+            bodyOutputDirectory('star', 'TRAPPIST-1').as_posix().endswith('stars/trappist-1')
+        )
 
     def test_earth_pack_resolves_color_map(self) -> None:
         appearance = appearanceForCatalogName('Earth')
