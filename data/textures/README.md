@@ -152,4 +152,25 @@ Equirectangular color maps for priority `FamousAsteroidCatalog` bodies. Register
 - **Vesta Dawn mosaic:** NASA / USGS public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/)).
 - Procedural packs are placeholders for belt linger readability until spacecraft mosaics are packaged.
 
+## Debris / dust clumps (occultation sprites)
+
+Soft **RGBA** aggregates for material crossing in front of a stellar disk (issue #78). These are **not** named asteroids and are **not** equirect sphere maps.
+
+```text
+data/textures/debris/
+├── clump_a.png
+├── clump_b.png
+└── clump_c.png
+```
+
+| Catalog name | File | Notes |
+|--------------|------|--------|
+| Debris Clump A | `clump_a.png` | Dark warm dust aggregate (photosphere silhouette) |
+| Debris Clump B | `clump_b.png` | Dark cool gray rock-dust |
+| Debris Clump C | `clump_c.png` | Dark warm irregular clump |
+
+- **API:** `animate.debris_sprites` (`loadDebrisSprite`, `debrisSpriteAvailable`, `writeDebrisClumpTextures`)
+- **Generate / QA:** `.venv/bin/python -m animate.debris_sprites` writes textures and optional Sol-spin occultation previews under `output/animate/debris/qa_occultation_{light,dark}.png`
+- Intended use: scale opacity/size with lightcurve dip depth (e.g. Tabby's cinema #73) — schematic dust, not hydro
+
 Do not replace vendor textures without updating this README attribution.
