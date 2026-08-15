@@ -538,12 +538,14 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby pattern (#73); exoplanet transits (#95); solar cycle (#102); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105)
+- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); exoplanet transits (#95); solar cycle (#102); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); **technosignature LC teaching contrast (#112)**; Breakthrough Listen waterfall (#113); Dyson limits / IR non-detection (#114)
 - **Deep time:** K–Pg (#86); Moon-forming impact (#106); Snowball/O₂ (#107); Apophis 2029 (#108)
-- **Encounters / formation:** Solar stellar flybys — HD 7977 / Scholz / Gliese 710 (#96); Solar System formation (#97)
+- **Encounters / formation:** Solar stellar flybys (#96); formation (#97); Oort rain aftermath (#120)
 - **Cosmic timeline:** Local Group / MW–Andromeda (#87)
 - **Mission timeline:** Cassini (#93); Voyager (#94); New Horizons (#98); Parker (#99); Galileo/Juno (#100); Apollo (#101)
-- **Scale / catalog:** Gaia sky (#109); HZ ladder (#110); rogue planets (#111)
+- **Geometry / stay-with-body:** Lagrange parking (#116); Proxima b terminator (#117); TRAPPIST resonance metronome (#118); stellar lensing (#119); Arecibo message geometry (#115)
+- **Scale / catalog:** Gaia sky (#109); HZ ladder (#110); rogue planets (#111); units bumper (#122)
+- **Craft / perception:** true vs false-color Sol (#121)
 - **ISM:** Nebulas (#81)
 - **Odyssey (optional):** Sol → Barnard's (#89)
 - **Craft / inventory:** TRAPPIST-1 host (#88); more Blender packs (#90); more star portraits (#82); more SystemCatalog systems (#91)
