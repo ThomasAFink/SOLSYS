@@ -144,8 +144,10 @@ class BodyAppearanceTests(unittest.TestCase):
             (
                 'Alpha Centauri A',
                 'Alpha Centauri B',
+                'KIC 8462852',
                 'Proxima Centauri',
                 'Sun',
+                "Tabby's Star",
             ),
         )
         appearance = appearanceForCatalogName('Sun')
