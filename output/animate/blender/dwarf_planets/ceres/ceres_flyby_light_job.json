@@ -674,7 +674,7 @@
     "bodyId": "ceres",
     "kind": "dwarf_planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/ceres/color.png"
+      "color": "data/textures/bodies/ceres/color.png"
     },
     "roughness": 0.78,
     "specular": 0.06

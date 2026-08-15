@@ -674,7 +674,7 @@
     "bodyId": "alpha_centauri_a",
     "kind": "star",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/alpha_centauri_a/color.png"
+      "color": "data/textures/bodies/alpha_centauri_a/color.png"
     },
     "roughness": 0.95,
     "specular": 0.0

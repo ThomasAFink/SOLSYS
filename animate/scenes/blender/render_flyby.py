@@ -17,6 +17,17 @@ from pathlib import Path
 from typing import Any
 
 JOB_SCHEMA_ID = 'solsys.blender_flyby_job/v1'
+# Job paths (textures, outputDirectory) are repo-relative so committed jobs stay
+# portable; absolute entries from older jobs still resolve unchanged.
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def resolveJobPath(value: str | Path) -> Path:
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    fromRepo = REPO_ROOT / path
+    return fromRepo if fromRepo.exists() else Path.cwd() / path
 
 
 def _bpyAvailable() -> bool:
@@ -361,7 +372,7 @@ def _applyStarMaterial(
     colorPath = textures.get('color')
     surfaceColor = None
     if colorPath:
-        surfaceColor = _starPhotosphereColorSocket(bpy, nodeTree, Path(colorPath))
+        surfaceColor = _starPhotosphereColorSocket(bpy, nodeTree, resolveJobPath(colorPath))
         nodeTree.links.new(surfaceColor, principled.inputs['Base Color'])
 
     if 'Emission Color' in principled.inputs:
@@ -429,7 +440,7 @@ def _applyBodyMaterial(
         nodeTree,
         principled,
         textures=textures,
-        colorPath=Path(colorPath),
+        colorPath=resolveJobPath(colorPath),
         theme=theme,
     )
 
@@ -457,12 +468,16 @@ def _wireBodyTextures(
     surfaceColorSocket = hueSat.outputs['Color']
     cloudsPath = textures.get('clouds')
     if cloudsPath:
-        surfaceColorSocket = _mixCloudLayer(bpy, nodeTree, surfaceColorSocket, Path(cloudsPath))
+        surfaceColorSocket = _mixCloudLayer(
+            bpy, nodeTree, surfaceColorSocket, resolveJobPath(cloudsPath)
+        )
     nodeTree.links.new(surfaceColorSocket, principled.inputs['Base Color'])
 
     specularPath = textures.get('specular')
     if specularPath and 'Roughness' in principled.inputs:
-        specularNode = _loadImageTexture(bpy, nodeTree, Path(specularPath), label='specular')
+        specularNode = _loadImageTexture(
+            bpy, nodeTree, resolveJobPath(specularPath), label='specular'
+        )
         if specularNode is not None:
             # Bright specular mask → lower roughness (oceans).
             invert = nodeTree.nodes.new('ShaderNodeInvert')
@@ -780,7 +795,7 @@ def _addRingSystem(
     opacity = float(rings.get('opacity', 1.0))
     textures = (appearance or {}).get('textures') or {}
     ringsPathValue = textures.get('rings')
-    ringsPath = Path(ringsPathValue) if ringsPathValue else None
+    ringsPath = resolveJobPath(ringsPathValue) if ringsPathValue else None
 
     annulus = _createRingAnnulus(
         bpy,

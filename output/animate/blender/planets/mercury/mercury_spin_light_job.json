@@ -458,7 +458,7 @@
     "bodyId": "mercury",
     "kind": "planet",
     "textures": {
-      "color": "/Users/tom/Desktop/SOLSYS/data/textures/bodies/mercury/color.png"
+      "color": "data/textures/bodies/mercury/color.png"
     },
     "roughness": 0.78,
     "specular": 0.06
