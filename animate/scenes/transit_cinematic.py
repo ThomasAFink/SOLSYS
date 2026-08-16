@@ -22,7 +22,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.gridspec import GridSpec
 from PIL import Image
 
-from animate.blender_body_sprites import BlenderBodySpriteAtlas
+from animate.blender_body_sprites import BlenderBodySpriteAtlas, diskRadiusFraction
 
 DEFAULT_FIGURE_SIZE_INCHES = (12.0, 12.0)
 # The photosphere fills the hero panel, so every frame differs across a large
@@ -203,22 +203,6 @@ def warpedTimeByFrame(
     if total <= 0.0:
         return np.linspace(time[0], time[-1], frames)
     return np.interp(np.linspace(0.0, total, frames), cumulative, time)
-
-
-def diskRadiusFraction(rgba: np.ndarray) -> float:
-    """Opaque disk radius in a Blender sprite, as a fraction of its half-width.
-
-    Sprites are rendered with transparent margin around the body, so on-disk
-    geometry has to be measured rather than assumed to fill the frame.
-    """
-    alpha = np.asarray(rgba)[..., 3]
-    height, width = alpha.shape
-    solid = alpha > 0.5
-    if not solid.any():
-        return 1.0
-    yy, xx = np.mgrid[0:height, 0:width]
-    radius = np.sqrt((xx - (width - 1) * 0.5) ** 2 + (yy - (height - 1) * 0.5) ** 2)
-    return float(radius[solid].max() / (min(width, height) * 0.5))
 
 
 def smoothStep(value: float) -> float:
