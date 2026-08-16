@@ -46,6 +46,9 @@ SOLSYS/
 │   ├── interstellar_objects.csv                   # 1I/2I/3I hyperbolic visitors
 │   ├── tabbys_star_lightcurve.csv                 # Downsampled Kepler LC for Tabby's Star inset
 │   ├── trappist_1_tess_lightcurve.csv             # TESS S70 2-min PDCSAP for the transit fold (#95)
+│   ├── kic_7944142_kepler_lightcurve.csv          # Kepler Q0–Q17 long cadence for the mode spectrum (#169)
+│   ├── silso_sunspot_number_monthly.csv           # SILSO v2.0 monthly sunspot number, 1749– (#102)
+│   ├── sunspot_groups_carrington.csv              # Group latitudes/areas per rotation, 1874–2019 (#102)
 │   └── textures/                                  # Body maps + debris occultation sprites
 │       ├── README.md                              # Attribution + pack layout
 │       ├── bodies/{earth,moon,…}/…                # NASA / SSS / procedural equirect packs
@@ -70,6 +73,7 @@ SOLSYS/
 │       ├── tabbys_star_cinematic.py               # Tabby's lightcurve cinema (#73; LC + occultation)
 │       ├── transit_cinematic.py                   # TRAPPIST-1 b transit cinema (#95; real TESS fold)
 │       ├── asteroseismology_cinematic.py          # red giant weighed by its ringing (#169; Kepler FFT)
+│       ├── solar_cycle_cinematic.py               # the Sun's spots counted and placed (#102; SILSO + butterfly)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
@@ -95,6 +99,7 @@ SOLSYS/
 │   ├── test_tabbys_cinematic.py                   # Tabby's lightcurve cinema (#73)
 │   ├── test_transit_cinematic.py                  # TRAPPIST-1 b transit fold vs TESS data (#95)
 │   ├── test_asteroseismology_cinematic.py         # numax / Dnu / R / M re-derived from Kepler (#169)
+│   ├── test_solar_cycle_cinematic.py              # cycle timing, disk projection, Spörer drift (#102)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -132,6 +137,8 @@ SOLSYS/
 │   │   └── cinematic/                         # trappist_1_transit_cinematic_{light,dark}.gif
 │   ├── kic_7944142/
 │   │   └── cinematic/                         # kic_7944142_asteroseismology_{light,dark}.gif
+│   ├── sol/
+│   │   └── cinematic/                         # sol_solar_cycle_{light,dark}.gif
 │   ├── tabbys_star/                           # dust schematic + cinematic/
 │   │   └── cinematic/                         # tabbys_star_cinematic_{light,dark}.gif
 │   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
@@ -195,6 +202,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Asteroseismology cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/kic_7944142/cinematic/kic_7944142_asteroseismology_light.gif?raw=true) | ![Asteroseismology cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/kic_7944142/cinematic/kic_7944142_asteroseismology_dark.gif?raw=true) |
+
+**Solar cycle cinema (real sunspot groups on the disk, opening into the butterfly)**
+
+| Light | Dark |
+|-------|------|
+| ![Solar cycle cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol/cinematic/sol_solar_cycle_light.gif?raw=true) | ![Solar cycle cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol/cinematic/sol_solar_cycle_dark.gif?raw=true) |
 
 **Earth Blender close-up**
 
@@ -405,6 +418,10 @@ Or render by product:
 .venv/bin/python render.py blender --body "KIC 7944142" --spin --theme all
 .venv/bin/python render.py blender --body Sun --spin --theme all
 .venv/bin/python render.py animate --system asteroseismology_cinematic
+
+# Solar cycle cinema (needs the Sun spin pack first)
+.venv/bin/python render.py blender --body Sun --spin --theme all
+.venv/bin/python render.py animate --system solar_cycle_cinematic
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
@@ -571,6 +588,20 @@ Nothing is precomputed: the spectrum, νmax, Δν, radius and mass are all deriv
 
 CLI: `render.py animate --system asteroseismology_cinematic` (requires the `KIC 7944142` and `Sun` spin packs).
 
+**Solar cycle cinema** (issue #102) turns the same grammar on the one star that is not a point of light. Three films measured stars we can only count photons from; here the measurement is older and much more literal — someone looked at the disk and wrote down what was on it. Two observed series drive it: SILSO's monthly sunspot number since 1749 (`data/silso_sunspot_number_monthly.csv`) and the Mandal et al. 2020 cross-calibrated composite of group positions and areas since 1874 (`data/sunspot_groups_carrington.csv`, sampled one observed day per Carrington rotation):
+
+1. **Minimum** — cycle 23 opens on an almost blank Sun. Each disk carries the groups actually recorded that day, at their measured heliographic latitude and central meridian distance, sized by their measured area.
+2. **Maximum** — four years later the same face is crowded, and the count peaks at 244 in July 2000.
+3. **Century** — the strip pulls back to all 275 years. The mean cycle runs 11.0 years, but individual cycles run 9.1 to 13.7: the clock keeps bad time.
+4. **Butterfly** — the count flattens onto the equator line it was counting up from, and the wings open in its place. A number says how many spots there were, never where.
+5. **Payoff** — averaged over every cycle since 1874, spots open at ±22° and close at ±10°. Spörer's law, measured rather than asserted.
+
+- `output/animate/sol/cinematic/sol_solar_cycle_{light,dark}.gif`
+
+The disks are not decorated. Latitude and central meridian distance are projected with B0, the tilt of the solar axis toward Earth on that date (computed from the date, Meeus ch. 29), and the tests check that projection against the catalogue's own record of how far each group sat from disk centre: the median disagreement is 0.0017 solar radii over 8,408 groups, and dropping B0 makes it eleven times worse. Group areas are drawn in true proportion and then scaled up ×2.5 together, labelled on screen, because a 300 msh group really is about a fiftieth of the disk across. Cycle minima, mean length, the featured cycle's peak and the latitude drift are all measured at runtime from the two CSVs. The flare/CME beat the issue sketched is deliberately absent: there is no observed series behind it here, and a drawn coronal mass ejection would be the one invented thing in a film whose whole claim is that nothing is.
+
+CLI: `render.py animate --system solar_cycle_cinematic` (requires the `Sun` spin pack).
+
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
 `output/animate/interstellar_objects/`:
@@ -593,7 +624,7 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); solar cycle (#102); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); Type Ia ladder (#126); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); Cepheids (#159); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
+- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); Type Ia ladder (#126); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); Cepheids (#159); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
 - **Deep time:** K–Pg (#86); Moon-forming (#106); Snowball/O₂ (#107); Apophis (#108); Cambrian bumper (#162); Chicxulub core zoom (#163)
 - **Encounters / formation:** Solar flybys (#96); formation (#97); Oort rain (#120); interstellar vs Oort taxonomy (#135)
 - **Cosmic timeline:** Local Group (#87); Hubble Deep Field (#141)

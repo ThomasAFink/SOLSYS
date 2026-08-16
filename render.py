@@ -20,6 +20,7 @@ from animate.scenes.blender.flyby_scene import renderPlanetFlyby, renderPlanetSp
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
 from animate.scenes.sol_trappist_cinematic import renderSolTrappistCinematicAnimations
+from animate.scenes.solar_cycle_cinematic import renderSolarCycleCinematicAnimations
 from animate.scenes.tabbys_star import renderTabbysStarAnimations
 from animate.scenes.tabbys_star_cinematic import renderTabbysStarCinematicAnimations
 from animate.scenes.transit_cinematic import renderTransitCinematicAnimations
@@ -119,6 +120,7 @@ def buildParser() -> argparse.ArgumentParser:
             'tabbys_star_cinematic',
             'transit_cinematic',
             'asteroseismology_cinematic',
+            'solar_cycle_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -131,6 +133,7 @@ def buildParser() -> argparse.ArgumentParser:
             'tabbys_star_cinematic = Tabby lightcurve cinema (Kepler + photosphere occultation); '
             'transit_cinematic = TRAPPIST-1 b transit cinema (TESS fold); '
             'asteroseismology_cinematic = red giant weighed by its ringing (Kepler FFT); '
+            'solar_cycle_cinematic = the Sun\u2019s spots counted and placed (SILSO + butterfly); '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -190,6 +193,7 @@ def buildParser() -> argparse.ArgumentParser:
             'tabbys_star_cinematic',
             'transit_cinematic',
             'asteroseismology_cinematic',
+            'solar_cycle_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -329,6 +333,12 @@ def _renderLightcurveCinemas(systemChoice: str, starsCsvPath: str) -> None:
     if systemChoice == 'asteroseismology_cinematic':
         # Requires prior: blender --body "KIC 7944142" and "Sun" --spin.
         renderAsteroseismologyCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_TRANSIT,
+        )
+    if systemChoice == 'solar_cycle_cinematic':
+        # Requires prior: blender --body "Sun" --spin.
+        renderSolarCycleCinematicAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_TRANSIT,
         )
