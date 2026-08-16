@@ -213,6 +213,28 @@ class TransitCinematicAnimatorTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             self._animator()
 
+    def test_every_transiting_planet_pack_is_required(self) -> None:
+        """A missing planet pack must fail loudly, not fall back to a plain dot."""
+        if not self.hasSpin:
+            self.skipTest('TRAPPIST-1 Blender spin not present')
+        animator = self._animator()
+        try:
+            names = [planet.name for planet in animator.planets]
+        finally:
+            import matplotlib.pyplot as plt
+
+            plt.close(animator.figure)
+
+        from unittest.mock import patch
+
+        absent = names[-1]
+        with (
+            patch.object(type(animator.atlas), 'hasBody', lambda _self, name: name != absent),
+            self.assertRaises(FileNotFoundError) as raised,
+        ):
+            self._animator()
+        self.assertIn(absent, str(raised.exception))
+
 
 if __name__ == '__main__':
     unittest.main()

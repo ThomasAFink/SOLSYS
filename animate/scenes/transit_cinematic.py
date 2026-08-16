@@ -310,11 +310,14 @@ class TransitCinematicAnimator:
         self.lcAxes = self.figure.add_subplot(grid[1])
 
         self.atlas = BlenderBodySpriteAtlas(self.theme)
-        if requireBlenderBody and not self.atlas.hasBody(TRAPPIST_1_CATALOG_NAME):
-            raise FileNotFoundError(
-                f'Missing Blender spin for {TRAPPIST_1_CATALOG_NAME!r}. Run:\n'
-                '  render.py blender --body "TRAPPIST-1" --spin --theme all'
-            )
+        if requireBlenderBody:
+            required = (TRAPPIST_1_CATALOG_NAME, *(planet.name for planet in self.planets))
+            missing = [name for name in required if not self.atlas.hasBody(name)]
+            if missing:
+                commands = '\n'.join(
+                    f'  render.py blender --body "{name}" --spin --theme all' for name in missing
+                )
+                raise FileNotFoundError(f'Missing Blender spins for {missing}. Run:\n{commands}')
         self._diskFractions: dict[str, float] = {}
 
     def transitingNow(self, frame: int) -> tuple[TransitingPlanet, ...]:
