@@ -448,8 +448,8 @@ class AsteroseismologyCinematicAnimator:
             )
         if act == 'fold':
             return (
-                f'Fold the spectrum every Δν = {self.solution.dnuMicroHz:.2f} µHz — '
-                'the same trick that found the planet'
+                f'Fold the spectrum every Δν = {self.solution.dnuMicroHz:.2f} µHz '
+                f'(published {PUBLISHED_DNU_MICROHZ:.2f}) — the same trick that found the planet'
             )
         return (
             f'Two frequencies give the star · R = {self.solution.radiusSun:.1f} R☉, '

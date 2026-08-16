@@ -403,6 +403,7 @@ Or render by product:
 
 # Asteroseismology cinema (needs the KIC 7944142 + Sun spin packs first)
 .venv/bin/python render.py blender --body "KIC 7944142" --spin --theme all
+.venv/bin/python render.py blender --body Sun --spin --theme all
 .venv/bin/python render.py animate --system asteroseismology_cinematic
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
@@ -566,7 +567,7 @@ CLI: `render.py animate --system transit_cinematic` (requires the TRAPPIST-1 and
 
 - `output/animate/kic_7944142/cinematic/kic_7944142_asteroseismology_{light,dark}.gif`
 
-Nothing is precomputed: the spectrum, νmax, Δν, radius and mass are all derived at runtime from the committed CSV with numpy's FFT alone (quarter gaps zero-filled on a regular grid, 91% duty cycle). The film measures νmax = 76.4 µHz and Δν = 6.92 µHz against published 74.75 and 6.993 (Yu et al. 2018), giving R = 8.8 R☉ and M = 1.8 M☉ against 8.38 and 1.59 — the captions show both, since a boxcar envelope peak is coarser than a fitted one and mass goes as νmax³/Δν⁻⁴, which amplifies that gap. Tests re-derive all of it from the CSV, including a check that folding on the measured Δν concentrates power while wrong spacings do not.
+Nothing is precomputed: the spectrum, νmax, Δν, radius and mass are all derived at runtime from the committed CSV with numpy's FFT alone (quarter gaps zero-filled on a regular grid, 91% duty cycle). The film measures νmax = 76.4 µHz and Δν = 6.92 µHz against published 74.75 and 6.993 (Yu et al. 2018), giving R = 8.8 R☉ and M = 1.8 M☉ against 8.38 and 1.59 — the captions show both, since a boxcar envelope peak is coarser than a fitted one and mass goes as νmax³/Δν⁴, which amplifies that gap. Tests re-derive all of it from the CSV, including a check that folding on the measured Δν concentrates power while wrong spacings do not.
 
 CLI: `render.py animate --system asteroseismology_cinematic` (requires the `KIC 7944142` and `Sun` spin packs).
 

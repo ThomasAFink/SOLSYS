@@ -239,9 +239,15 @@ class AsteroseismologyAnimatorTests(unittest.TestCase):
             joined = ' '.join(captions).lower()
             for banned in ('simulated', 'model', 'artist'):
                 self.assertNotIn(banned, joined)
-            self.assertTrue(any('published' in caption for caption in captions))
-            self.assertTrue(any('νmax' in caption for caption in captions))
-            self.assertTrue(any('Δν' in caption for caption in captions))
+            # Every measured number is shown beside the published one it is
+            # checked against, so no caption quotes a result on its own.
+            for measured in ('νmax', 'Δν', 'R☉'):
+                citing = [
+                    caption
+                    for caption in captions
+                    if measured in caption and 'published' in caption
+                ]
+                self.assertTrue(citing, f'no caption cites a published value beside {measured}')
             self.assertTrue(any('R☉' in caption and 'M☉' in caption for caption in captions))
         finally:
             self._close(animator)
