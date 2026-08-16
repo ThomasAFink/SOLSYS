@@ -19,6 +19,7 @@ from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnim
 from animate.scenes.sol_trappist_cinematic import renderSolTrappistCinematicAnimations
 from animate.scenes.tabbys_star import renderTabbysStarAnimations
 from animate.scenes.tabbys_star_cinematic import renderTabbysStarCinematicAnimations
+from animate.scenes.transit_cinematic import renderTransitCinematicAnimations
 from animate.scenes.trappist_1 import renderTrappist1Animations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
@@ -33,6 +34,7 @@ ANIMATE_FIGURE_SIZE_INCHES = (12.0, 12.0)
 ANIMATE_DPI_2D = 100  # original size
 ANIMATE_DPI_3D = 50  # half of prior 100 for README
 ANIMATE_DPI_CINEMATIC = 100  # Sol→Centauri path needs sharper labels
+ANIMATE_DPI_TRANSIT = 84  # full-frame photosphere; keeps the GIF near gallery size
 
 STATIC_FIGURE_SIZE_INCHES = (39.0, 39.0)
 STATIC_DPI = 150  # was 300
@@ -112,6 +114,7 @@ def buildParser() -> argparse.ArgumentParser:
             'trappist_1',
             'tabbys_star',
             'tabbys_star_cinematic',
+            'transit_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -122,6 +125,7 @@ def buildParser() -> argparse.ArgumentParser:
             'sol_centauri = Sol-to-Alpha Centauri cinematic; '
             'sol_trappist = Sol-to-TRAPPIST-1 cinematic; '
             'tabbys_star_cinematic = Tabby lightcurve cinema (Kepler + photosphere occultation); '
+            'transit_cinematic = TRAPPIST-1 transit cinema (periodic planet dips); '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -179,6 +183,7 @@ def buildParser() -> argparse.ArgumentParser:
             'trappist_1',
             'tabbys_star',
             'tabbys_star_cinematic',
+            'transit_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -300,6 +305,24 @@ def _runBlenderCinematicPipeline(
     print('[pipeline] done')
 
 
+def _renderLightcurveCinemas(systemChoice: str, starsCsvPath: str) -> None:
+    """Flux-timeline episodes. Each needs its Blender packs first, so never `all`."""
+    if systemChoice == 'tabbys_star_cinematic':
+        # Requires prior: blender --body "Tabby's Star" --spin.
+        renderTabbysStarCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_CINEMATIC,
+            starsCsvPath=starsCsvPath,
+        )
+    if systemChoice == 'transit_cinematic':
+        # Requires prior: blender --body "TRAPPIST-1" --spin plus the b–h planet packs.
+        renderTransitCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_TRANSIT,
+            starsCsvPath=starsCsvPath,
+        )
+
+
 def _renderAnimations(
     systemChoice: str,
     dimensions: tuple[Dimension, ...],
@@ -354,13 +377,7 @@ def _renderAnimations(
             dpi=ANIMATE_DPI_2D,
             starsCsvPath=starsCsvPath,
         )
-    if systemChoice == 'tabbys_star_cinematic':
-        # Requires prior: blender --body "Tabby's Star" --spin (not part of `all`).
-        renderTabbysStarCinematicAnimations(
-            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
-            dpi=ANIMATE_DPI_CINEMATIC,
-            starsCsvPath=starsCsvPath,
-        )
+    _renderLightcurveCinemas(systemChoice, starsCsvPath)
     if systemChoice == 'oumuamua':
         renderInterstellarObjectAnimations(
             objectIds=('oumuamua',),
