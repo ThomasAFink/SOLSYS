@@ -54,7 +54,7 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
 - **Atmosphere / clouds:** none (airless pack in `body_appearance.py`)
 - **License:** NASA media generally in the U.S. public domain ([NASA image use policy](https://www.nasa.gov/nasa-brand-center/images-and-media/))
 
-## Stars (Sol + α Centauri + Tabby's + TRAPPIST-1)
+## Stars (Sol + α Centauri + Tabby's + TRAPPIST-1 + KIC 7944142)
 
 Equirectangular photosphere maps for Blender star close-ups (`kind=star`). Rendered emissive (not a matte ball under a key lamp); no fresnel atmosphere shell (that read as a hard ring).
 
@@ -66,9 +66,10 @@ Equirectangular photosphere maps for Blender star close-ups (`kind=star`). Rende
 | Proxima Centauri | M5.5Ve red tint (`bodies/proxima_centauri/`) | Derived from SSS Sol photosphere |
 | Tabby's Star | F3V cooler/whiter tint (`bodies/tabbys_star/`; aliases KIC 8462852) | Derived from SSS Sol photosphere |
 | TRAPPIST-1 | M8V ultracool-dwarf tint — deeper and dimmer than Proxima (`bodies/trappist_1/`) | Derived from SSS Sol photosphere |
+| KIC 7944142 | K-giant tint at Teff ≈ 5046 K, between the α Cen B and Proxima packs (`bodies/kic_7944142/`; aliases HD 176694) | Derived from SSS Sol photosphere |
 
 - **SSS textures:** free with attribution to [Solar System Scope](https://www.solarsystemscope.com/textures/).
-- α Cen / Proxima / Tabby's / TRAPPIST-1 packs keep Sol granulation with a blackbody-style RGB balance shift until dedicated photosphere maps are packaged.
+- α Cen / Proxima / Tabby's / TRAPPIST-1 / KIC 7944142 packs keep Sol granulation with a blackbody-style RGB balance shift until dedicated photosphere maps are packaged. The giant borrows dwarf granulation too: its convection cells are far larger in reality.
 - CLI: `render.py blender --body "Alpha Centauri A"` / `"Alpha Centauri B"` / `"Proxima Centauri"` / `"Tabby's Star"` / `"TRAPPIST-1"`.
 
 ## Sol planets (Mercury–Neptune + Pluto)

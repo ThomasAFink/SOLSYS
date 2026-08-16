@@ -144,6 +144,8 @@ class BodyAppearanceTests(unittest.TestCase):
             (
                 'Alpha Centauri A',
                 'Alpha Centauri B',
+                'HD 176694',
+                'KIC 7944142',
                 'KIC 8462852',
                 'Proxima Centauri',
                 'Sun',
@@ -242,6 +244,31 @@ class BodyAppearanceTests(unittest.TestCase):
             self.assertTrue(
                 bodyOutputDirectory('star', catalogName).as_posix().endswith(f'stars/{bodyId}')
             )
+
+    def test_seismic_red_giant_pack_is_a_giant(self) -> None:
+        from animate.scenes.blender.body_scene import buildBodyScene
+        from animate.scenes.blender.export_body import bodyOutputDirectory
+
+        for catalogName in ('KIC 7944142', 'HD 176694'):
+            appearance = appearanceForCatalogName(catalogName)
+            self.assertIsNotNone(appearance, catalogName)
+            assert appearance is not None
+            self.assertEqual(appearance.kind, 'star')
+            self.assertEqual(appearance.bodyId, 'kic_7944142')
+            self.assertFalse(appearance.atmosphere.enabled)
+            maps = appearance.textures.existingMaps()
+            self.assertIn('color', maps)
+            self.assertTrue(maps['color'].is_file())
+            scene = buildBodyScene(catalogName, frameCount=8)
+            self.assertEqual(scene.body.kind, 'star')
+            # The HD alias resolves to the same body, so both names render one pack.
+            self.assertEqual(scene.body.name, 'KIC 7944142')
+            # 8.38 R_sun (Yu et al. 2018) x the IAU nominal solar diameter.
+            self.assertAlmostEqual(scene.body.diameterKm, 8.38 * 1_392_700.0, delta=1000.0)
+
+        self.assertTrue(
+            bodyOutputDirectory('star', 'KIC 7944142').as_posix().endswith('stars/kic_7944142')
+        )
 
     def test_trappist_1_host_pack_is_emissive_ultracool_dwarf(self) -> None:
         from animate.scenes.blender.body_scene import buildBodyScene

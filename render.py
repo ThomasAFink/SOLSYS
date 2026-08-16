@@ -11,6 +11,9 @@ from typing import Literal
 
 from animate import renderAllAnimations
 from animate.scenes.alpha_centauri import renderAlphaCentauriAnimations
+from animate.scenes.asteroseismology_cinematic import (
+    renderAsteroseismologyCinematicAnimations,
+)
 from animate.scenes.barnards_star import renderBarnardsStarAnimations
 from animate.scenes.blender.export_body import exportBodyScene
 from animate.scenes.blender.flyby_scene import renderPlanetFlyby, renderPlanetSpin
@@ -115,6 +118,7 @@ def buildParser() -> argparse.ArgumentParser:
             'tabbys_star',
             'tabbys_star_cinematic',
             'transit_cinematic',
+            'asteroseismology_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -125,7 +129,8 @@ def buildParser() -> argparse.ArgumentParser:
             'sol_centauri = Sol-to-Alpha Centauri cinematic; '
             'sol_trappist = Sol-to-TRAPPIST-1 cinematic; '
             'tabbys_star_cinematic = Tabby lightcurve cinema (Kepler + photosphere occultation); '
-            'transit_cinematic = TRAPPIST-1 transit cinema (periodic planet dips); '
+            'transit_cinematic = TRAPPIST-1 b transit cinema (TESS fold); '
+            'asteroseismology_cinematic = red giant weighed by its ringing (Kepler FFT); '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -184,6 +189,7 @@ def buildParser() -> argparse.ArgumentParser:
             'tabbys_star',
             'tabbys_star_cinematic',
             'transit_cinematic',
+            'asteroseismology_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -317,6 +323,12 @@ def _renderLightcurveCinemas(systemChoice: str, starsCsvPath: str) -> None:
     if systemChoice == 'transit_cinematic':
         # Requires prior: blender --body "TRAPPIST-1" and "TRAPPIST-1 b" --spin.
         renderTransitCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_TRANSIT,
+        )
+    if systemChoice == 'asteroseismology_cinematic':
+        # Requires prior: blender --body "KIC 7944142" and "Sun" --spin.
+        renderAsteroseismologyCinematicAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_TRANSIT,
         )
