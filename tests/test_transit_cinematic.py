@@ -1,4 +1,8 @@
-"""Tests for the TRAPPIST-1 transit lightcurve cinema (#95)."""
+"""Tests for the TRAPPIST-1 b transit cinema (#95).
+
+The film's claim is that a single TESS transit is invisible and only the fold
+reveals it, so the tests check that claim against the committed photometry.
+"""
 
 from __future__ import annotations
 
@@ -8,97 +12,130 @@ from pathlib import Path
 import numpy as np
 from animate.scenes.transit_cinematic import (
     ANIMATION_FRAMES,
-    MODEL_SAMPLES,
+    DEFAULT_LIGHTCURVE_CSV,
+    FOLD_FRAMES,
+    FOLD_HALF_WINDOW_DAYS,
+    PUBLISHED_DEPTH,
+    PUBLISHED_DURATION_DAYS,
+    PUBLISHED_PERIOD_DAYS,
+    STREAM_FRAMES,
+    TESS_MID_TRANSIT_BTJD,
+    TESS_PERIOD_DAYS,
+    TRANSITING_PLANET_NAME,
     TRAPPIST_1_CATALOG_NAME,
-    TRAPPIST_1_STAR_RADIUS_KM,
-    WINDOW_DAYS,
     TransitCinematicAnimator,
-    buildTransitingPlanets,
+    binSeries,
     diskRadiusFraction,
-    modelFlux,
-    transitWeight,
+    foldedProfile,
+    loadTessLightCurve,
+    observedTransitTimes,
+    transitPhase,
     warpedTimeByFrame,
 )
-from solsys.physics.catalogs.system_catalog import SystemCatalog, defaultDataPaths
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+LIGHTCURVE = REPO_ROOT / DEFAULT_LIGHTCURVE_CSV
 
 
-class TransitModelTests(unittest.TestCase):
+class TessLightCurveTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.paths = defaultDataPaths(REPO_ROOT)
-        self.system = SystemCatalog(**self.paths).load('trappist_1')
-        self.planets = buildTransitingPlanets(self.system)
+        self.time, self.flux = loadTessLightCurve(LIGHTCURVE)
 
-    def test_every_catalog_planet_transits_in_the_window(self) -> None:
-        self.assertEqual(len(self.planets), len(self.system.planets))
-        for planet in self.planets:
-            self.assertTrue(planet.midTimesDays)
-            self.assertTrue(all(0.0 <= mid <= WINDOW_DAYS for mid in planet.midTimesDays))
+    def test_committed_curve_is_a_real_tess_sector(self) -> None:
+        self.assertGreater(len(self.time), 10_000)
+        self.assertTrue(np.all(np.diff(self.time) > 0.0))
+        self.assertAlmostEqual(self.time.max() - self.time.min(), 23.8, delta=0.5)
+        self.assertAlmostEqual(float(np.median(self.flux)), 1.0, places=3)
+        self.assertTrue(np.all(np.isfinite(self.flux)))
+        # ~2-minute cadence, with the mid-sector downlink gap left in.
+        self.assertAlmostEqual(float(np.median(np.diff(self.time))) * 1440.0, 2.0, delta=0.1)
+        self.assertGreater(float(np.max(np.diff(self.time))), 1.0)
 
-    def test_dips_are_periodic(self) -> None:
-        """The point of the film: repeats are spaced by exactly one period."""
-        repeats = [planet for planet in self.planets if len(planet.midTimesDays) > 1]
-        self.assertGreaterEqual(len(repeats), 3)
-        for planet in repeats:
-            spacing = np.diff(np.array(planet.midTimesDays))
-            np.testing.assert_allclose(spacing, planet.periodDays, rtol=1e-9)
+    def test_provenance_header_is_present(self) -> None:
+        header = [line for line in LIGHTCURVE.read_text().splitlines() if line.startswith('#')]
+        joined = ' '.join(header).lower()
+        for token in ('tess', 'mast', 'lightkurve', 'pdcsap', 'sector'):
+            self.assertIn(token, joined)
 
-    def test_depth_is_the_radius_ratio_squared(self) -> None:
-        byName = {planet.name: planet for planet in self.planets}
-        for catalogPlanet in self.system.planets:
-            planet = byName[catalogPlanet.name]
-            expected = ((catalogPlanet.diameterKm * 0.5) / TRAPPIST_1_STAR_RADIUS_KM) ** 2
-            self.assertAlmostEqual(planet.depth, expected, places=12)
-            # TRAPPIST-1 transits are sub-percent — a deeper dip would be wrong.
-            self.assertLess(planet.depth, 0.01)
-            self.assertGreater(planet.depth, 0.002)
+    def test_scatter_swamps_a_single_transit(self) -> None:
+        """The premise of the film: no single transit reaches a detection."""
+        scatter = float(np.std(np.diff(self.flux)) / np.sqrt(2.0))
+        self.assertGreater(scatter, PUBLISHED_DEPTH)
+        significances = []
+        for mid in observedTransitTimes(self.time):
+            inside = np.abs(self.time - mid) < PUBLISHED_DURATION_DAYS * 0.4
+            depth = 1.0 - float(self.flux[inside].mean())
+            significances.append(depth / (scatter / np.sqrt(inside.sum())))
+        # Individually they are marginal hints at best — none clears 5 sigma.
+        self.assertLess(float(np.median(significances)), 3.0)
+        self.assertLess(max(significances), 5.0)
+        stacked = foldedProfile(self.time, self.flux)
+        self.assertGreater(stacked.depth / stacked.depthError, max(significances) + 2.0)
 
-    def test_durations_match_published_scale_and_order(self) -> None:
-        byName = {planet.shortName: planet for planet in self.planets}
-        # Gillon et al. 2017 durations: b ~36 min through h ~76 min.
-        self.assertAlmostEqual(byName['b'].totalDurationDays * 1440.0, 36.0, delta=4.0)
-        self.assertAlmostEqual(byName['h'].totalDurationDays * 1440.0, 76.0, delta=8.0)
-        durations = [byName[name].totalDurationDays for name in 'bcdefgh']
-        self.assertEqual(durations, sorted(durations))
-        for planet in self.planets:
-            self.assertLess(planet.flatDurationDays, planet.totalDurationDays)
+    def test_transit_times_are_periodic_and_covered(self) -> None:
+        mids = observedTransitTimes(self.time)
+        self.assertGreaterEqual(len(mids), 10)
+        spacing = np.diff(np.array(mids))
+        # Data gaps drop transits, so spacings are whole multiples of the period.
+        multiples = spacing / TESS_PERIOD_DAYS
+        np.testing.assert_allclose(multiples, np.round(multiples), atol=1e-9)
+        for mid in mids:
+            self.assertTrue(np.any(np.abs(self.time - mid) < PUBLISHED_DURATION_DAYS * 0.5))
 
-    def test_flux_is_flat_between_transits_and_dips_on_them(self) -> None:
-        times = np.linspace(0.0, WINDOW_DAYS, MODEL_SAMPLES)
-        flux = modelFlux(self.planets, times)
-        self.assertAlmostEqual(float(flux.max()), 1.0, places=12)
-        for planet in self.planets:
-            mid = planet.midTimesDays[0]
-            atMid = float(modelFlux(self.planets, np.array([mid]))[0])
-            self.assertLessEqual(atMid, 1.0 - planet.depth + 1e-9)
-            justBefore = mid - planet.totalDurationDays
-            self.assertAlmostEqual(
-                float(modelFlux(self.planets, np.array([justBefore]))[0]), 1.0, places=6
-            )
+    def test_measured_period_agrees_with_the_published_one(self) -> None:
+        self.assertAlmostEqual(TESS_PERIOD_DAYS, PUBLISHED_PERIOD_DAYS, delta=0.001)
 
-    def test_overlapping_transits_stack_their_depths(self) -> None:
-        times = np.linspace(0.0, WINDOW_DAYS, MODEL_SAMPLES)
-        flux = modelFlux(self.planets, times)
-        deepestTime = float(times[flux.argmin()])
-        together = [planet for planet in self.planets if planet.inTransit(deepestTime)]
-        self.assertGreaterEqual(len(together), 2)
-        self.assertLess(float(flux.min()), 1.0 - max(planet.depth for planet in together))
+    def test_folding_reveals_the_dip_that_one_transit_hides(self) -> None:
+        profile = foldedProfile(self.time, self.flux)
+        self.assertGreaterEqual(profile.transitCount, 10)
+        self.assertGreater(profile.depth / profile.depthError, 5.0)
+        # Deeper than the geometric (Rp/R*)^2 because the star is limb darkened,
+        # but not by an implausible factor.
+        self.assertGreater(profile.depth, PUBLISHED_DEPTH)
+        self.assertLess(profile.depth, PUBLISHED_DEPTH * 2.0)
+        deepest = float(profile.phaseHours[np.argmin(profile.flux)])
+        self.assertLess(abs(deepest), PUBLISHED_DURATION_DAYS * 24.0 * 0.5)
+
+    def test_no_dip_at_a_control_phase(self) -> None:
+        """Folding half a period off must not produce a transit-like dip."""
+        offset = foldedProfile(
+            self.time, self.flux, midTransitBtjd=TESS_MID_TRANSIT_BTJD + TESS_PERIOD_DAYS * 0.5
+        )
+        self.assertLess(offset.depth, PUBLISHED_DEPTH)
+        real = foldedProfile(self.time, self.flux)
+        self.assertGreater(real.depth, offset.depth * 3.0)
+
+    def test_phase_is_signed_distance_to_nearest_mid_transit(self) -> None:
+        mid = observedTransitTimes(self.time)[3]
+        samples = np.array([mid - 0.01, mid, mid + 0.01])
+        np.testing.assert_allclose(transitPhase(samples), [-0.01, 0.0, 0.01], atol=1e-6)
+        self.assertTrue(np.all(np.abs(transitPhase(self.time)) <= TESS_PERIOD_DAYS * 0.5 + 1e-9))
+
+    def test_binning_averages_down_the_noise(self) -> None:
+        binnedTime, binnedFlux = binSeries(self.time, self.flux, 10.0)
+        self.assertLess(len(binnedFlux), len(self.flux))
+        self.assertAlmostEqual(float(binnedFlux.mean()), float(self.flux.mean()), places=3)
+        rawScatter = float(np.std(np.diff(self.flux)) / np.sqrt(2.0))
+        binnedScatter = float(np.std(np.diff(binnedFlux)) / np.sqrt(2.0))
+        self.assertLess(binnedScatter, rawScatter)
+        # Empty bins across the downlink gap are dropped, not returned as zeros.
+        self.assertTrue(np.all(np.isfinite(binnedFlux)))
+        self.assertTrue(np.all(np.diff(binnedTime) > 0.0))
 
     def test_playhead_lingers_on_transits(self) -> None:
-        times = np.linspace(0.0, WINDOW_DAYS, MODEL_SAMPLES)
-        warped = warpedTimeByFrame(times, transitWeight(self.planets, times), ANIMATION_FRAMES)
-        self.assertEqual(len(warped), ANIMATION_FRAMES)
+        from animate.scenes.transit_cinematic import transitWeight
+
+        mids = observedTransitTimes(self.time)
+        warped = warpedTimeByFrame(self.time, transitWeight(self.time, mids), 300)
         self.assertTrue(np.all(np.diff(warped) >= 0.0))
-        self.assertAlmostEqual(float(warped[0]), 0.0, places=6)
-        self.assertAlmostEqual(float(warped[-1]), WINDOW_DAYS, places=6)
+        self.assertAlmostEqual(float(warped[0]), float(self.time.min()), places=6)
+        self.assertAlmostEqual(float(warped[-1]), float(self.time.max()), places=6)
         onTransit = sum(
-            any(planet.inTransit(float(time)) for planet in self.planets) for time in warped
+            any(abs(float(time) - mid) < PUBLISHED_DURATION_DAYS * 0.5 for mid in mids)
+            for time in warped
         )
-        # Transits are ~5% of the window but must own most of the edit.
-        self.assertGreater(onTransit / ANIMATION_FRAMES, 0.5)
-        # And the quiet baseline still gets screen time.
-        self.assertLess(onTransit / ANIMATION_FRAMES, 0.95)
+        self.assertGreater(onTransit / 300, 0.15)
+        self.assertLess(onTransit / 300, 0.75)
 
     def test_disk_radius_fraction_measures_sprite_margin(self) -> None:
         size = 64
@@ -113,127 +150,167 @@ class TransitCinematicAnimatorTests(unittest.TestCase):
     def setUp(self) -> None:
         from animate.blender_body_sprites import spinLoopAvailable
 
-        self.paths = defaultDataPaths(REPO_ROOT)
-        self.system = SystemCatalog(**self.paths).load('trappist_1')
-        self.hasSpin = spinLoopAvailable(TRAPPIST_1_CATALOG_NAME, 'dark')
+        self.hasSpin = spinLoopAvailable(TRAPPIST_1_CATALOG_NAME, 'dark') and spinLoopAvailable(
+            TRANSITING_PLANET_NAME, 'dark'
+        )
 
     def _animator(self) -> TransitCinematicAnimator:
         return TransitCinematicAnimator(
-            self.system,
             style='dark_background',
-            starsCsvPath=self.paths['starsCsvPath'],
+            lightcurveCsvPath=LIGHTCURVE,
             requireBlenderBody=True,
         )
 
-    def test_transit_frames_darken_the_photosphere(self) -> None:
+    def _close(self, animator: TransitCinematicAnimator) -> None:
+        import matplotlib.pyplot as plt
+
+        plt.close(animator.figure)
+
+    def test_acts_run_stream_then_fold_then_reveal(self) -> None:
         if not self.hasSpin:
-            self.skipTest('TRAPPIST-1 Blender spin not present')
+            self.skipTest('TRAPPIST-1 Blender spins not present')
         animator = self._animator()
         try:
-            transitFrame = next(
-                frame for frame in range(ANIMATION_FRAMES) if animator.transitingNow(frame)
+            progress = [animator.foldProgress(frame) for frame in range(ANIMATION_FRAMES)]
+            self.assertEqual(progress[STREAM_FRAMES - 1], 0.0)
+            self.assertEqual(progress[STREAM_FRAMES + FOLD_FRAMES], 1.0)
+            self.assertEqual(progress[-1], 1.0)
+            self.assertEqual(progress, sorted(progress))
+            # Both acts put the planet on the disk.
+            self.assertTrue(any(animator.inTransit(f) for f in range(STREAM_FRAMES)))
+            self.assertTrue(
+                any(
+                    animator.inTransit(f)
+                    for f in range(STREAM_FRAMES + FOLD_FRAMES, ANIMATION_FRAMES)
+                )
             )
-            quietFrame = next(
-                frame for frame in range(ANIMATION_FRAMES) if not animator.transitingNow(frame)
+        finally:
+            self._close(animator)
+
+    def test_every_frame_including_act_boundaries_draws(self) -> None:
+        if not self.hasSpin:
+            self.skipTest('TRAPPIST-1 Blender spins not present')
+        animator = self._animator()
+        try:
+            boundaries = (
+                0,
+                STREAM_FRAMES - 1,
+                STREAM_FRAMES,
+                STREAM_FRAMES + FOLD_FRAMES - 1,
+                STREAM_FRAMES + FOLD_FRAMES,
+                ANIMATION_FRAMES - 1,
             )
+            for frame in boundaries:
+                animator.update(frame)
+                self.assertIsInstance(animator.caption(frame), str)
+            self.assertEqual(
+                [animator.act(frame) for frame in boundaries],
+                ['stream', 'stream', 'fold', 'fold', 'reveal', 'reveal'],
+            )
+        finally:
+            self._close(animator)
+
+    def test_fold_morphs_points_from_time_to_phase(self) -> None:
+        if not self.hasSpin:
+            self.skipTest('TRAPPIST-1 Blender spins not present')
+        animator = self._animator()
+        try:
+            streamX, streamAlpha = animator.pointPositions(0)
+            foldX, foldAlpha = animator.pointPositions(ANIMATION_FRAMES - 1)
+            np.testing.assert_allclose(streamX, animator.streamX)
+            np.testing.assert_allclose(foldX, animator.foldX)
+            # Everything is visible while streaming; only fold-window points survive.
+            self.assertTrue(np.all(streamAlpha > 0.0))
+            np.testing.assert_allclose(foldAlpha[~animator.foldable], 0.0)
+            self.assertTrue(np.all(foldAlpha[animator.foldable] > 0.0))
+            self.assertGreater(animator.foldable.sum(), 200)
+            phase = transitPhase(animator.binnedTime)
+            np.testing.assert_allclose(animator.foldable, np.abs(phase) <= FOLD_HALF_WINDOW_DAYS)
+        finally:
+            self._close(animator)
+
+    def test_reveal_sweeps_the_phase_window_and_holds_on_the_dip(self) -> None:
+        if not self.hasSpin:
+            self.skipTest('TRAPPIST-1 Blender spins not present')
+        animator = self._animator()
+        try:
+            sweep = animator.revealPhaseByFrame
+            self.assertTrue(np.all(np.diff(sweep) >= 0.0))
+            self.assertAlmostEqual(float(sweep[0]), -FOLD_HALF_WINDOW_DAYS, places=6)
+            self.assertAlmostEqual(float(sweep[-1]), FOLD_HALF_WINDOW_DAYS, places=6)
+            inDip = np.mean(np.abs(sweep) <= PUBLISHED_DURATION_DAYS * 0.5)
+            # The transit is 0.4% of the phase window; the edit gives it far more.
+            self.assertGreater(inDip, 0.3)
+        finally:
+            self._close(animator)
+
+    def test_transit_frames_darken_the_photosphere(self) -> None:
+        if not self.hasSpin:
+            self.skipTest('TRAPPIST-1 Blender spins not present')
+        animator = self._animator()
+        try:
+            transitFrame = next(f for f in range(STREAM_FRAMES) if animator.inTransit(f))
+            quietFrame = next(f for f in range(STREAM_FRAMES) if not animator.inTransit(f))
             star = animator.atlas.bodyFrame(TRAPPIST_1_CATALOG_NAME, transitFrame, resolution=512)
             assert star is not None
             onDisk = star[..., 3] > 0.5
-            occulted = animator._compositeTransits(star, transitFrame)
-            quiet = animator._compositeTransits(star, quietFrame)
-            # A body in front of the star: photosphere pixels lose brightness.
+            occulted = animator._compositeTransit(star, transitFrame)
             self.assertLess(occulted[onDisk][..., :3].sum(), star[onDisk][..., :3].sum())
-            np.testing.assert_allclose(quiet, star)
+            np.testing.assert_allclose(animator._compositeTransit(star, quietFrame), star)
         finally:
-            import matplotlib.pyplot as plt
+            self._close(animator)
 
-            plt.close(animator.figure)
-
-    def test_silhouette_tracks_the_chord_across_the_disk(self) -> None:
+    def test_captions_stay_with_observed_data(self) -> None:
         if not self.hasSpin:
-            self.skipTest('TRAPPIST-1 Blender spin not present')
+            self.skipTest('TRAPPIST-1 Blender spins not present')
         animator = self._animator()
         try:
-            planet = min(animator.planets, key=lambda item: item.periodDays)
-            mid = planet.midTimesDays[0]
-            half = planet.totalDurationDays * 0.5
-            # Ingress sits on the limb, mid-transit at the chord's impact point.
-            self.assertAlmostEqual(planet.phaseOffset(mid), 0.0, places=9)
-            self.assertAlmostEqual(planet.phaseOffset(mid - half), -1.0, places=9)
-            self.assertTrue(planet.inTransit(mid))
-            self.assertFalse(planet.inTransit(mid + half * 1.05))
-            self.assertAlmostEqual(
-                planet.chordHalfSpan(),
-                float(np.sqrt((1.0 + planet.radiusRatio) ** 2 - planet.impactParameter**2)),
-                places=12,
+            captions = [animator.caption(frame) for frame in range(ANIMATION_FRAMES)]
+            joined = ' '.join(captions).lower()
+            for banned in ('model', 'dust', 'debris', 'megastructure', 'simulated'):
+                self.assertNotIn(banned, joined)
+            self.assertTrue(any('observed' in caption for caption in captions))
+            self.assertTrue(any('Stack all' in caption for caption in captions))
+            self.assertTrue(any('There it is' in caption for caption in captions))
+            self.assertTrue(
+                any('cannot see it' in caption or 'scatter is' in caption for caption in captions)
             )
         finally:
-            import matplotlib.pyplot as plt
-
-            plt.close(animator.figure)
-
-    def test_captions_name_planets_and_never_dust(self) -> None:
-        if not self.hasSpin:
-            self.skipTest('TRAPPIST-1 Blender spin not present')
-        animator = self._animator()
-        try:
-            captions = [animator._caption(frame) for frame in range(ANIMATION_FRAMES)]
-            joined = ' '.join(captions).lower()
-            for banned in ('dust', 'debris', 'megastructure', 'comet'):
-                self.assertNotIn(banned, joined)
-            self.assertTrue(any('in transit' in caption for caption in captions))
-            self.assertTrue(any('transiting together' in caption for caption in captions))
-            self.assertTrue(any('quiet baseline' in caption.lower() for caption in captions))
-        finally:
-            import matplotlib.pyplot as plt
-
-            plt.close(animator.figure)
+            self._close(animator)
 
     def test_framing_is_fixed_across_the_film(self) -> None:
         if not self.hasSpin:
-            self.skipTest('TRAPPIST-1 Blender spin not present')
+            self.skipTest('TRAPPIST-1 Blender spins not present')
         animator = self._animator()
         try:
             animator.update(0)
             quietLimits = animator.starAxes.get_xlim()
-            transitFrame = next(
-                frame for frame in range(ANIMATION_FRAMES) if animator.transitingNow(frame)
-            )
-            animator.update(transitFrame)
+            animator.update(ANIMATION_FRAMES - 1)
             self.assertEqual(quietLimits, animator.starAxes.get_xlim())
-            self.assertEqual(animator.lcAxes.get_xlim(), (0.0, WINDOW_DAYS))
+            self.assertEqual(animator.lcAxes.get_xlim(), (0.0, 1.0))
         finally:
-            import matplotlib.pyplot as plt
+            self._close(animator)
 
-            plt.close(animator.figure)
-
-    def test_missing_spin_raises_clear_error(self) -> None:
-        if self.hasSpin:
-            self.skipTest('spin present — cannot assert missing-pack error')
-        with self.assertRaises(FileNotFoundError):
-            self._animator()
-
-    def test_every_transiting_planet_pack_is_required(self) -> None:
-        """A missing planet pack must fail loudly, not fall back to a plain dot."""
+    def test_missing_packs_name_what_to_render(self) -> None:
         if not self.hasSpin:
-            self.skipTest('TRAPPIST-1 Blender spin not present')
-        animator = self._animator()
-        try:
-            names = [planet.name for planet in animator.planets]
-        finally:
-            import matplotlib.pyplot as plt
-
-            plt.close(animator.figure)
-
+            with self.assertRaises(FileNotFoundError):
+                self._animator()
+            return
         from unittest.mock import patch
 
-        absent = names[-1]
-        with (
-            patch.object(type(animator.atlas), 'hasBody', lambda _self, name: name != absent),
-            self.assertRaises(FileNotFoundError) as raised,
-        ):
-            self._animator()
-        self.assertIn(absent, str(raised.exception))
+        with patch.object(TransitCinematicAnimator, '__init__', TransitCinematicAnimator.__init__):
+            from animate.blender_body_sprites import BlenderBodySpriteAtlas
+
+            with (
+                patch.object(
+                    BlenderBodySpriteAtlas,
+                    'hasBody',
+                    lambda _self, name: name != TRANSITING_PLANET_NAME,
+                ),
+                self.assertRaises(FileNotFoundError) as raised,
+            ):
+                self._animator()
+        self.assertIn(TRANSITING_PLANET_NAME, str(raised.exception))
 
 
 if __name__ == '__main__':

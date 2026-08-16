@@ -315,11 +315,10 @@ def _renderLightcurveCinemas(systemChoice: str, starsCsvPath: str) -> None:
             starsCsvPath=starsCsvPath,
         )
     if systemChoice == 'transit_cinematic':
-        # Requires prior: blender --body "TRAPPIST-1" --spin plus the b–h planet packs.
+        # Requires prior: blender --body "TRAPPIST-1" and "TRAPPIST-1 b" --spin.
         renderTransitCinematicAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_TRANSIT,
-            starsCsvPath=starsCsvPath,
         )
 
 

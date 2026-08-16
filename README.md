@@ -45,6 +45,7 @@ SOLSYS/
 │   ├── planets.csv                                # Exoplanets linked by host_star_uuid
 │   ├── interstellar_objects.csv                   # 1I/2I/3I hyperbolic visitors
 │   ├── tabbys_star_lightcurve.csv                 # Downsampled Kepler LC for Tabby's Star inset
+│   ├── trappist_1_tess_lightcurve.csv             # TESS S70 2-min PDCSAP for the transit fold (#95)
 │   └── textures/                                  # Body maps + debris occultation sprites
 │       ├── README.md                              # Attribution + pack layout
 │       ├── bodies/{earth,moon,…}/…                # NASA / SSS / procedural equirect packs
@@ -67,7 +68,7 @@ SOLSYS/
 │       ├── trappist_1.py                          # TRAPPIST-1 planets via exoplanet_system
 │       ├── tabbys_star.py                         # Tabby's Star dust-cloud dimming schematic
 │       ├── tabbys_star_cinematic.py               # Tabby's lightcurve cinema (#73; LC + occultation)
-│       ├── transit_cinematic.py                   # TRAPPIST-1 transit cinema (#95; periodic planet dips)
+│       ├── transit_cinematic.py                   # TRAPPIST-1 b transit cinema (#95; real TESS fold)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
@@ -91,7 +92,7 @@ SOLSYS/
 │   ├── test_sol_centauri_cinematic.py             # Sol → α Cen cinematic helpers
 │   ├── test_sol_trappist_cinematic.py             # Sol → TRAPPIST-1 cinematic helpers
 │   ├── test_tabbys_cinematic.py                   # Tabby's lightcurve cinema (#73)
-│   ├── test_transit_cinematic.py                  # TRAPPIST-1 transit cinema (#95)
+│   ├── test_transit_cinematic.py                  # TRAPPIST-1 b transit fold vs TESS data (#95)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -179,7 +180,7 @@ solsys.motion    → moving asteroid fields for animation frames
 |-------|------|
 | ![Tabby cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/tabbys_star/cinematic/tabbys_star_cinematic_light.gif?raw=true) | ![Tabby cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/tabbys_star/cinematic/tabbys_star_cinematic_dark.gif?raw=true) |
 
-**TRAPPIST-1 transit cinema (periodic planet dips)**
+**TRAPPIST-1 b transit cinema (real TESS photometry, revealed by folding)**
 
 | Light | Dark |
 |-------|------|
@@ -387,6 +388,7 @@ Or render by product:
 .venv/bin/python render.py blender --body "Tabby's Star" --spin --theme all
 .venv/bin/python render.py animate --system tabbys_star_cinematic
 .venv/bin/python render.py blender --body "TRAPPIST-1" --spin --theme all
+.venv/bin/python render.py blender --body "TRAPPIST-1 b" --spin --theme all
 .venv/bin/python render.py animate --system transit_cinematic
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
@@ -528,13 +530,17 @@ Tabby's Star (issue #17 / Boyajian's Star / KIC 8462852) has no confirmed planet
 
 CLI: `render.py animate --system tabbys_star_cinematic` (requires the Tabby's spin pack first).
 
-**Transit cinema** (issue #95) keeps that measurement grammar but changes the explanation: the dips are **periodic**, and a planet — not dust — crosses the disk. TRAPPIST-1's M8V photosphere (#88) hosts the b–h silhouettes (#69) on chords sized by each world's radius ratio:
+**Transit cinema** (issue #95) keeps that measurement grammar but changes the explanation: the dip is a **planet**, not dust. It also refuses the textbook cheat of drawing a transit you could never actually see. Every flux point is observed — TESS Sector 70, 2-minute PDCSAP from MAST (`data/trappist_1_tess_lightcurve.csv`) — and at TESS's 1.37% point-to-point scatter, TRAPPIST-1 b's 0.74% transit is **invisible**. The film is built around the step that fixes that:
+
+1. **Stream** — the real light curve scrolls past while b crosses the M8V photosphere (#88) as a silhouette (#69) at the published radius ratio. Nothing shows in the data.
+2. **Fold** — the 13 observed transit windows slide together onto one phase axis; the quiet baseline fades away.
+3. **Reveal** — stacked in 10-minute phase bins, the dip appears at 10σ, deeper than the geometric (Rp/R★)² because the disk is limb darkened.
 
 - `output/animate/trappist_1/cinematic/trappist_1_transit_cinematic_{light,dark}.gif`
 
-The flux strip is a **model**, not photometry: depth is (Rp/R★)² and duration comes from the chord geometry, both from `planets.csv`, while transit epochs are illustrative so one 8-day window shows repeats plus a b+c and a b+g double transit. The playhead slows on each event, since real transits are ~0.5% of the window and an even playhead would skip them.
+The b ephemeris is measured from that light curve by box-least-squares with no catalog input (period 1.510919 d vs 1.510826 d published), and the tests re-derive the fold from the committed CSV: a dip at phase 0 above 5σ, no dip half a period away, and no single transit clearing a detection on its own. Regenerate the CSV with lightkurve (a dev-only tool, not a runtime dependency) if it ever needs refreshing.
 
-CLI: `render.py animate --system transit_cinematic` (requires the TRAPPIST-1 host spin pack plus the b–h planet packs).
+CLI: `render.py animate --system transit_cinematic` (requires the TRAPPIST-1 and TRAPPIST-1 b spin packs).
 
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
