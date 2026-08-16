@@ -340,6 +340,25 @@ class SolarCycleAnimatorTests(unittest.TestCase):
         finally:
             self._close(animator)
 
+    def test_the_elapsed_caption_tracks_the_disk_on_screen(self) -> None:
+        """The elapsed interval has to come from the date shown, not from prose."""
+        if not self.hasSpin:
+            self.skipTest('Sun Blender spin not present')
+        animator = self._animator()
+        try:
+            maximumFrames = [
+                frame for frame in range(ANIMATION_FRAMES) if animator.act(frame) == 'maximum'
+            ]
+            for frame in (maximumFrames[0], maximumFrames[-1]):
+                elapsed = animator.diskYear(frame) - animator.solution.featuredStartYear
+                self.assertIn(f'{elapsed:.1f} years on', animator.caption(frame))
+            # The interval really does move across the act, so it cannot be text.
+            self.assertNotEqual(
+                animator.caption(maximumFrames[0]), animator.caption(maximumFrames[-1])
+            )
+        finally:
+            self._close(animator)
+
     def test_framing_is_fixed_across_the_film(self) -> None:
         if not self.hasSpin:
             self.skipTest('Sun Blender spin not present')
