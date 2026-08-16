@@ -69,6 +69,7 @@ SOLSYS/
 │       ├── tabbys_star.py                         # Tabby's Star dust-cloud dimming schematic
 │       ├── tabbys_star_cinematic.py               # Tabby's lightcurve cinema (#73; LC + occultation)
 │       ├── transit_cinematic.py                   # TRAPPIST-1 b transit cinema (#95; real TESS fold)
+│       ├── asteroseismology_cinematic.py          # red giant weighed by its ringing (#169; Kepler FFT)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
@@ -93,6 +94,7 @@ SOLSYS/
 │   ├── test_sol_trappist_cinematic.py             # Sol → TRAPPIST-1 cinematic helpers
 │   ├── test_tabbys_cinematic.py                   # Tabby's lightcurve cinema (#73)
 │   ├── test_transit_cinematic.py                  # TRAPPIST-1 b transit fold vs TESS data (#95)
+│   ├── test_asteroseismology_cinematic.py         # numax / Dnu / R / M re-derived from Kepler (#169)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -128,6 +130,8 @@ SOLSYS/
 │   ├── barnards_star/                         # barnards_star_planets_{light,dark}.gif
 │   ├── trappist_1/                            # trappist_1_planets_{light,dark}.gif
 │   │   └── cinematic/                         # trappist_1_transit_cinematic_{light,dark}.gif
+│   ├── kic_7944142/
+│   │   └── cinematic/                         # kic_7944142_asteroseismology_{light,dark}.gif
 │   ├── tabbys_star/                           # dust schematic + cinematic/
 │   │   └── cinematic/                         # tabbys_star_cinematic_{light,dark}.gif
 │   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
@@ -185,6 +189,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![TRAPPIST transit cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/trappist_1/cinematic/trappist_1_transit_cinematic_light.gif?raw=true) | ![TRAPPIST transit cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/trappist_1/cinematic/trappist_1_transit_cinematic_dark.gif?raw=true) |
+
+**Asteroseismology cinema (Kepler red giant, weighed by its own ringing)**
+
+| Light | Dark |
+|-------|------|
+| ![Asteroseismology cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/kic_7944142/cinematic/kic_7944142_asteroseismology_light.gif?raw=true) | ![Asteroseismology cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/kic_7944142/cinematic/kic_7944142_asteroseismology_dark.gif?raw=true) |
 
 **Earth Blender close-up**
 
@@ -390,6 +400,10 @@ Or render by product:
 .venv/bin/python render.py blender --body "TRAPPIST-1" --spin --theme all
 .venv/bin/python render.py blender --body "TRAPPIST-1 b" --spin --theme all
 .venv/bin/python render.py animate --system transit_cinematic
+
+# Asteroseismology cinema (needs the KIC 7944142 + Sun spin packs first)
+.venv/bin/python render.py blender --body "KIC 7944142" --spin --theme all
+.venv/bin/python render.py animate --system asteroseismology_cinematic
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
@@ -542,6 +556,20 @@ The b ephemeris is measured from that light curve by box-least-squares with no c
 
 CLI: `render.py animate --system transit_cinematic` (requires the TRAPPIST-1 and TRAPPIST-1 b spin packs).
 
+**Asteroseismology cinema** (issue #169) closes the measurement trilogy with a signal that is plainly visible and still means nothing until you change domain. KIC 7944142 (HD 176694, Kp 7.8) is a red giant whose surface heaves by ~670 ppm; four years of Kepler long-cadence PDCSAP (`data/kic_7944142_kepler_lightcurve.csv`, 18 quarters from MAST) show that wobble directly. What the wobble *is* only appears after a Fourier transform:
+
+1. **Wobble** — real photometry scrolls past while the photosphere brightens and dims with it (exaggerated ×150, and labelled as such, since a few hundred ppm is invisible on screen).
+2. **Transform** — the strip becomes a power spectrum; granulation and shot noise are divided out by a continuum anchored on medians either side of the modes.
+3. **Envelope** — the wobble was never noise. It is a hump of pure tones centred on νmax.
+4. **Fold** — the same trick that found the planet in #95, now applied in frequency: wrap the spectrum every Δν and the overtones stack into ridges.
+5. **Payoff** — those two frequencies plus a temperature give the star through the scaling relations, with the Sun drawn beside it at the measured scale.
+
+- `output/animate/kic_7944142/cinematic/kic_7944142_asteroseismology_{light,dark}.gif`
+
+Nothing is precomputed: the spectrum, νmax, Δν, radius and mass are all derived at runtime from the committed CSV with numpy's FFT alone (quarter gaps zero-filled on a regular grid, 91% duty cycle). The film measures νmax = 76.4 µHz and Δν = 6.92 µHz against published 74.75 and 6.993 (Yu et al. 2018), giving R = 8.8 R☉ and M = 1.8 M☉ against 8.38 and 1.59 — the captions show both, since a boxcar envelope peak is coarser than a fitted one and mass goes as νmax³/Δν⁻⁴, which amplifies that gap. Tests re-derive all of it from the CSV, including a check that folding on the measured Δν concentrates power while wrong spacings do not.
+
+CLI: `render.py animate --system asteroseismology_cinematic` (requires the `KIC 7944142` and `Sun` spin packs).
+
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
 `output/animate/interstellar_objects/`:
@@ -564,7 +592,7 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); solar cycle (#102); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); Type Ia ladder (#126); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); Cepheids (#159); RR Lyrae (#160); carbon-star wind (#161); asteroseismology (#169); transit retrieval cartoon (#168)
+- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); solar cycle (#102); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); Type Ia ladder (#126); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); Cepheids (#159); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
 - **Deep time:** K–Pg (#86); Moon-forming (#106); Snowball/O₂ (#107); Apophis (#108); Cambrian bumper (#162); Chicxulub core zoom (#163)
 - **Encounters / formation:** Solar flybys (#96); formation (#97); Oort rain (#120); interstellar vs Oort taxonomy (#135)
 - **Cosmic timeline:** Local Group (#87); Hubble Deep Field (#141)

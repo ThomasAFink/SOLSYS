@@ -43,6 +43,23 @@ TIDALLY_LOCKED_BODIES = frozenset(
 )
 
 
+def diskRadiusFraction(rgba: np.ndarray) -> float:
+    """Opaque disk radius in a sprite, as a fraction of its half-width.
+
+    Sprites are rendered with transparent margin around the body, so scenes that
+    place something on the disk have to measure it rather than assume it fills
+    the frame.
+    """
+    alpha = np.asarray(rgba)[..., 3]
+    height, width = alpha.shape
+    solid = alpha > 0.5
+    if not solid.any():
+        return 1.0
+    yy, xx = np.mgrid[0:height, 0:width]
+    radius = np.sqrt((xx - (width - 1) * 0.5) ** 2 + (yy - (height - 1) * 0.5) ** 2)
+    return float(radius[solid].max() / (min(width, height) * 0.5))
+
+
 def loadSpinLoopFrames(
     bodyName: str,
     theme: str,
