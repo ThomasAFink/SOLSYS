@@ -54,10 +54,11 @@ BUTTERFLY_LATITUDE_LIMIT_DEG = 45.0
 # The share of a cycle averaged at each end to measure the equatorward drift.
 DRIFT_PHASE_FRACTION = 0.2
 
-# Groups are drawn at their measured area, then scaled up together: a 300 msh
-# group really is about a fiftieth of the disk across, which is invisible in a
-# GIF. Positions are never scaled.
-SPOT_AREA_EXAGGERATION = 2.5
+# Groups are drawn at the equivalent-circle radius of their measured area, then
+# widened together: a 300 msh group really is about a fiftieth of the disk
+# across, which is invisible in a GIF. This is a radius factor, so it costs its
+# square in area. Positions are never scaled.
+SPOT_RADIUS_EXAGGERATION = 2.5
 STAR_DISPLAY_RESOLUTION = 512
 STAR_DISK_RADIUS = 0.78
 STAR_PANEL_HALF_WIDTH = 0.50
@@ -432,7 +433,7 @@ class SolarCycleCinematicAnimator:
         x, y, mu, radius = self.visibleSpots(frame)
         limb = plt.Circle((0.0, 0.0), diskRadius, transform=self.sunAxes.transData)
         for spotX, spotY, spotMu, spotRadius_ in zip(x, y, mu, radius, strict=True):
-            scale = diskRadius * SPOT_AREA_EXAGGERATION * spotRadius_
+            scale = diskRadius * SPOT_RADIUS_EXAGGERATION * spotRadius_
             angle = np.degrees(np.arctan2(spotY, spotX))
             # Penumbra then umbra, squashed along the radius by the same
             # foreshortening that flattens a spot near the limb.
@@ -474,7 +475,7 @@ class SolarCycleCinematicAnimator:
             0.985,
             0.965,
             f'{day["observatory"].iloc[0]} · positions as measured · '
-            f'areas ×{SPOT_AREA_EXAGGERATION:g}',
+            f'spots widened ×{SPOT_RADIUS_EXAGGERATION:g}',
             transform=self.sunAxes.transAxes,
             color=self.labelColor,
             fontsize=8,
@@ -505,8 +506,9 @@ class SolarCycleCinematicAnimator:
                 'Sun was photographed · the measurement is just: how many groups?'
             )
         if act == 'maximum':
+            elapsed = self.diskYear(frame) - solution.featuredStartYear
             return (
-                f'The same face, four years on · the monthly count peaks at '
+                f'The same face, {elapsed:.1f} years on · the monthly count peaks at '
                 f'{solution.featuredPeakNumber:.0f} in {monthLabel(solution.featuredPeakYear)}'
             )
         if act == 'century':
