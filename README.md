@@ -51,6 +51,8 @@ SOLSYS/
 │   ├── sunspot_groups_carrington.csv              # Group latitudes/areas per rotation, 1874–2019 (#102)
 │   ├── ogle_magellanic_cepheids.csv               # OGLE-IV fundamental-mode Cepheids, LMC + SMC (#159)
 │   ├── gaia_cepheid_lightcurves.csv               # Gaia DR3 epoch photometry for three LMC Cepheids (#159)
+│   ├── ogle_magellanic_rrlyrae.csv                # OGLE-IV Magellanic RRab + RRc (#160)
+│   ├── ogle_rrlyrae_lightcurves.csv               # OGLE-IV I-band photometry for three LMC RR Lyrae (#160)
 │   ├── pantheonplus_type_ia.csv                   # Pantheon+ Type Ia supernovae, one row per SN (#126)
 │   ├── type_ia_lightcurves.csv                    # B-band LCs for SN 2011fe, 2000cn, 2005eq (#126)
 │   ├── epn_pulsar_profiles.csv                    # Folded 1.4 GHz Stokes I for Crab, Vela, B0329+54 (#103)
@@ -81,6 +83,7 @@ SOLSYS/
 │       ├── asteroseismology_cinematic.py          # red giant weighed by its ringing (#169; Kepler FFT)
 │       ├── solar_cycle_cinematic.py               # the Sun's spots counted and placed (#102; SILSO + butterfly)
 │       ├── cepheid_ladder_cinematic.py            # Leavitt's law fitted from OGLE-IV Cepheids (#159)
+│       ├── rr_lyrae_cinematic.py                  # RR Lyrae / horizontal-branch clocks (#160)
 │       ├── type_ia_cinematic.py                   # Type Ia standard candles, Pantheon+ Hubble diagram (#126)
 │       ├── pulsar_cinematic.py                    # pulsar lighthouse, EPN profiles + ATNF ages (#103)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
@@ -110,6 +113,7 @@ SOLSYS/
 │   ├── test_asteroseismology_cinematic.py         # numax / Dnu / R / M re-derived from Kepler (#169)
 │   ├── test_solar_cycle_cinematic.py              # cycle timing, disk projection, Spörer drift (#102)
 │   ├── test_cepheid_ladder_cinematic.py           # Leavitt slope, Wesenheit tightening, SMC distance (#159)
+│   ├── test_rr_lyrae_cinematic.py                 # Bailey split, Wesenheit, SMC offset vs EBs (#160)
 │   ├── test_type_ia_cinematic.py                  # Δm15, Phillips, Hubble-diagram slope (#126)
 │   ├── test_pulsar_cinematic.py                   # W50, playhead clocks, Crab age vs SN 1054 (#103)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
@@ -153,6 +157,7 @@ SOLSYS/
 │   │   └── cinematic/                         # sol_solar_cycle_{light,dark}.gif
 │   ├── magellanic/
 │   │   └── cinematic/                         # magellanic_cepheid_ladder_{light,dark}.gif
+│   │                                          # magellanic_rr_lyrae_{light,dark}.gif
 │   ├── type_ia/
 │   │   └── cinematic/                         # type_ia_standard_candle_{light,dark}.gif
 │   ├── pulsar/
@@ -232,6 +237,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Cepheid ladder cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/magellanic/cinematic/magellanic_cepheid_ladder_light.gif?raw=true) | ![Cepheid ladder cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/magellanic/cinematic/magellanic_cepheid_ladder_dark.gif?raw=true) |
+
+**RR Lyrae cinema (three real folded light curves, then Bailey's diagram across two galaxies)**
+
+| Light | Dark |
+|-------|------|
+| ![RR Lyrae cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/magellanic/cinematic/magellanic_rr_lyrae_light.gif?raw=true) | ![RR Lyrae cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/magellanic/cinematic/magellanic_rr_lyrae_dark.gif?raw=true) |
 
 **Type Ia standard-candle cinema (three real light curves, then a Hubble diagram of 1,543 supernovae)**
 
@@ -462,6 +473,9 @@ Or render by product:
 # Cepheid ladder cinema (catalogue + photometry only, no Blender pack needed)
 .venv/bin/python render.py animate --system cepheid_ladder_cinematic
 
+# RR Lyrae cinema (catalogue + photometry only, no Blender pack needed)
+.venv/bin/python render.py animate --system rr_lyrae_cinematic
+
 # Type Ia standard-candle cinema (catalogue + photometry only, no Blender pack needed)
 .venv/bin/python render.py animate --system type_ia_cinematic
 
@@ -661,6 +675,20 @@ The fit is live: every frame refits whatever is currently on screen, so the slop
 
 CLI: `render.py animate --system cepheid_ladder_cinematic` (no Blender pack needed).
 
+**RR Lyrae cinema** (issue #160) is the other clock on the first rung: metal-poor horizontal-branch stars, two pulsation modes, nearly a standard candle. Two committed datasets drive it: 42,364 single-mode RR Lyrae in the Magellanic Clouds from the OGLE-IV Collection of Variable Stars (Soszyński et al. 2016, `data/ogle_magellanic_rrlyrae.csv`) and I-band photometry for three LMC stars (`data/ogle_rrlyrae_lightcurves.csv`):
+
+1. **Pulse** — OGLE-LMC-RRLYR-03686, an RRc, folded at 0.284 days. A sine, not a sawtooth.
+2. **Trio** — two RRab arrive, at 0.489 and 0.650 days. Every playhead runs on its own clock, and Bailey's 1902 result is already visible: the longer fundamental has the smaller bump (0.70 vs 0.40 mag).
+3. **Bailey** — period against I-band amplitude fills with 27,199 LMC RRab and 9,390 RRc. Median amplitude 0.54 vs 0.27 mag. Period is the mode.
+4. **Candle** — mean I slides into W = I − 1.55 (V − I). The RRab ridge tightens from 0.162 to 0.133 mag.
+5. **Clouds** — the SMC is 0.368 mag farther on this clock: 58.7 kpc against 62.4 kpc from eclipsing binaries.
+
+- `output/animate/magellanic/cinematic/magellanic_rr_lyrae_{light,dark}.gif`
+
+Nothing is precomputed. The folds, the Bailey split, both ridges and the offset are derived at runtime. The film does not hide the shortfall: RR Lyrae still need a metallicity term the Cepheid film already absorbed, so this clock puts the SMC too close. Tests re-derive the mode split, the Wesenheit tightening, the playhead ratios and the caption numbers from the two CSVs.
+
+CLI: `render.py animate --system rr_lyrae_cinematic` (no Blender pack needed).
+
 **Type Ia standard-candle cinema** (issue #126) is the second rung of the distance ladder, standing on the Cepheid film. Two committed datasets drive it: 1,543 unique Type Ia supernovae from Pantheon+ / SH0ES (Scolnic et al. 2022, `data/pantheonplus_type_ia.csv`) and B-band light curves for three of them from the Open Supernova Catalog (`data/type_ia_lightcurves.csv`):
 
 1. **Pulse** — SN 2011fe in M101, walking a real B-band light curve. It fades 0.98 mag in 15 days.
@@ -711,7 +739,7 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
+- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); carbon-star wind (#161); transit retrieval cartoon (#168)
 - **Deep time:** K–Pg (#86); Moon-forming (#106); Snowball/O₂ (#107); Apophis (#108); Cambrian bumper (#162); Chicxulub core zoom (#163)
 - **Encounters / formation:** Solar flybys (#96); formation (#97); Oort rain (#120); interstellar vs Oort taxonomy (#135)
 - **Cosmic timeline:** Local Group (#87); Hubble Deep Field (#141)
