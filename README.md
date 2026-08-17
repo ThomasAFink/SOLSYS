@@ -51,6 +51,8 @@ SOLSYS/
 │   ├── sunspot_groups_carrington.csv              # Group latitudes/areas per rotation, 1874–2019 (#102)
 │   ├── ogle_magellanic_cepheids.csv               # OGLE-IV fundamental-mode Cepheids, LMC + SMC (#159)
 │   ├── gaia_cepheid_lightcurves.csv               # Gaia DR3 epoch photometry for three LMC Cepheids (#159)
+│   ├── pantheonplus_type_ia.csv                   # Pantheon+ Type Ia supernovae, one row per SN (#126)
+│   ├── type_ia_lightcurves.csv                    # B-band LCs for SN 2011fe, 2000cn, 2005eq (#126)
 │   └── textures/                                  # Body maps + debris occultation sprites
 │       ├── README.md                              # Attribution + pack layout
 │       ├── bodies/{earth,moon,…}/…                # NASA / SSS / procedural equirect packs
@@ -77,6 +79,7 @@ SOLSYS/
 │       ├── asteroseismology_cinematic.py          # red giant weighed by its ringing (#169; Kepler FFT)
 │       ├── solar_cycle_cinematic.py               # the Sun's spots counted and placed (#102; SILSO + butterfly)
 │       ├── cepheid_ladder_cinematic.py            # Leavitt's law fitted from OGLE-IV Cepheids (#159)
+│       ├── type_ia_cinematic.py                   # Type Ia standard candles, Pantheon+ Hubble diagram (#126)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
@@ -104,6 +107,7 @@ SOLSYS/
 │   ├── test_asteroseismology_cinematic.py         # numax / Dnu / R / M re-derived from Kepler (#169)
 │   ├── test_solar_cycle_cinematic.py              # cycle timing, disk projection, Spörer drift (#102)
 │   ├── test_cepheid_ladder_cinematic.py           # Leavitt slope, Wesenheit tightening, SMC distance (#159)
+│   ├── test_type_ia_cinematic.py                  # Δm15, Phillips, Hubble-diagram slope (#126)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -145,6 +149,8 @@ SOLSYS/
 │   │   └── cinematic/                         # sol_solar_cycle_{light,dark}.gif
 │   ├── magellanic/
 │   │   └── cinematic/                         # magellanic_cepheid_ladder_{light,dark}.gif
+│   ├── type_ia/
+│   │   └── cinematic/                         # type_ia_standard_candle_{light,dark}.gif
 │   ├── tabbys_star/                           # dust schematic + cinematic/
 │   │   └── cinematic/                         # tabbys_star_cinematic_{light,dark}.gif
 │   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
@@ -220,6 +226,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Cepheid ladder cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/magellanic/cinematic/magellanic_cepheid_ladder_light.gif?raw=true) | ![Cepheid ladder cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/magellanic/cinematic/magellanic_cepheid_ladder_dark.gif?raw=true) |
+
+**Type Ia standard-candle cinema (three real light curves, then a Hubble diagram of 1,543 supernovae)**
+
+| Light | Dark |
+|-------|------|
+| ![Type Ia cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/type_ia/cinematic/type_ia_standard_candle_light.gif?raw=true) | ![Type Ia cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/type_ia/cinematic/type_ia_standard_candle_dark.gif?raw=true) |
 
 **Earth Blender close-up**
 
@@ -437,6 +449,9 @@ Or render by product:
 
 # Cepheid ladder cinema (catalogue + photometry only, no Blender pack needed)
 .venv/bin/python render.py animate --system cepheid_ladder_cinematic
+
+# Type Ia standard-candle cinema (catalogue + photometry only, no Blender pack needed)
+.venv/bin/python render.py animate --system type_ia_cinematic
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
@@ -631,6 +646,20 @@ The fit is live: every frame refits whatever is currently on screen, so the slop
 
 CLI: `render.py animate --system cepheid_ladder_cinematic` (no Blender pack needed).
 
+**Type Ia standard-candle cinema** (issue #126) is the second rung of the distance ladder, standing on the Cepheid film. Two committed datasets drive it: 1,543 unique Type Ia supernovae from Pantheon+ / SH0ES (Scolnic et al. 2022, `data/pantheonplus_type_ia.csv`) and B-band light curves for three of them from the Open Supernova Catalog (`data/type_ia_lightcurves.csv`):
+
+1. **Pulse** — SN 2011fe in M101, walking a real B-band light curve. It fades 0.98 mag in 15 days.
+2. **Trio** — SN 2000cn (fast, Δm15 = 1.54) and SN 2005eq (slow, Δm15 = 0.89) arrive. Placed at cz/70 km/s/Mpc so brightness is not a distance effect, the slow one is 0.67 mag brighter. Phillips 1993.
+3. **Stretch** — the time axis stretches until every decline matches 2011fe. That is the SALT2 x1 correction: in the Hubble-flow sample, stretch vs brightness slopes −0.19 mag per unit x1.
+4. **Hubble** — the diagram fills with 1,543 standardized supernovae. The Hubble-flow slope is 5.24 mag per dex of redshift against 5 from the inverse-square law, with 0.14 mag scatter over 476 SN.
+5. **Ruler** — 43 of them exploded in Cepheid hosts. The light curve is the ruler; the first rung is what sets its length.
+
+- `output/animate/type_ia/cinematic/type_ia_standard_candle_{light,dark}.gif`
+
+Nothing is precomputed. Δm15 is interpolated from the committed photometry, the Phillips slope and the Hubble-diagram slope are fitted at render time from the Pantheon+ table, and the captions quote those fits. The film does not quote a Hubble constant: a q0-less cz/H0 is the wrong estimator, and the zero point is the Cepheid rung the previous film already measured. Tests re-derive the inverse-square slope, the Phillips sign, the stretch collapse and the caption numbers from the two CSVs.
+
+CLI: `render.py animate --system type_ia_cinematic` (no Blender pack needed).
+
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
 `output/animate/interstellar_objects/`:
@@ -653,7 +682,7 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); Type Ia ladder (#126); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
+- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
 - **Deep time:** K–Pg (#86); Moon-forming (#106); Snowball/O₂ (#107); Apophis (#108); Cambrian bumper (#162); Chicxulub core zoom (#163)
 - **Encounters / formation:** Solar flybys (#96); formation (#97); Oort rain (#120); interstellar vs Oort taxonomy (#135)
 - **Cosmic timeline:** Local Group (#87); Hubble Deep Field (#141)
