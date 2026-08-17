@@ -53,6 +53,8 @@ SOLSYS/
 │   ├── gaia_cepheid_lightcurves.csv               # Gaia DR3 epoch photometry for three LMC Cepheids (#159)
 │   ├── pantheonplus_type_ia.csv                   # Pantheon+ Type Ia supernovae, one row per SN (#126)
 │   ├── type_ia_lightcurves.csv                    # B-band LCs for SN 2011fe, 2000cn, 2005eq (#126)
+│   ├── epn_pulsar_profiles.csv                    # Folded 1.4 GHz Stokes I for Crab, Vela, B0329+54 (#103)
+│   ├── atnf_pulsars.csv                           # ATNF periods and characteristic ages (#103)
 │   └── textures/                                  # Body maps + debris occultation sprites
 │       ├── README.md                              # Attribution + pack layout
 │       ├── bodies/{earth,moon,…}/…                # NASA / SSS / procedural equirect packs
@@ -80,6 +82,7 @@ SOLSYS/
 │       ├── solar_cycle_cinematic.py               # the Sun's spots counted and placed (#102; SILSO + butterfly)
 │       ├── cepheid_ladder_cinematic.py            # Leavitt's law fitted from OGLE-IV Cepheids (#159)
 │       ├── type_ia_cinematic.py                   # Type Ia standard candles, Pantheon+ Hubble diagram (#126)
+│       ├── pulsar_cinematic.py                    # pulsar lighthouse, EPN profiles + ATNF ages (#103)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
@@ -108,6 +111,7 @@ SOLSYS/
 │   ├── test_solar_cycle_cinematic.py              # cycle timing, disk projection, Spörer drift (#102)
 │   ├── test_cepheid_ladder_cinematic.py           # Leavitt slope, Wesenheit tightening, SMC distance (#159)
 │   ├── test_type_ia_cinematic.py                  # Δm15, Phillips, Hubble-diagram slope (#126)
+│   ├── test_pulsar_cinematic.py                   # W50, playhead clocks, Crab age vs SN 1054 (#103)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -151,6 +155,8 @@ SOLSYS/
 │   │   └── cinematic/                         # magellanic_cepheid_ladder_{light,dark}.gif
 │   ├── type_ia/
 │   │   └── cinematic/                         # type_ia_standard_candle_{light,dark}.gif
+│   ├── pulsar/
+│   │   └── cinematic/                         # pulsar_lighthouse_{light,dark}.gif
 │   ├── tabbys_star/                           # dust schematic + cinematic/
 │   │   └── cinematic/                         # tabbys_star_cinematic_{light,dark}.gif
 │   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
@@ -232,6 +238,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Type Ia cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/type_ia/cinematic/type_ia_standard_candle_light.gif?raw=true) | ![Type Ia cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/type_ia/cinematic/type_ia_standard_candle_dark.gif?raw=true) |
+
+**Pulsar lighthouse cinema (three real folded profiles, then a catalogue of clocks)**
+
+| Light | Dark |
+|-------|------|
+| ![Pulsar cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/pulsar/cinematic/pulsar_lighthouse_light.gif?raw=true) | ![Pulsar cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/pulsar/cinematic/pulsar_lighthouse_dark.gif?raw=true) |
 
 **Earth Blender close-up**
 
@@ -452,6 +464,9 @@ Or render by product:
 
 # Type Ia standard-candle cinema (catalogue + photometry only, no Blender pack needed)
 .venv/bin/python render.py animate --system type_ia_cinematic
+
+# Pulsar lighthouse cinema (catalogue + folded profiles only, no Blender pack needed)
+.venv/bin/python render.py animate --system pulsar_cinematic
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
@@ -660,6 +675,20 @@ Nothing is precomputed. Δm15 is interpolated from the committed photometry, the
 
 CLI: `render.py animate --system type_ia_cinematic` (no Blender pack needed).
 
+**Pulsar lighthouse cinema** (issue #103) is a neutron star treated as a clock. Two committed datasets drive it: folded 1.4 GHz Stokes I profiles for the Crab, Vela and B0329+54 from the European Pulsar Network (`data/epn_pulsar_profiles.csv`) and 2,052 pulsars with a measured period and characteristic age from the ATNF catalogue via VizieR B/psr (`data/atnf_pulsars.csv`):
+
+1. **Pulse** — the Crab, folded at 1.4 GHz. A 33.4 ms period, a 1.5% duty cycle, and a second spike (the interpulse) half a turn later.
+2. **Trio** — Vela (89.3 ms) and B0329+54 (0.715 s) arrive. Every playhead runs on its own clock, slowed ×7 so the motion is readable: in the same seconds of star time the Crab races and B0329+54 crawls.
+3. **Beam** — a schematic lighthouse whose wedge is the measured W50. Rotation is locked to the Crab playhead; when the wedge sweeps Earth, the pulse is at its peak.
+4. **Ages** — the period–age plane fills with 2,052 pulsars. P-dot is recovered as P/2τ from the catalogue's own characteristic age. The Crab sits at 4.20×10⁻¹³ s/s.
+5. **Remnant** — that clock reads 1,260 years. SN 1054 was 972 years ago. Characteristic age assumes the star was born spinning infinitely fast, so it overshoots the historical year; four catalogue objects are younger, none of them a 33 ms radio pulsar.
+
+- `output/animate/pulsar/cinematic/pulsar_lighthouse_{light,dark}.gif`
+
+Nothing is precomputed. Duty cycle is the fraction of the folded profile above half maximum after a baseline subtraction, P-dot is P/2τ, and the captions quote those measurements. The lighthouse is labelled schematic: the wedge width is the measured W50, the tilt is not a fitted magnetic obliquity. Tests re-derive the periods, the duty cycles, the interpulse, the playhead ratios, the Crab P-dot and the SN 1054 comparison from the two CSVs.
+
+CLI: `render.py animate --system pulsar_cinematic` (no Blender pack needed).
+
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
 `output/animate/interstellar_objects/`:
@@ -682,7 +711,7 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
+- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
 - **Deep time:** K–Pg (#86); Moon-forming (#106); Snowball/O₂ (#107); Apophis (#108); Cambrian bumper (#162); Chicxulub core zoom (#163)
 - **Encounters / formation:** Solar flybys (#96); formation (#97); Oort rain (#120); interstellar vs Oort taxonomy (#135)
 - **Cosmic timeline:** Local Group (#87); Hubble Deep Field (#141)

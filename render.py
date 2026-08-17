@@ -19,6 +19,7 @@ from animate.scenes.blender.export_body import exportBodyScene
 from animate.scenes.blender.flyby_scene import renderPlanetFlyby, renderPlanetSpin
 from animate.scenes.cepheid_ladder_cinematic import renderCepheidLadderCinematicAnimations
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
+from animate.scenes.pulsar_cinematic import renderPulsarCinematicAnimations
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
 from animate.scenes.sol_trappist_cinematic import renderSolTrappistCinematicAnimations
 from animate.scenes.solar_cycle_cinematic import renderSolarCycleCinematicAnimations
@@ -125,6 +126,7 @@ def buildParser() -> argparse.ArgumentParser:
             'solar_cycle_cinematic',
             'cepheid_ladder_cinematic',
             'type_ia_cinematic',
+            'pulsar_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -141,6 +143,7 @@ def buildParser() -> argparse.ArgumentParser:
             'cepheid_ladder_cinematic = Leavitt\u2019s law fitted from OGLE-IV Cepheids '
             '(period\u2013luminosity \u2192 Magellanic Cloud distances); '
             'type_ia_cinematic = Type Ia standard candles (Pantheon+ Hubble diagram); '
+            'pulsar_cinematic = pulsar lighthouse (EPN folded profiles + ATNF ages); '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -203,6 +206,7 @@ def buildParser() -> argparse.ArgumentParser:
             'solar_cycle_cinematic',
             'cepheid_ladder_cinematic',
             'type_ia_cinematic',
+            'pulsar_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -360,6 +364,12 @@ def _renderLightcurveCinemas(systemChoice: str, starsCsvPath: str) -> None:
     if systemChoice == 'type_ia_cinematic':
         # Catalogue and photometry only: no Blender pack needed.
         renderTypeIaCandleCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_TRANSIT,
+        )
+    if systemChoice == 'pulsar_cinematic':
+        # Catalogue and folded profiles only: no Blender pack needed.
+        renderPulsarCinematicAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_TRANSIT,
         )
