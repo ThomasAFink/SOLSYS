@@ -17,6 +17,7 @@ from animate.scenes.asteroseismology_cinematic import (
 from animate.scenes.barnards_star import renderBarnardsStarAnimations
 from animate.scenes.blender.export_body import exportBodyScene
 from animate.scenes.blender.flyby_scene import renderPlanetFlyby, renderPlanetSpin
+from animate.scenes.cepheid_ladder_cinematic import renderCepheidLadderCinematicAnimations
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
 from animate.scenes.sol_trappist_cinematic import renderSolTrappistCinematicAnimations
@@ -121,6 +122,7 @@ def buildParser() -> argparse.ArgumentParser:
             'transit_cinematic',
             'asteroseismology_cinematic',
             'solar_cycle_cinematic',
+            'cepheid_ladder_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -134,6 +136,8 @@ def buildParser() -> argparse.ArgumentParser:
             'transit_cinematic = TRAPPIST-1 b transit cinema (TESS fold); '
             'asteroseismology_cinematic = red giant weighed by its ringing (Kepler FFT); '
             'solar_cycle_cinematic = the Sun\u2019s spots counted and placed (SILSO + butterfly); '
+            'cepheid_ladder_cinematic = Leavitt\u2019s law fitted from OGLE-IV Cepheids '
+            '(period\u2013luminosity \u2192 Magellanic Cloud distances); '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -194,6 +198,7 @@ def buildParser() -> argparse.ArgumentParser:
             'transit_cinematic',
             'asteroseismology_cinematic',
             'solar_cycle_cinematic',
+            'cepheid_ladder_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -316,7 +321,7 @@ def _runBlenderCinematicPipeline(
 
 
 def _renderLightcurveCinemas(systemChoice: str, starsCsvPath: str) -> None:
-    """Flux-timeline episodes. Each needs its Blender packs first, so never `all`."""
+    """Flux-timeline episodes. Most need their Blender packs first, so never `all`."""
     if systemChoice == 'tabbys_star_cinematic':
         # Requires prior: blender --body "Tabby's Star" --spin.
         renderTabbysStarCinematicAnimations(
@@ -339,6 +344,12 @@ def _renderLightcurveCinemas(systemChoice: str, starsCsvPath: str) -> None:
     if systemChoice == 'solar_cycle_cinematic':
         # Requires prior: blender --body "Sun" --spin.
         renderSolarCycleCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_TRANSIT,
+        )
+    if systemChoice == 'cepheid_ladder_cinematic':
+        # Catalogue and photometry only: no Blender pack needed.
+        renderCepheidLadderCinematicAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_TRANSIT,
         )

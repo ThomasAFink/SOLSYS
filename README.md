@@ -49,6 +49,8 @@ SOLSYS/
 │   ├── kic_7944142_kepler_lightcurve.csv          # Kepler Q0–Q17 long cadence for the mode spectrum (#169)
 │   ├── silso_sunspot_number_monthly.csv           # SILSO v2.0 monthly sunspot number, 1749– (#102)
 │   ├── sunspot_groups_carrington.csv              # Group latitudes/areas per rotation, 1874–2019 (#102)
+│   ├── ogle_magellanic_cepheids.csv               # OGLE-IV fundamental-mode Cepheids, LMC + SMC (#159)
+│   ├── gaia_cepheid_lightcurves.csv               # Gaia DR3 epoch photometry for three LMC Cepheids (#159)
 │   └── textures/                                  # Body maps + debris occultation sprites
 │       ├── README.md                              # Attribution + pack layout
 │       ├── bodies/{earth,moon,…}/…                # NASA / SSS / procedural equirect packs
@@ -74,6 +76,7 @@ SOLSYS/
 │       ├── transit_cinematic.py                   # TRAPPIST-1 b transit cinema (#95; real TESS fold)
 │       ├── asteroseismology_cinematic.py          # red giant weighed by its ringing (#169; Kepler FFT)
 │       ├── solar_cycle_cinematic.py               # the Sun's spots counted and placed (#102; SILSO + butterfly)
+│       ├── cepheid_ladder_cinematic.py            # Leavitt's law fitted from OGLE-IV Cepheids (#159)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
@@ -100,6 +103,7 @@ SOLSYS/
 │   ├── test_transit_cinematic.py                  # TRAPPIST-1 b transit fold vs TESS data (#95)
 │   ├── test_asteroseismology_cinematic.py         # numax / Dnu / R / M re-derived from Kepler (#169)
 │   ├── test_solar_cycle_cinematic.py              # cycle timing, disk projection, Spörer drift (#102)
+│   ├── test_cepheid_ladder_cinematic.py           # Leavitt slope, Wesenheit tightening, SMC distance (#159)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -139,6 +143,8 @@ SOLSYS/
 │   │   └── cinematic/                         # kic_7944142_asteroseismology_{light,dark}.gif
 │   ├── sol/
 │   │   └── cinematic/                         # sol_solar_cycle_{light,dark}.gif
+│   ├── magellanic/
+│   │   └── cinematic/                         # magellanic_cepheid_ladder_{light,dark}.gif
 │   ├── tabbys_star/                           # dust schematic + cinematic/
 │   │   └── cinematic/                         # tabbys_star_cinematic_{light,dark}.gif
 │   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
@@ -208,6 +214,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Solar cycle cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol/cinematic/sol_solar_cycle_light.gif?raw=true) | ![Solar cycle cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/sol/cinematic/sol_solar_cycle_dark.gif?raw=true) |
+
+**Cepheid ladder cinema (three real folded light curves, then Leavitt's law fitted across two galaxies)**
+
+| Light | Dark |
+|-------|------|
+| ![Cepheid ladder cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/magellanic/cinematic/magellanic_cepheid_ladder_light.gif?raw=true) | ![Cepheid ladder cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/magellanic/cinematic/magellanic_cepheid_ladder_dark.gif?raw=true) |
 
 **Earth Blender close-up**
 
@@ -422,6 +434,9 @@ Or render by product:
 # Solar cycle cinema (needs the Sun spin pack first)
 .venv/bin/python render.py blender --body Sun --spin --theme all
 .venv/bin/python render.py animate --system solar_cycle_cinematic
+
+# Cepheid ladder cinema (catalogue + photometry only, no Blender pack needed)
+.venv/bin/python render.py animate --system cepheid_ladder_cinematic
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
@@ -602,6 +617,20 @@ The disks are not decorated. Latitude and central meridian distance are projecte
 
 CLI: `render.py animate --system solar_cycle_cinematic` (requires the `Sun` spin pack).
 
+**Cepheid ladder cinema** (issue #159) is the first rung of the distance ladder, and the first film here whose subject is another galaxy. Two committed datasets drive it: 4,952 fundamental-mode classical Cepheids in the Magellanic Clouds from the OGLE-IV Collection of Variable Stars (Soszyński et al. 2015, `data/ogle_magellanic_cepheids.csv`) and Gaia DR3 epoch photometry for three of them (`data/gaia_cepheid_lightcurves.csv`):
+
+1. **Pulse** — one Cepheid, OGLE-LMC-CEP-3592, folded on its catalogued 3.00-day period. The points are individual Gaia transits; the line is a three-harmonic fit through them.
+2. **Trio** — two more arrive, at 9.99 and 34.45 days. Every playhead runs on its own clock, so in the same 36 days of star time the fast one completes twelve cycles and the slow one barely manages one — and the slow one is 3.2 magnitudes brighter. All three sit in the same galaxy, so that cannot be a distance effect.
+3. **Leavitt** — the period–luminosity plane fills with 2,315 LMC Cepheids and the ridge is fitted on screen.
+4. **Wesenheit** — mean I slides into the reddening-free combination W = I − 1.55 (V − I) a fraction at a time, and the ridge tightens from 0.146 to 0.079 mag as the dust is divided out.
+5. **Clouds** — the SMC's 2,637 Cepheids arrive as a second, parallel ridge, offset 0.461 mag. That offset is a distance ratio of 1.24.
+
+- `output/animate/magellanic/cinematic/magellanic_cepheid_ladder_{light,dark}.gif`
+
+The fit is live: every frame refits whatever is currently on screen, so the slope and scatter printed during the reddening morph are the real values for a partly corrected magnitude, not an interpolation between two remembered numbers. The LMC Wesenheit slope comes out at −3.313 mag/dex, which is the value OGLE reports for this sample, with 0.079 mag scatter over 2,231 stars after a 3σ clip that rejects under 4% of them. Feeding the 0.461 mag offset the LMC's geometric distance from detached eclipsing binaries (18.477 ± 0.026, Pietrzyński et al. 2019 — 49.6 kpc) puts the SMC at 61.3 kpc, against the 62.4 kpc measured the same geometric way (Graczyk et al. 2020): a 0.04 mag disagreement, which is roughly what the metallicity difference between the clouds and the SMC's line-of-sight depth should cost. The two clouds' slopes differ by 0.14 mag/dex for the same reasons, and the film says so rather than fitting a common slope to hide it. Nothing is precomputed — the folds, the Fourier fits, both ridges, the offset and the distance are all derived at runtime from the two CSVs.
+
+CLI: `render.py animate --system cepheid_ladder_cinematic` (no Blender pack needed).
+
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
 `output/animate/interstellar_objects/`:
@@ -624,7 +653,7 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 
 Season backlog (opened after 0.3.18):
 
-- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); Type Ia ladder (#126); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); Cepheids (#159); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
+- **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); pulsar (#103); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); Type Ia ladder (#126); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); RR Lyrae (#160); carbon-star wind (#161); transit retrieval cartoon (#168)
 - **Deep time:** K–Pg (#86); Moon-forming (#106); Snowball/O₂ (#107); Apophis (#108); Cambrian bumper (#162); Chicxulub core zoom (#163)
 - **Encounters / formation:** Solar flybys (#96); formation (#97); Oort rain (#120); interstellar vs Oort taxonomy (#135)
 - **Cosmic timeline:** Local Group (#87); Hubble Deep Field (#141)
