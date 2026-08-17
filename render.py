@@ -26,6 +26,7 @@ from animate.scenes.tabbys_star import renderTabbysStarAnimations
 from animate.scenes.tabbys_star_cinematic import renderTabbysStarCinematicAnimations
 from animate.scenes.transit_cinematic import renderTransitCinematicAnimations
 from animate.scenes.trappist_1 import renderTrappist1Animations
+from animate.scenes.type_ia_cinematic import renderTypeIaCandleCinematicAnimations
 from static import renderAll as renderStatic
 from static import renderNeighborhood
 
@@ -123,6 +124,7 @@ def buildParser() -> argparse.ArgumentParser:
             'asteroseismology_cinematic',
             'solar_cycle_cinematic',
             'cepheid_ladder_cinematic',
+            'type_ia_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -138,6 +140,7 @@ def buildParser() -> argparse.ArgumentParser:
             'solar_cycle_cinematic = the Sun\u2019s spots counted and placed (SILSO + butterfly); '
             'cepheid_ladder_cinematic = Leavitt\u2019s law fitted from OGLE-IV Cepheids '
             '(period\u2013luminosity \u2192 Magellanic Cloud distances); '
+            'type_ia_cinematic = Type Ia standard candles (Pantheon+ Hubble diagram); '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -199,6 +202,7 @@ def buildParser() -> argparse.ArgumentParser:
             'asteroseismology_cinematic',
             'solar_cycle_cinematic',
             'cepheid_ladder_cinematic',
+            'type_ia_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -350,6 +354,12 @@ def _renderLightcurveCinemas(systemChoice: str, starsCsvPath: str) -> None:
     if systemChoice == 'cepheid_ladder_cinematic':
         # Catalogue and photometry only: no Blender pack needed.
         renderCepheidLadderCinematicAnimations(
+            figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
+            dpi=ANIMATE_DPI_TRANSIT,
+        )
+    if systemChoice == 'type_ia_cinematic':
+        # Catalogue and photometry only: no Blender pack needed.
+        renderTypeIaCandleCinematicAnimations(
             figureSizeInches=ANIMATE_FIGURE_SIZE_INCHES,
             dpi=ANIMATE_DPI_TRANSIT,
         )
