@@ -1,0 +1,10 @@
+# Chicxulub: the K-Pg impact on Earth.
+# Crater centre 21.4 N, 89.5 W (Hildebrand et al. 1991; Gulick et al. 2008,
+#   Nature Geoscience 1, 131). Age 66.0 Ma (Renne et al. 2013, Science 339, 684).
+# Impactor diameter 10 km and speed 20 km/s are the round published teaching
+#   values (Alvarez et al. 1980; Collins et al. 2005 quote a 10-15 km range).
+# Crater diameter 180 km. One row — this is not a fitted catalogue.
+# The film uses the modern Blue Marble map as a labelled stand-in for
+#   Late Cretaceous geography. Flash and dust veil are schematic.
+name,latitude_deg,longitude_deg,age_ma,crater_diameter_km,impactor_diameter_km,speed_km_s
+Chicxulub,21.4,-89.5,66.0,180,10,20
