@@ -57,6 +57,7 @@ SOLSYS/
 │   ├── type_ia_lightcurves.csv                    # B-band LCs for SN 2011fe, 2000cn, 2005eq (#126)
 │   ├── epn_pulsar_profiles.csv                    # Folded 1.4 GHz Stokes I for Crab, Vela, B0329+54 (#103)
 │   ├── atnf_pulsars.csv                           # ATNF periods and characteristic ages (#103)
+│   ├── chicxulub_kpg.csv                          # Chicxulub location, size, speed, age (#86)
 │   └── textures/                                  # Body maps + debris occultation sprites
 │       ├── README.md                              # Attribution + pack layout
 │       ├── bodies/{earth,moon,…}/…                # NASA / SSS / procedural equirect packs
@@ -86,6 +87,7 @@ SOLSYS/
 │       ├── rr_lyrae_cinematic.py                  # RR Lyrae / horizontal-branch clocks (#160)
 │       ├── type_ia_cinematic.py                   # Type Ia standard candles, Pantheon+ Hubble diagram (#126)
 │       ├── pulsar_cinematic.py                    # pulsar lighthouse, EPN profiles + ATNF ages (#103)
+│       ├── kpg_cinematic.py                       # K–Pg / Chicxulub camera-move impact (#86)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
@@ -95,7 +97,8 @@ SOLSYS/
 │           ├── body_appearance.py                 # Shared texture packs (planets/moons/asteroids)
 │           ├── flyby_camera.py                    # Body-centered close-up camera path
 │           ├── flyby_scene.py                     # Host close-up orchestration + GIF assembly
-│           └── render_flyby.py                    # Blender EEVEE PNG close-up renderer
+│           ├── render_flyby.py                    # Blender EEVEE PNG close-up renderer
+│           └── render_kpg.py                      # Blender Earth + true-scale impactor (#86)
 │
 ├── static/                                        # SIDE PRODUCT — still images
 │   ├── __init__.py
@@ -116,6 +119,7 @@ SOLSYS/
 │   ├── test_rr_lyrae_cinematic.py                 # Bailey split, Wesenheit, SMC offset vs EBs (#160)
 │   ├── test_type_ia_cinematic.py                  # Δm15, Phillips, Hubble-diagram slope (#126)
 │   ├── test_pulsar_cinematic.py                   # W50, playhead clocks, Crab age vs SN 1054 (#103)
+│   ├── test_kpg_cinematic.py                      # Chicxulub vector, true scale, camera dive (#86)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -162,6 +166,8 @@ SOLSYS/
 │   │   └── cinematic/                         # type_ia_standard_candle_{light,dark}.gif
 │   ├── pulsar/
 │   │   └── cinematic/                         # pulsar_lighthouse_{light,dark}.gif
+│   ├── earth/
+│   │   └── cinematic/                         # earth_kpg_{light,dark}.gif
 │   ├── tabbys_star/                           # dust schematic + cinematic/
 │   │   └── cinematic/                         # tabbys_star_cinematic_{light,dark}.gif
 │   ├── interstellar_objects/                  # {oumuamua,borisov,atlas}_{side,oblique}_{light,dark}.gif
@@ -255,6 +261,12 @@ solsys.motion    → moving asteroid fields for animation frames
 | Light | Dark |
 |-------|------|
 | ![Pulsar cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/pulsar/cinematic/pulsar_lighthouse_light.gif?raw=true) | ![Pulsar cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/pulsar/cinematic/pulsar_lighthouse_dark.gif?raw=true) |
+
+**K–Pg cinema (camera move into Chicxulub, true-scale impactor)**
+
+| Light | Dark |
+|-------|------|
+| ![K-Pg cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/earth/cinematic/earth_kpg_light.gif?raw=true) | ![K-Pg cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/earth/cinematic/earth_kpg_dark.gif?raw=true) |
 
 **Earth Blender close-up**
 
@@ -481,6 +493,9 @@ Or render by product:
 
 # Pulsar lighthouse cinema (catalogue + folded profiles only, no Blender pack needed)
 .venv/bin/python render.py animate --system pulsar_cinematic
+
+# K–Pg cinema (needs blender on PATH; uses the in-repo Earth texture pack)
+.venv/bin/python render.py animate --system kpg_cinematic
 .venv/bin/python render.py animate --system interstellar
 .venv/bin/python render.py animate --system interstellar --object borisov
 .venv/bin/python render.py animate --system oumuamua
@@ -717,6 +732,17 @@ Nothing is precomputed. Duty cycle is the fraction of the folded profile above h
 
 CLI: `render.py animate --system pulsar_cinematic` (no Blender pack needed).
 
+**K–Pg cinema** (issue #86) is a camera move, not a chart. Stay on Earth. A committed one-row table (`data/chicxulub_kpg.csv`) plus the catalogue Earth diameter drive it: Chicxulub at 21.4°N, 89.5°W, 66.0 Ma, a 10 km body at 20 km/s, a 180 km crater.
+
+1. **Quiet** — Late Cretaceous Earth, modern Blue Marble as a labelled stand-in. The Yucatán faces the camera.
+2. **Approach** — the camera dives. The rock is true scale (10 / 12,742 of Earth's diameter), so it is a speck until the last radii. The inbound clock is distance / 20 km/s.
+3. **Strike** — contact. The flash is schematic, not a hydro simulation.
+4. **Veil** — the disk darkens and the light returns. That veil is not a climate model.
+
+- `output/animate/earth/cinematic/earth_kpg_{light,dark}.gif`
+
+CLI: `render.py animate --system kpg_cinematic` (requires `blender` on PATH).
+
 ʻOumuamua–Earth flyby (issue #2) and interstellar visitors (issue #5) render from
 `data/interstellar_objects.csv` via `InterstellarObjectCatalog` to
 `output/animate/interstellar_objects/`:
@@ -740,7 +766,7 @@ CLI: `render.py animate --system interstellar` (all) or `--object oumuamua|boris
 Season backlog (opened after 0.3.18):
 
 - **Measurement / stay-with-object:** Betelgeuse (#84/#85); Tabby (#73); white-dwarf pollution (#104); Venus transit/eclipse (#105); technosignature LC (#112); Listen waterfall (#113); Dyson limits (#114); EHT shadow (#123); kilonova/GW (#124); FRB (#125); solar neutrinos (#127); Mars dust year (#131); biosignature false positives (#136); magnetar flare (#145); blazar/AGN (#146); SEPs (#148); carbon-star wind (#161); transit retrieval cartoon (#168)
-- **Deep time:** K–Pg (#86); Moon-forming (#106); Snowball/O₂ (#107); Apophis (#108); Cambrian bumper (#162); Chicxulub core zoom (#163)
+- **Deep time:** Moon-forming (#106); Snowball/O₂ (#107); Apophis (#108); Cambrian bumper (#162); Chicxulub core zoom (#163)
 - **Encounters / formation:** Solar flybys (#96); formation (#97); Oort rain (#120); interstellar vs Oort taxonomy (#135)
 - **Cosmic timeline:** Local Group (#87); Hubble Deep Field (#141)
 - **Mission timeline:** Cassini (#93); Voyager (#94); New Horizons (#98); Parker (#99); Galileo/Juno (#100); Apollo (#101)
