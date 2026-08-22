@@ -1,12 +1,13 @@
-"""Tests for the K–Pg Earth-impact cinema (#86).
+"""Tests for the K–Pg Earth-impact cinema (#86 / #210).
 
 The film is a camera move, not a chart. Tests re-derive the Yucatán vector, the
-true-scale pebble, the inbound clock and the dive from the committed CSV and
-PlanetCatalog Earth diameter.
+true-scale pebble, the inbound clock, the dive and the schematic contact
+drawing from the committed CSV and PlanetCatalog Earth diameter.
 """
 
 from __future__ import annotations
 
+import math
 import unittest
 from pathlib import Path
 
@@ -16,12 +17,14 @@ from animate.scenes.kpg_cinematic import (
     ACT_BOUNDARIES,
     ANIMATION_FRAMES,
     DEFAULT_EVENT_CSV,
+    EJECTA_ANGLE_DEG,
     IMPACT_FRAME,
     INBOUND_START_RADII,
     actName,
     buildImpactSamples,
     buildKpgJob,
     captionForSample,
+    ejectaDirections,
     impactNormal,
     inboundDirection,
     inboundKmAtFrame,
@@ -148,8 +151,31 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertIn(f'{self.event.impactorDiameterKm:.0f}', approach)
         strike = captionForSample(self.event, self.samples[IMPACT_FRAME])
         self.assertIn('schematic', strike)
+        self.assertIn('ejecta', strike)
         veil = captionForSample(self.event, self.samples[-1])
         self.assertIn(f'{self.event.ageMa:.0f}', veil)
+
+    def test_contact_drawings_are_zero_until_impact(self) -> None:
+        for sample in self.samples[:IMPACT_FRAME]:
+            self.assertEqual(sample.fireballScale, 0.0)
+            self.assertEqual(sample.ejectaScale, 0.0)
+            self.assertEqual(sample.plumeScale, 0.0)
+            self.assertEqual(sample.flashScale, 0.0)
+
+    def test_the_fireball_grows_after_the_bang(self) -> None:
+        atContact = self.samples[IMPACT_FRAME]
+        grown = self.samples[IMPACT_FRAME + 6]
+        self.assertAlmostEqual(atContact.flashScale, 1.0, places=6)
+        self.assertGreater(atContact.fireballScale, 0.0)
+        self.assertGreater(grown.fireballScale, atContact.fireballScale)
+        self.assertGreater(grown.ejectaScale, 0.0)
+        self.assertGreater(self.samples[-1].plumeScale, 0.5)
+
+    def test_ejecta_curtain_is_forty_five_degrees_from_vertical(self) -> None:
+        normal = impactNormal(self.event)
+        expected = math.cos(math.radians(EJECTA_ANGLE_DEG))
+        for ray in ejectaDirections(normal):
+            self.assertAlmostEqual(float(np.dot(ray, normal)), expected, places=6)
 
     def test_the_job_carries_true_scale_and_the_earth_pack(self) -> None:
         job = buildKpgJob(
@@ -163,6 +189,9 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertIn('color', job['appearance']['textures'])
         self.assertEqual(len(job['frames']), ANIMATION_FRAMES)
         self.assertEqual(job['frames'][IMPACT_FRAME]['flashScale'], 1.0)
+        self.assertAlmostEqual(job['contact']['ejectaAngleDeg'], EJECTA_ANGLE_DEG)
+        self.assertEqual(len(job['contact']['ejectaDirections']), 16)
+        self.assertGreater(job['frames'][IMPACT_FRAME + 8]['ejectaScale'], 0.0)
 
 
 if __name__ == '__main__':
