@@ -199,6 +199,8 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertAlmostEqual(job['contact']['ejectaAngleDeg'], EJECTA_ANGLE_DEG)
         self.assertEqual(len(job['contact']['ejectaDirections']), 16)
         self.assertEqual(job['contact']['projectileCount'], PROJECTILE_COUNT)
+        self.assertGreater(job['contact']['smokeResolution'], 32)
+        self.assertGreater(job['contact']['smokeDomainRadii'], 0.3)
         self.assertGreater(job['frames'][IMPACT_FRAME + 8]['ejectaScale'], 0.0)
         self.assertGreater(job['frames'][-1]['falloutScale'], 0.8)
 
@@ -212,7 +214,7 @@ class ImpactCameraTests(unittest.TestCase):
             direction = vector / float(np.linalg.norm(vector))
             if float(np.dot(direction, normal)) < 0.55:
                 far += 1
-        self.assertGreater(far, 8)
+        self.assertGreater(far, 4)
         self.assertGreater(falloutEnvelope(ANIMATION_FRAMES - 1), 0.8)
         self.assertEqual(len(projectileLaunches()), PROJECTILE_COUNT)
         first = projectilePositionRadii(normal, projectileLaunches()[0], IMPACT_FRAME)

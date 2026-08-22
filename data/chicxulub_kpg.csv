@@ -5,8 +5,8 @@
 #   values (Alvarez et al. 1980; Collins et al. 2005 quote a 10-15 km range).
 # Crater diameter 180 km. One row — this is not a fitted catalogue.
 # The film uses the modern Blue Marble map as a labelled stand-in for
-#   Late Cretaceous geography. Ember fireball, soot, 45° curtain, ballistic
-#   ejecta and the fallout shell are Hollywood-adjacent schematic, not hydro.
+#   Late Cretaceous geography. Volumetric fire/smoke, irregular debris and
+#   the fallout cap are Hollywood-adjacent schematic, not hydro.
 # Worldwide ejecta is observed (Alvarez et al. 1980); the rocks on screen
 #   are a labelled drawing of that fact.
 name,latitude_deg,longitude_deg,age_ma,crater_diameter_km,impactor_diameter_km,speed_km_s

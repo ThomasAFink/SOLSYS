@@ -2,8 +2,8 @@
 
 Stay on Earth. The playhead is inbound distance, not a chart. A 10 km rock is a
 speck against a 12,742 km planet, so the film dives until that speck is
-readable. Contact is Hollywood-adjacent and still labelled schematic: ember
-fireball, soot, a 45° curtain, ballistic ejecta around the globe, then fallout.
+readable. Contact is Hollywood-adjacent and still labelled schematic: a baked
+volumetric fire/smoke plume, irregular debris around the globe, then fallout.
 Geography is the modern Blue Marble map as a stand-in.
 
 Geometry is derived at runtime from `data/chicxulub_kpg.csv` and the Earth
@@ -54,8 +54,11 @@ EJECTA_MAX_RADII = 0.20
 PLUME_MAX_RADII = 0.28
 EJECTA_ANGLE_DEG = 45.0
 EJECTA_COUNT = 16
-PROJECTILE_COUNT = 48
+PROJECTILE_COUNT = 20
 FALLOUT_SHELL = 0.72
+SMOKE_DOMAIN_RADII = 0.52
+SMOKE_RESOLUTION = 56
+SMOKE_INFLOW_FRAMES = 14
 
 ACT_BOUNDARIES = (
     (QUIET_END, 'quiet'),
@@ -221,8 +224,10 @@ def projectileVisibility(launch: ProjectileLaunch, frame: int) -> float:
     if frame < IMPACT_FRAME:
         return 0.0
     progress = ((frame - IMPACT_FRAME) / ANIMATION_FPS) / launch.flightSeconds
+    if progress < 0.18:
+        return 0.0
     if progress < 1.0:
-        return min(1.0, 0.4 + 1.8 * progress)
+        return min(1.0, 0.4 + 1.8 * (progress - 0.18))
     return max(0.42, 1.0 - 0.58 * smoothStep((progress - 1.0) / 0.9))
 
 
@@ -365,7 +370,7 @@ def titleForAct(act: str) -> str:
     if act == 'approach':
         return 'A 10 km rock, true scale — inbound to the Yucatán'
     if act == 'strike':
-        return 'Contact — fire, smoke and ejecta, labelled schematic'
+        return 'Contact — volumetric fire and smoke, labelled schematic'
     return 'Worldwide fallout — schematic, then a little light returns'
 
 
@@ -385,7 +390,7 @@ def captionForSample(event: ImpactEvent, sample: ImpactSample) -> str:
     if act == 'strike':
         return (
             f'{event.impactorDiameterKm:.0f} km body at {event.speedKmS:.0f} km/s  ·  '
-            f'ember fireball, soot, 45° ejecta curtain  ·  schematic, not hydro'
+            f'volumetric fire and smoke  ·  worldwide ejecta  ·  schematic, not hydro'
         )
     return (
         f'{event.ageMa:.0f} Ma  ·  ejecta is found worldwide  ·  '
@@ -456,6 +461,9 @@ def buildKpgJob(
             ],
             'projectileCount': PROJECTILE_COUNT,
             'falloutShell': FALLOUT_SHELL,
+            'smokeDomainRadii': SMOKE_DOMAIN_RADII,
+            'smokeResolution': SMOKE_RESOLUTION,
+            'smokeInflowFrames': SMOKE_INFLOW_FRAMES,
         },
         'frames': frames,
         'outputDirectory': str(Path(framesDirectory)),
@@ -531,7 +539,7 @@ def renderKpgCinematicAnimations(
     samples = buildImpactSamples(event)
     footer = (
         'Chicxulub · Hildebrand+ 1991 / Renne+ 2013 · Earth pack · '
-        'inbound distance from these numbers · fire, ejecta and fallout schematic'
+        'inbound distance from these numbers · volumetric fire/smoke, ejecta schematic'
     )
     outputRoot = Path(outputDirectory)
     bodyDirectory = bodyOutputDirectory('planet', 'Earth', root=outputRoot)
