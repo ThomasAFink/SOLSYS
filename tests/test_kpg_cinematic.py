@@ -20,15 +20,19 @@ from animate.scenes.kpg_cinematic import (
     EJECTA_ANGLE_DEG,
     IMPACT_FRAME,
     INBOUND_START_RADII,
+    PROJECTILE_COUNT,
     actName,
     buildImpactSamples,
     buildKpgJob,
     captionForSample,
     ejectaDirections,
+    falloutEnvelope,
     impactNormal,
     inboundDirection,
     inboundKmAtFrame,
     loadImpactEvent,
+    projectileLaunches,
+    projectilePositionRadii,
     unitFromLatLon,
 )
 
@@ -154,6 +158,7 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertIn('ejecta', strike)
         veil = captionForSample(self.event, self.samples[-1])
         self.assertIn(f'{self.event.ageMa:.0f}', veil)
+        self.assertIn('worldwide', veil)
 
     def test_contact_drawings_are_zero_until_impact(self) -> None:
         for sample in self.samples[:IMPACT_FRAME]:
@@ -161,6 +166,8 @@ class ImpactCameraTests(unittest.TestCase):
             self.assertEqual(sample.ejectaScale, 0.0)
             self.assertEqual(sample.plumeScale, 0.0)
             self.assertEqual(sample.flashScale, 0.0)
+            self.assertEqual(sample.falloutScale, 0.0)
+            self.assertTrue(all(scale == 0.0 for scale in sample.projectileScale))
 
     def test_the_fireball_grows_after_the_bang(self) -> None:
         atContact = self.samples[IMPACT_FRAME]
@@ -191,7 +198,25 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertEqual(job['frames'][IMPACT_FRAME]['flashScale'], 1.0)
         self.assertAlmostEqual(job['contact']['ejectaAngleDeg'], EJECTA_ANGLE_DEG)
         self.assertEqual(len(job['contact']['ejectaDirections']), 16)
+        self.assertEqual(job['contact']['projectileCount'], PROJECTILE_COUNT)
         self.assertGreater(job['frames'][IMPACT_FRAME + 8]['ejectaScale'], 0.0)
+        self.assertGreater(job['frames'][-1]['falloutScale'], 0.8)
+
+    def test_ballistic_ejecta_leave_the_yucatan(self) -> None:
+        normal = impactNormal(self.event)
+        later = self.samples[IMPACT_FRAME + 24]
+        self.assertEqual(len(later.projectileRadii), PROJECTILE_COUNT)
+        far = 0
+        for position in later.projectileRadii:
+            vector = np.array(position)
+            direction = vector / float(np.linalg.norm(vector))
+            if float(np.dot(direction, normal)) < 0.55:
+                far += 1
+        self.assertGreater(far, 8)
+        self.assertGreater(falloutEnvelope(ANIMATION_FRAMES - 1), 0.8)
+        self.assertEqual(len(projectileLaunches()), PROJECTILE_COUNT)
+        first = projectilePositionRadii(normal, projectileLaunches()[0], IMPACT_FRAME)
+        np.testing.assert_allclose(first, normal, atol=1e-6)
 
 
 if __name__ == '__main__':
