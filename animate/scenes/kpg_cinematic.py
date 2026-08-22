@@ -1,9 +1,10 @@
-"""K–Pg cinema — a camera move into Chicxulub (#86).
+"""K–Pg cinema — a camera move into Chicxulub (#86 / #210).
 
 Stay on Earth. The playhead is inbound distance, not a chart. A 10 km rock is a
 speck against a 12,742 km planet, so the film dives until that speck is
-readable, then the flash and the dust veil are labelled schematic. Geography is
-the modern Blue Marble map as a stand-in.
+readable. Contact is Hollywood-adjacent and still labelled schematic: fireball,
+a 45° ejecta curtain, then a dust plume. Geography is the modern Blue Marble
+map as a stand-in.
 
 Geometry is derived at runtime from `data/chicxulub_kpg.csv` and the Earth
 diameter in PlanetCatalog. Blender renders the move; titles are composited after.
@@ -47,6 +48,12 @@ OBLIQUITY_FROM_VERTICAL_DEG = 40.0
 QUIET_END = 44
 IMPACT_FRAME = 148
 STRIKE_END = 164
+# Contact drawing (#210): still schematic, sized to read at the dive.
+FIREBALL_MAX_RADII = 0.085
+EJECTA_MAX_RADII = 0.20
+PLUME_MAX_RADII = 0.28
+EJECTA_ANGLE_DEG = 45.0
+EJECTA_COUNT = 16
 
 ACT_BOUNDARIES = (
     (QUIET_END, 'quiet'),
@@ -125,12 +132,7 @@ def impactNormal(event: ImpactEvent) -> np.ndarray:
 def inboundDirection(event: ImpactEvent) -> np.ndarray:
     """Flight direction at contact: mostly inward, 40° off vertical toward local east."""
     normal = impactNormal(event)
-    east = np.cross(np.array([0.0, 0.0, 1.0]), normal)
-    eastLength = float(np.linalg.norm(east))
-    if eastLength < 1e-9:
-        east = np.array([0.0, 1.0, 0.0])
-    else:
-        east = east / eastLength
+    east, _north = tangentBasis(normal)
     tilt = math.radians(OBLIQUITY_FROM_VERTICAL_DEG)
     direction = -normal * math.cos(tilt) + east * math.sin(tilt)
     return direction / float(np.linalg.norm(direction))
@@ -141,6 +143,57 @@ def contactCenterRadii(event: ImpactEvent) -> np.ndarray:
     return impactNormal(event) * (1.0 + event.radiusRatio)
 
 
+def tangentBasis(normal: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    east = np.cross(np.array([0.0, 0.0, 1.0]), normal)
+    if float(np.linalg.norm(east)) < 1e-9:
+        east = np.array([0.0, 1.0, 0.0])
+    east = east / float(np.linalg.norm(east))
+    north = np.cross(normal, east)
+    return east, north / float(np.linalg.norm(north))
+
+
+def ejectaDirections(normal: np.ndarray, count: int = EJECTA_COUNT) -> np.ndarray:
+    """Unit vectors on a Collins-style 45° curtain around the local vertical."""
+    east, north = tangentBasis(normal)
+    tilt = math.radians(EJECTA_ANGLE_DEG)
+    rays = []
+    for index in range(count):
+        azimuth = 2.0 * math.pi * index / count
+        direction = normal * math.cos(tilt) + (
+            east * math.cos(azimuth) + north * math.sin(azimuth)
+        ) * math.sin(tilt)
+        rays.append(direction / float(np.linalg.norm(direction)))
+    return np.asarray(rays, dtype=float)
+
+
+def contactEnvelope(frame: int, frameCount: int) -> tuple[float, float, float]:
+    """Fireball size, ejecta and plume after contact; all zero before.
+
+    Brightness is `flashScale` (bang at contact). The fireball mesh grows from a
+    visible seed, then the 45° curtain and the dust plume take over.
+    """
+    if frame < IMPACT_FRAME:
+        return 0.0, 0.0, 0.0
+    age = (frame - IMPACT_FRAME) / ANIMATION_FPS
+    grown = 0.45 + 0.55 * smoothStep((frame - IMPACT_FRAME) / 10.0)
+    fireball = grown * math.exp(-0.28 * age)
+    ejecta = 0.18 + 0.82 * smoothStep((frame - IMPACT_FRAME) / 10.0)
+    plume = smoothStep((frame - IMPACT_FRAME) / 22.0)
+    if frame >= STRIKE_END:
+        recover = smoothStep((frame - STRIKE_END) / max(frameCount - 1 - STRIKE_END, 1))
+        ejecta *= 1.0 - 0.25 * recover
+        plume = min(1.0, plume + 0.15 * recover)
+    return fireball, ejecta, plume
+
+
+def flashEnvelope(frame: int) -> float:
+    """Point-light wash: 1 at contact, then a fast fade."""
+    if frame < IMPACT_FRAME:
+        return 0.0
+    age = (frame - IMPACT_FRAME) / ANIMATION_FPS
+    return math.exp(-1.8 * age)
+
+
 @dataclass(frozen=True)
 class ImpactSample:
     frame: int
@@ -149,6 +202,9 @@ class ImpactSample:
     impactorRadii: tuple[float, float, float]
     sunScale: float
     flashScale: float
+    fireballScale: float
+    ejectaScale: float
+    plumeScale: float
     veil: float
     inboundKm: float
     secondsToImpact: float
@@ -179,8 +235,7 @@ def buildImpactSamples(
     normal = impactNormal(event)
     inbound = inboundDirection(event)
     contact = contactCenterRadii(event)
-    east = np.cross(np.array([0.0, 0.0, 1.0]), normal)
-    east = east / float(np.linalg.norm(east))
+    east, _north = tangentBasis(normal)
     lift = np.cross(inbound, east)
     lift = lift / float(np.linalg.norm(lift))
 
@@ -190,26 +245,25 @@ def buildImpactSamples(
         pull = smoothStep((frame - STRIKE_END) / (frameCount - 1 - STRIKE_END))
         cameraDistance = WIDE_CAMERA_RADII + (CLOSE_CAMERA_RADII - WIDE_CAMERA_RADII) * dive
         cameraDistance += (WIDE_CAMERA_RADII - CLOSE_CAMERA_RADII) * pull
-        # Off-axis so the inbound rock is a silhouette against the Gulf, not hidden.
-        camera = contact - inbound * cameraDistance + lift * (0.18 * (1.0 - 0.65 * dive))
+        # Off-axis so the inbound rock and the ejecta curtain read in profile.
+        camera = contact - inbound * cameraDistance + lift * (0.24 * (1.0 - 0.28 * dive))
         lookAt = contact * dive * (1.0 - 0.7 * pull)
         remainingKm = inboundKmAtFrame(event, frame)
         remainingRadii = remainingKm / event.earthRadiusKm
         impactor = contact - inbound * remainingRadii
+        fireball, ejecta, plume = contactEnvelope(frame, frameCount)
+        flash = flashEnvelope(frame)
         if frame < IMPACT_FRAME:
-            flash = 0.0
             veil = 0.0
             sunScale = 1.0
         elif frame < STRIKE_END:
             strike = smoothStep((frame - IMPACT_FRAME) / (STRIKE_END - IMPACT_FRAME))
-            flash = math.exp(-3.2 * strike)
             veil = 0.35 * strike
-            sunScale = 1.0 - 0.55 * strike
+            sunScale = 1.0 - 0.45 * strike
         else:
             recover = smoothStep((frame - STRIKE_END) / max(frameCount - 1 - STRIKE_END, 1))
-            flash = 0.0
-            veil = 0.85 * (1.0 - 0.55 * recover)
-            sunScale = 0.28 + 0.55 * recover
+            veil = 0.85 * (1.0 - 0.45 * recover)
+            sunScale = 0.32 + 0.50 * recover
         samples.append(
             ImpactSample(
                 frame=frame,
@@ -218,6 +272,9 @@ def buildImpactSamples(
                 impactorRadii=_asTuple(impactor),
                 sunScale=sunScale,
                 flashScale=flash,
+                fireballScale=fireball,
+                ejectaScale=ejecta,
+                plumeScale=plume,
                 veil=veil,
                 inboundKm=remainingKm,
                 secondsToImpact=remainingKm / event.speedKmS,
@@ -232,7 +289,7 @@ def titleForAct(act: str) -> str:
     if act == 'approach':
         return 'A 10 km rock, true scale — inbound to the Yucatán'
     if act == 'strike':
-        return 'Contact — the flash is schematic'
+        return 'Contact — fireball and ejecta curtain, labelled schematic'
     return 'Dust veil — schematic, then the light returns'
 
 
@@ -252,7 +309,7 @@ def captionForSample(event: ImpactEvent, sample: ImpactSample) -> str:
     if act == 'strike':
         return (
             f'{event.impactorDiameterKm:.0f} km body at {event.speedKmS:.0f} km/s  ·  '
-            'oblique, labelled schematic  ·  not a hydro simulation'
+            f'45° ejecta curtain  ·  schematic, not a hydro simulation'
         )
     return (
         f'{event.ageMa:.0f} Ma  ·  the veil is not a climate model  ·  '
@@ -284,6 +341,9 @@ def buildKpgJob(
                 'impactorAu': [c * radius for c in sample.impactorRadii],
                 'sunScale': sample.sunScale,
                 'flashScale': sample.flashScale,
+                'fireballScale': sample.fireballScale,
+                'ejectaScale': sample.ejectaScale,
+                'plumeScale': sample.plumeScale,
                 'veil': sample.veil,
             }
         )
@@ -300,6 +360,18 @@ def buildKpgJob(
         'impactor': {
             'radiusScale': event.radiusRatio,
             'colorRgba': [0.28, 0.26, 0.24, 1.0],
+        },
+        'contact': {
+            'normal': [float(component) for component in impactNormal(event)],
+            'positionRadii': [float(component) for component in contactCenterRadii(event)],
+            'maxFireballRadii': FIREBALL_MAX_RADII,
+            'maxEjectaRadii': EJECTA_MAX_RADII,
+            'maxPlumeRadii': PLUME_MAX_RADII,
+            'ejectaAngleDeg': EJECTA_ANGLE_DEG,
+            'ejectaDirections': [
+                [float(component) for component in ray]
+                for ray in ejectaDirections(impactNormal(event))
+            ],
         },
         'frames': frames,
         'outputDirectory': str(Path(framesDirectory)),
@@ -375,7 +447,7 @@ def renderKpgCinematicAnimations(
     samples = buildImpactSamples(event)
     footer = (
         'Chicxulub · Hildebrand+ 1991 / Renne+ 2013 · Earth pack · '
-        'inbound distance from these numbers · flash and veil schematic'
+        'inbound distance from these numbers · fireball and ejecta schematic'
     )
     outputRoot = Path(outputDirectory)
     bodyDirectory = bodyOutputDirectory('planet', 'Earth', root=outputRoot)
@@ -404,7 +476,13 @@ def renderKpgCinematicAnimations(
                     dark=themeName == 'dark',
                 )
             gifPath = galleryDirectory / f'earth_kpg_{themeName}.gif'
-            assembleGifFromPngs(framePaths, gifPath, fps=ANIMATION_FPS, outputSize=GALLERY_SIZE)
+            assembleGifFromPngs(
+                framePaths,
+                gifPath,
+                fps=ANIMATION_FPS,
+                outputSize=GALLERY_SIZE,
+                optimize=False,
+            )
             written.append(gifPath)
             print(f'Saved {gifPath}')
     print('K–Pg cinema completed!')
@@ -422,6 +500,9 @@ __all__ = [
     'buildKpgJob',
     'captionForSample',
     'inboundDirection',
+    'contactEnvelope',
+    'ejectaDirections',
+    'flashEnvelope',
     'inboundKmAtFrame',
     'impactNormal',
     'loadImpactEvent',

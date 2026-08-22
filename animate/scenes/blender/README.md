@@ -36,7 +36,7 @@ Render the first polished Earth flyby (light + dark GIFs; needs `blender` on `PA
 .venv/bin/python render.py blender --body Earth --flyby --theme dark
 ```
 
-K–Pg cinema (Earth + true-scale impactor, camera dive; needs `blender` on PATH):
+K–Pg cinema (Earth + true-scale impactor, schematic fireball and ejecta; needs `blender` on PATH):
 
 ```bash
 .venv/bin/python render.py animate --system kpg_cinematic

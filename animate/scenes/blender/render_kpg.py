@@ -1,7 +1,8 @@
 """Blender renderer for the K–Pg Earth-impact job.
 
 Host writes a kpg-job JSON; this script (stdlib + bpy) places Earth, a true-scale
-impactor, a diving camera and a schematic flash/veil::
+impactor, a diving camera and a Hollywood-adjacent schematic contact
+(fireball, 45° ejecta curtain, dust plume)::
 
     blender --background --python animate/scenes/blender/render_kpg.py -- \\
         output/animate/blender/planets/earth/earth_kpg_dark_job.json
@@ -43,7 +44,15 @@ def loadKpgJob(path: Path) -> dict[str, Any]:
         raise ValueError(
             f'Unsupported K–Pg job schema: {payload.get("schema")!r} (expected {JOB_SCHEMA_ID!r})'
         )
-    for key in ('theme', 'body', 'impactor', 'frames', 'outputDirectory', 'resolution'):
+    for key in (
+        'theme',
+        'body',
+        'impactor',
+        'contact',
+        'frames',
+        'outputDirectory',
+        'resolution',
+    ):
         if key not in payload:
             raise ValueError(f'K–Pg job missing required key: {key}')
     if not payload['frames']:
@@ -54,6 +63,85 @@ def loadKpgJob(path: Path) -> dict[str, Any]:
 def _keyLocation(obj: Any, location: tuple[float, float, float], frame: int) -> None:
     obj.location = location
     obj.keyframe_insert(data_path='location', frame=frame)
+
+
+def _keyScale(obj: Any, scale: float, frame: int, *, zScale: float = 1.0) -> None:
+    obj.scale = (scale, scale, scale * zScale)
+    obj.keyframe_insert(data_path='scale', frame=frame)
+    obj.hide_render = scale < 1e-4
+    obj.keyframe_insert(data_path='hide_render', frame=frame)
+
+
+def _alignPlusZ(obj: Any, direction: tuple[float, float, float]) -> None:
+    import mathutils  # type: ignore[import-not-found]
+
+    target = mathutils.Vector(direction)
+    if target.length < 1e-12:
+        return
+    target.normalize()
+    obj.rotation_mode = 'QUATERNION'
+    obj.rotation_quaternion = mathutils.Vector((0.0, 0.0, 1.0)).rotation_difference(target)
+
+
+def _emissionMaterial(
+    bpy: Any,
+    name: str,
+    color: tuple[float, float, float],
+    strength: float,
+    alpha: float,
+) -> Any:
+    material = bpy.data.materials.new(name=name)
+    material.use_nodes = True
+    nodeTree = material.node_tree
+    nodes = nodeTree.nodes
+    links = nodeTree.links
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    emission = nodes.new('ShaderNodeEmission')
+    emission.inputs['Color'].default_value = (color[0], color[1], color[2], 1.0)
+    emission.inputs['Strength'].default_value = strength
+    if alpha >= 0.999:
+        links.new(emission.outputs['Emission'], output.inputs['Surface'])
+        return material
+    mix = nodes.new('ShaderNodeMixShader')
+    transparent = nodes.new('ShaderNodeBsdfTransparent')
+    mix.inputs['Fac'].default_value = 1.0 - alpha
+    links.new(emission.outputs['Emission'], mix.inputs[1])
+    links.new(transparent.outputs['BSDF'], mix.inputs[2])
+    links.new(mix.outputs['Shader'], output.inputs['Surface'])
+    if hasattr(material, 'surface_render_method'):
+        material.surface_render_method = 'BLENDED'
+    elif hasattr(material, 'blend_method'):
+        material.blend_method = 'BLEND'
+    return material
+
+
+def _createEjectaCone(
+    bpy: Any,
+    name: str,
+    *,
+    baseRadius: float,
+    tipRadius: float,
+    height: float,
+) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_cone(
+        builder,
+        cap_ends=False,
+        cap_tris=False,
+        segments=12,
+        radius1=max(baseRadius, 1e-6),
+        radius2=max(tipRadius, 1e-6),
+        depth=height,
+    )
+    builder.to_mesh(mesh)
+    builder.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
 
 
 def _softenCloseupTextures(material: Any) -> None:
@@ -110,14 +198,91 @@ def _buildImpactor(bpy: Any, flyby: ModuleType, job: dict[str, Any], earthRadius
     return impactor
 
 
+def _offsetAlong(
+    origin: tuple[float, float, float],
+    direction: tuple[float, float, float],
+    distance: float,
+) -> tuple[float, float, float]:
+    return (
+        origin[0] + direction[0] * distance,
+        origin[1] + direction[1] * distance,
+        origin[2] + direction[2] * distance,
+    )
+
+
+def _buildEjectaStreaks(
+    bpy: Any,
+    contact: dict[str, Any],
+    earthRadius: float,
+    surface: tuple[float, float, float],
+) -> list[Any]:
+    height = earthRadius * float(contact['maxEjectaRadii'])
+    thickness = height * 0.07
+    material = _emissionMaterial(bpy, 'KpgEjectaMat', (0.97, 0.42, 0.12), 7.5, 0.78)
+    streaks: list[Any] = []
+    for index, raw in enumerate(contact['ejectaDirections']):
+        direction = tuple(float(value) for value in raw)
+        spike = _createEjectaCone(
+            bpy,
+            f'KpgEjecta{index:02d}',
+            baseRadius=thickness,
+            tipRadius=thickness * 0.14,
+            height=height,
+        )
+        _alignPlusZ(spike, direction)
+        spike.location = _offsetAlong(surface, direction, height * 0.5)
+        spike.data.materials.append(material)
+        streaks.append(spike)
+    return streaks
+
+
+def _buildContactDrawings(
+    bpy: Any,
+    flyby: ModuleType,
+    job: dict[str, Any],
+    earthRadius: float,
+) -> tuple[Any, Any, list[Any], Any, tuple[float, float, float]]:
+    contact = job['contact']
+    normal = tuple(float(value) for value in contact['normal'])
+    surface = tuple(component * earthRadius for component in normal)
+    fireballRadius = earthRadius * float(contact['maxFireballRadii'])
+    plumeRadius = earthRadius * float(contact['maxPlumeRadii'])
+
+    fireball = flyby._createBodySphere(bpy, 'KpgFireball', fireballRadius)
+    fireball.location = _offsetAlong(surface, normal, fireballRadius * 0.55)
+    fireball.data.materials.append(
+        _emissionMaterial(bpy, 'KpgFireballMat', (1.0, 0.62, 0.22), 14.0, 0.88)
+    )
+    core = flyby._createBodySphere(bpy, 'KpgFireballCore', fireballRadius * 0.38)
+    core.location = fireball.location
+    core.data.materials.append(
+        _emissionMaterial(bpy, 'KpgFireballCoreMat', (1.0, 0.92, 0.72), 32.0, 1.0)
+    )
+
+    streaks = _buildEjectaStreaks(bpy, contact, earthRadius, surface)
+
+    plume = flyby._createBodySphere(bpy, 'KpgPlume', plumeRadius)
+    plume.scale = (1.0, 1.0, 0.62)
+    plume.location = _offsetAlong(surface, normal, plumeRadius * 0.28)
+    plume.data.materials.append(
+        _emissionMaterial(bpy, 'KpgPlumeMat', (0.30, 0.22, 0.16), 1.4, 0.42)
+    )
+    return fireball, core, streaks, plume, surface
+
+
 def _keyframeShot(
     camera: Any,
     lookAt: Any,
     impactor: Any,
     flash: Any,
+    fireball: Any,
+    core: Any,
+    streaks: list[Any],
+    plume: Any,
     lightData: Any,
     flashData: Any,
     sunEnergy: float,
+    flashEnergy: float,
     frames: list[dict[str, Any]],
 ) -> None:
     for sample in frames:
@@ -126,9 +291,16 @@ def _keyframeShot(
         _keyLocation(lookAt, tuple(float(value) for value in sample['lookAtAu']), frame)
         _keyLocation(impactor, tuple(float(value) for value in sample['impactorAu']), frame)
         _keyLocation(flash, tuple(float(value) for value in sample['impactorAu']), frame)
+        _keyScale(fireball, float(sample['fireballScale']), frame)
+        _keyScale(core, float(sample['fireballScale']), frame)
+        for spike in streaks:
+            _keyScale(spike, float(sample['ejectaScale']), frame)
+        _keyScale(plume, float(sample['plumeScale']), frame, zScale=0.62)
+        rockVisible = float(sample['fireballScale']) < 1e-4
+        _keyScale(impactor, 1.0 if rockVisible else 0.0, frame)
         lightData.energy = sunEnergy * float(sample['sunScale'])
         lightData.keyframe_insert(data_path='energy', frame=frame)
-        flashData.energy = 8.0 * float(sample['flashScale'])
+        flashData.energy = flashEnergy * float(sample['flashScale'])
         flashData.keyframe_insert(data_path='energy', frame=frame)
 
 
@@ -144,6 +316,7 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     flyby._clearSceneObjects(bpy)
     earth, radius = _buildEarth(bpy, flyby, job)
     impactor = _buildImpactor(bpy, flyby, job, radius)
+    fireball, core, streaks, plume, surface = _buildContactDrawings(bpy, flyby, job, radius)
 
     lookAt = bpy.data.objects.new('KpgLookAt', None)
     bpy.context.scene.collection.objects.link(lookAt)
@@ -170,10 +343,8 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     lightData.energy = sunEnergy
     lightData.angle = math.radians(4.0)
     sun = bpy.data.objects.new('KpgSun', lightData)
-    strike = max(frames, key=lambda sample: float(sample['flashScale']))
-    site = [float(value) for value in strike['impactorAu']]
-    siteLength = math.sqrt(sum(component * component for component in site)) or 1.0
-    sun.location = tuple(component / siteLength * radius * 16.0 for component in site)
+    siteLength = math.sqrt(sum(component * component for component in surface)) or 1.0
+    sun.location = tuple(component / siteLength * radius * 16.0 for component in surface)
     scene.collection.objects.link(sun)
     sunTrack = sun.constraints.new(type='TRACK_TO')
     sunTrack.target = earth
@@ -182,9 +353,25 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
 
     flashData = bpy.data.lights.new('KpgFlash', type='POINT')
     flashData.energy = 0.0
+    flashData.color = (1.0, 0.72, 0.38)
     flash = bpy.data.objects.new('KpgFlash', flashData)
     scene.collection.objects.link(flash)
-    _keyframeShot(camera, lookAt, impactor, flash, lightData, flashData, sunEnergy, frames)
+    flashEnergy = 12.0 if theme == 'dark' else 9.0
+    _keyframeShot(
+        camera,
+        lookAt,
+        impactor,
+        flash,
+        fireball,
+        core,
+        streaks,
+        plume,
+        lightData,
+        flashData,
+        sunEnergy,
+        flashEnergy,
+        frames,
+    )
 
     flyby._configureWorld(bpy, theme)
     flyby._configureFlybyRenderer(

@@ -5,6 +5,7 @@
 #   values (Alvarez et al. 1980; Collins et al. 2005 quote a 10-15 km range).
 # Crater diameter 180 km. One row — this is not a fitted catalogue.
 # The film uses the modern Blue Marble map as a labelled stand-in for
-#   Late Cretaceous geography. Flash and dust veil are schematic.
+#   Late Cretaceous geography. Fireball, 45° ejecta curtain and dust veil
+#   are Hollywood-adjacent schematic, not a hydro simulation.
 name,latitude_deg,longitude_deg,age_ma,crater_diameter_km,impactor_diameter_km,speed_km_s
 Chicxulub,21.4,-89.5,66.0,180,10,20

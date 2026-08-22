@@ -213,6 +213,7 @@ def assembleGifFromPngs(
     *,
     fps: int = DEFAULT_FLYBY_FPS,
     outputSize: int | None = None,
+    optimize: bool = True,
 ) -> Path:
     if not framePaths:
         raise ValueError('No PNG frames to assemble into a GIF')
@@ -242,7 +243,7 @@ def assembleGifFromPngs(
         append_images=images[1:],
         duration=durationMs,
         loop=0,
-        optimize=True,
+        optimize=optimize,
     )
     for image in images:
         image.close()
