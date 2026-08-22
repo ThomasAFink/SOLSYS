@@ -2,9 +2,9 @@
 
 Stay on Earth. The playhead is inbound distance, not a chart. A 10 km rock is a
 speck against a 12,742 km planet, so the film dives until that speck is
-readable. Contact is Hollywood-adjacent and still labelled schematic: fireball,
-a 45° ejecta curtain, then a dust plume. Geography is the modern Blue Marble
-map as a stand-in.
+readable. Contact is Hollywood-adjacent and still labelled schematic: ember
+fireball, soot, a 45° curtain, ballistic ejecta around the globe, then fallout.
+Geography is the modern Blue Marble map as a stand-in.
 
 Geometry is derived at runtime from `data/chicxulub_kpg.csv` and the Earth
 diameter in PlanetCatalog. Blender renders the move; titles are composited after.
@@ -54,6 +54,8 @@ EJECTA_MAX_RADII = 0.20
 PLUME_MAX_RADII = 0.28
 EJECTA_ANGLE_DEG = 45.0
 EJECTA_COUNT = 16
+PROJECTILE_COUNT = 48
+FALLOUT_SHELL = 0.72
 
 ACT_BOUNDARIES = (
     (QUIET_END, 'quiet'),
@@ -166,6 +168,81 @@ def ejectaDirections(normal: np.ndarray, count: int = EJECTA_COUNT) -> np.ndarra
     return np.asarray(rays, dtype=float)
 
 
+@dataclass(frozen=True)
+class ProjectileLaunch:
+    azimuth: float
+    tiltDeg: float
+    rangeDeg: float
+    loftRadii: float
+    flightSeconds: float
+
+
+def rotateAroundAxis(vector: np.ndarray, axis: np.ndarray, angleRad: float) -> np.ndarray:
+    unit = axis / float(np.linalg.norm(axis))
+    cosine = math.cos(angleRad)
+    return (
+        vector * cosine
+        + np.cross(unit, vector) * math.sin(angleRad)
+        + unit * float(np.dot(unit, vector)) * (1.0 - cosine)
+    )
+
+
+def projectileLaunches(count: int = PROJECTILE_COUNT) -> tuple[ProjectileLaunch, ...]:
+    """Deterministic lofted throws; some land nearby, some go worldwide."""
+    launches: list[ProjectileLaunch] = []
+    for index in range(count):
+        rangeDeg = 35.0 + 140.0 * ((index * 0.271) % 1.0)
+        launches.append(
+            ProjectileLaunch(
+                azimuth=2.0 * math.pi * ((index * 0.6180339887) % 1.0),
+                tiltDeg=32.0 + 48.0 * ((index * 0.415) % 1.0),
+                rangeDeg=rangeDeg,
+                loftRadii=0.16 + 0.38 * ((index * 0.529) % 1.0),
+                flightSeconds=0.7 + 1.3 * (rangeDeg / 175.0),
+            )
+        )
+    return tuple(launches)
+
+
+def projectilePositionRadii(normal: np.ndarray, launch: ProjectileLaunch, frame: int) -> np.ndarray:
+    if frame < IMPACT_FRAME:
+        return normal
+    age = (frame - IMPACT_FRAME) / ANIMATION_FPS
+    progress = smoothStep(age / launch.flightSeconds)
+    east, north = tangentBasis(normal)
+    heading = east * math.cos(launch.azimuth) + north * math.sin(launch.azimuth)
+    axis = np.cross(normal, heading)
+    along = rotateAroundAxis(normal, axis, math.radians(launch.rangeDeg) * progress)
+    height = 1.0 + launch.loftRadii * math.sin(math.pi * progress)
+    return along * height
+
+
+def projectileVisibility(launch: ProjectileLaunch, frame: int) -> float:
+    if frame < IMPACT_FRAME:
+        return 0.0
+    progress = ((frame - IMPACT_FRAME) / ANIMATION_FPS) / launch.flightSeconds
+    if progress < 1.0:
+        return min(1.0, 0.4 + 1.8 * progress)
+    return max(0.42, 1.0 - 0.58 * smoothStep((progress - 1.0) / 0.9))
+
+
+def falloutEnvelope(frame: int) -> float:
+    if frame < IMPACT_FRAME:
+        return 0.0
+    return smoothStep((frame - IMPACT_FRAME) / 38.0)
+
+
+def lightingEnvelope(frame: int, frameCount: int) -> tuple[float, float]:
+    """Sun scale and veil after contact; daylight before."""
+    if frame < IMPACT_FRAME:
+        return 1.0, 0.0
+    if frame < STRIKE_END:
+        strike = smoothStep((frame - IMPACT_FRAME) / (STRIKE_END - IMPACT_FRAME))
+        return 1.0 - 0.35 * strike, 0.28 * strike
+    recover = smoothStep((frame - STRIKE_END) / max(frameCount - 1 - STRIKE_END, 1))
+    return 0.48 + 0.38 * recover, 0.52 * (1.0 - 0.22 * recover)
+
+
 def contactEnvelope(frame: int, frameCount: int) -> tuple[float, float, float]:
     """Fireball size, ejecta and plume after contact; all zero before.
 
@@ -205,6 +282,9 @@ class ImpactSample:
     fireballScale: float
     ejectaScale: float
     plumeScale: float
+    falloutScale: float
+    projectileRadii: tuple[tuple[float, float, float], ...]
+    projectileScale: tuple[float, ...]
     veil: float
     inboundKm: float
     secondsToImpact: float
@@ -238,6 +318,7 @@ def buildImpactSamples(
     east, _north = tangentBasis(normal)
     lift = np.cross(inbound, east)
     lift = lift / float(np.linalg.norm(lift))
+    launches = projectileLaunches()
 
     samples: list[ImpactSample] = []
     for frame in range(frameCount):
@@ -253,17 +334,7 @@ def buildImpactSamples(
         impactor = contact - inbound * remainingRadii
         fireball, ejecta, plume = contactEnvelope(frame, frameCount)
         flash = flashEnvelope(frame)
-        if frame < IMPACT_FRAME:
-            veil = 0.0
-            sunScale = 1.0
-        elif frame < STRIKE_END:
-            strike = smoothStep((frame - IMPACT_FRAME) / (STRIKE_END - IMPACT_FRAME))
-            veil = 0.35 * strike
-            sunScale = 1.0 - 0.45 * strike
-        else:
-            recover = smoothStep((frame - STRIKE_END) / max(frameCount - 1 - STRIKE_END, 1))
-            veil = 0.85 * (1.0 - 0.45 * recover)
-            sunScale = 0.32 + 0.50 * recover
+        sunScale, veil = lightingEnvelope(frame, frameCount)
         samples.append(
             ImpactSample(
                 frame=frame,
@@ -275,6 +346,11 @@ def buildImpactSamples(
                 fireballScale=fireball,
                 ejectaScale=ejecta,
                 plumeScale=plume,
+                falloutScale=falloutEnvelope(frame),
+                projectileRadii=tuple(
+                    _asTuple(projectilePositionRadii(normal, launch, frame)) for launch in launches
+                ),
+                projectileScale=tuple(projectileVisibility(launch, frame) for launch in launches),
                 veil=veil,
                 inboundKm=remainingKm,
                 secondsToImpact=remainingKm / event.speedKmS,
@@ -289,8 +365,8 @@ def titleForAct(act: str) -> str:
     if act == 'approach':
         return 'A 10 km rock, true scale — inbound to the Yucatán'
     if act == 'strike':
-        return 'Contact — fireball and ejecta curtain, labelled schematic'
-    return 'Dust veil — schematic, then the light returns'
+        return 'Contact — fire, smoke and ejecta, labelled schematic'
+    return 'Worldwide fallout — schematic, then a little light returns'
 
 
 def captionForSample(event: ImpactEvent, sample: ImpactSample) -> str:
@@ -309,11 +385,11 @@ def captionForSample(event: ImpactEvent, sample: ImpactSample) -> str:
     if act == 'strike':
         return (
             f'{event.impactorDiameterKm:.0f} km body at {event.speedKmS:.0f} km/s  ·  '
-            f'45° ejecta curtain  ·  schematic, not a hydro simulation'
+            f'ember fireball, soot, 45° ejecta curtain  ·  schematic, not hydro'
         )
     return (
-        f'{event.ageMa:.0f} Ma  ·  the veil is not a climate model  ·  '
-        'recovery is the disk brightening, nothing else'
+        f'{event.ageMa:.0f} Ma  ·  ejecta is found worldwide  ·  '
+        'the rocks and the soot shell are schematic'
     )
 
 
@@ -344,6 +420,12 @@ def buildKpgJob(
                 'fireballScale': sample.fireballScale,
                 'ejectaScale': sample.ejectaScale,
                 'plumeScale': sample.plumeScale,
+                'falloutScale': sample.falloutScale,
+                'projectileAu': [
+                    [component * radius for component in position]
+                    for position in sample.projectileRadii
+                ],
+                'projectileScale': list(sample.projectileScale),
                 'veil': sample.veil,
             }
         )
@@ -372,6 +454,8 @@ def buildKpgJob(
                 [float(component) for component in ray]
                 for ray in ejectaDirections(impactNormal(event))
             ],
+            'projectileCount': PROJECTILE_COUNT,
+            'falloutShell': FALLOUT_SHELL,
         },
         'frames': frames,
         'outputDirectory': str(Path(framesDirectory)),
@@ -447,7 +531,7 @@ def renderKpgCinematicAnimations(
     samples = buildImpactSamples(event)
     footer = (
         'Chicxulub · Hildebrand+ 1991 / Renne+ 2013 · Earth pack · '
-        'inbound distance from these numbers · fireball and ejecta schematic'
+        'inbound distance from these numbers · fire, ejecta and fallout schematic'
     )
     outputRoot = Path(outputDirectory)
     bodyDirectory = bodyOutputDirectory('planet', 'Earth', root=outputRoot)
@@ -502,7 +586,10 @@ __all__ = [
     'inboundDirection',
     'contactEnvelope',
     'ejectaDirections',
+    'falloutEnvelope',
     'flashEnvelope',
+    'projectileLaunches',
+    'projectilePositionRadii',
     'inboundKmAtFrame',
     'impactNormal',
     'loadImpactEvent',
