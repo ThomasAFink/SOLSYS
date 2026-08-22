@@ -736,8 +736,8 @@ CLI: `render.py animate --system pulsar_cinematic` (no Blender pack needed).
 
 1. **Quiet** — Late Cretaceous Earth, modern Blue Marble as a labelled stand-in. The Yucatán faces the camera.
 2. **Approach** — the camera dives. The rock is true scale (10 / 12,742 of Earth's diameter), so it is a speck until the last radii. The inbound clock is distance / 20 km/s.
-3. **Strike** — contact. Ember fireball, soot, and a 45° ejecta curtain, labelled Hollywood-adjacent schematic, not a hydro simulation.
-4. **Veil** — ballistic ejecta around the globe and a soot fallout shell. Worldwide ejecta is observed; the rocks on screen are schematic. Not a climate model.
+3. **Strike** — contact. A baked volumetric fire/smoke plume, labelled Hollywood-adjacent schematic, not a hydro simulation.
+4. **Veil** — irregular debris around the globe and a spreading dust cap. Worldwide ejecta is observed; the rocks on screen are schematic. Not a climate model.
 
 - `output/animate/earth/cinematic/earth_kpg_{light,dark}.gif`
 

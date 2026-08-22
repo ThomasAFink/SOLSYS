@@ -2,7 +2,7 @@
 
 Host writes a kpg-job JSON; this script (stdlib + bpy) places Earth, a true-scale
 impactor, a diving camera and a Hollywood-adjacent schematic contact
-(ember fireball, soot, 45° curtain, global ejecta, fallout shell)::
+(Mantaflow fire/smoke, irregular debris, fallout cap)::
 
     blender --background --python animate/scenes/blender/render_kpg.py -- \\
         output/animate/blender/planets/earth/earth_kpg_dark_job.json
@@ -152,32 +152,75 @@ def _emissionMaterial(
     return material
 
 
-def _createEjectaCone(
-    bpy: Any,
-    name: str,
-    *,
-    baseRadius: float,
-    tipRadius: float,
-    height: float,
-) -> Any:
+def _createCube(bpy: Any, name: str, size: float) -> Any:
     import bmesh  # type: ignore[import-not-found]
 
     mesh = bpy.data.meshes.new(name)
     builder = bmesh.new()
-    bmesh.ops.create_cone(
-        builder,
-        cap_ends=False,
-        cap_tris=False,
-        segments=12,
-        radius1=max(baseRadius, 1e-6),
-        radius2=max(tipRadius, 1e-6),
-        depth=height,
-    )
+    bmesh.ops.create_cube(builder, size=size)
     builder.to_mesh(mesh)
     builder.free()
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
     return obj
+
+
+def _volumeFireMaterial(bpy: Any) -> Any:
+    material = bpy.data.materials.new(name='KpgFireSmoke')
+    material.use_nodes = True
+    nodeTree = material.node_tree
+    nodes = nodeTree.nodes
+    links = nodeTree.links
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    volume = nodes.new('ShaderNodeVolumePrincipled')
+    densityAttr = nodes.new('ShaderNodeAttribute')
+    densityAttr.attribute_name = 'density'
+    flameAttr = nodes.new('ShaderNodeAttribute')
+    flameAttr.attribute_name = 'flame'
+    densityScale = nodes.new('ShaderNodeMath')
+    densityScale.operation = 'MULTIPLY'
+    densityScale.inputs[1].default_value = 9.0
+    emissionScale = nodes.new('ShaderNodeMath')
+    emissionScale.operation = 'MULTIPLY'
+    emissionScale.inputs[1].default_value = 3.4
+    links.new(densityAttr.outputs['Fac'], densityScale.inputs[0])
+    links.new(flameAttr.outputs['Fac'], emissionScale.inputs[0])
+    if 'Density' in volume.inputs:
+        links.new(densityScale.outputs['Value'], volume.inputs['Density'])
+    if 'Emission Strength' in volume.inputs:
+        links.new(emissionScale.outputs['Value'], volume.inputs['Emission Strength'])
+    if 'Color' in volume.inputs:
+        volume.inputs['Color'].default_value = (0.025, 0.02, 0.016, 1.0)
+    if 'Absorption Color' in volume.inputs:
+        volume.inputs['Absorption Color'].default_value = (0.08, 0.04, 0.02, 1.0)
+    if 'Emission Color' in volume.inputs:
+        volume.inputs['Emission Color'].default_value = (1.0, 0.22, 0.03, 1.0)
+    if 'Anisotropy' in volume.inputs:
+        volume.inputs['Anisotropy'].default_value = 0.25
+    if 'Blackbody Intensity' in volume.inputs:
+        volume.inputs['Blackbody Intensity'].default_value = 0.0
+    links.new(volume.outputs['Volume'], output.inputs['Volume'])
+    return material
+
+
+def _enableEeveeVolumes(scene: Any, earthRadius: float) -> None:
+    eevee = getattr(scene, 'eevee', None)
+    if eevee is None:
+        return
+    if hasattr(eevee, 'volumetric_tile_size'):
+        try:
+            eevee.volumetric_tile_size = '4'
+        except TypeError:
+            pass
+    if hasattr(eevee, 'volumetric_samples'):
+        eevee.volumetric_samples = 24
+    if hasattr(eevee, 'use_volumetric_shadows'):
+        eevee.use_volumetric_shadows = True
+    if hasattr(eevee, 'volumetric_start'):
+        eevee.volumetric_start = earthRadius * 0.01
+    if hasattr(eevee, 'volumetric_end'):
+        eevee.volumetric_end = earthRadius * 12.0
 
 
 def _softenCloseupTextures(material: Any) -> None:
@@ -246,67 +289,90 @@ def _offsetAlong(
     )
 
 
-def _buildEjectaStreaks(
-    bpy: Any,
-    contact: dict[str, Any],
-    earthRadius: float,
-    surface: tuple[float, float, float],
-) -> list[Any]:
-    height = earthRadius * float(contact['maxEjectaRadii'])
-    thickness = height * 0.07
-    material = _emissionMaterial(bpy, 'KpgEjectaMat', (0.95, 0.16, 0.02), 3.4, 0.86)
-    streaks: list[Any] = []
-    for index, raw in enumerate(contact['ejectaDirections']):
-        direction = tuple(float(value) for value in raw)
-        spike = _createEjectaCone(
-            bpy,
-            f'KpgEjecta{index:02d}',
-            baseRadius=thickness,
-            tipRadius=thickness * 0.14,
-            height=height,
-        )
-        _alignPlusZ(spike, direction)
-        spike.location = _offsetAlong(surface, direction, height * 0.5)
-        spike.data.materials.append(material)
-        streaks.append(spike)
-    return streaks
+def _impactFrame(frames: list[dict[str, Any]]) -> int:
+    for sample in frames:
+        if float(sample.get('flashScale', 0.0)) > 0.0:
+            return int(sample['frame'])
+    return int(frames[0]['frame'])
 
 
-def _buildContactDrawings(
+def _buildSmokeSim(
     bpy: Any,
     flyby: ModuleType,
     job: dict[str, Any],
+    earth: Any,
     earthRadius: float,
-) -> tuple[Any, Any, list[Any], Any, Any, tuple[float, float, float]]:
+    frames: list[dict[str, Any]],
+) -> tuple[Any, Any, tuple[float, float, float]]:
     contact = job['contact']
     normal = tuple(float(value) for value in contact['normal'])
     surface = tuple(component * earthRadius for component in normal)
-    fireballRadius = earthRadius * float(contact['maxFireballRadii'])
-    plumeRadius = earthRadius * float(contact['maxPlumeRadii'])
+    domainSize = earthRadius * float(contact['smokeDomainRadii'])
+    domain = _createCube(bpy, 'KpgSmokeDomain', domainSize)
+    _alignPlusZ(domain, normal)
+    domain.location = _offsetAlong(surface, normal, domainSize * 0.42)
+    domain.hide_select = False
+    fluid = domain.modifiers.new(name='Fluid', type='FLUID')
+    fluid.fluid_type = 'DOMAIN'
+    settings = fluid.domain_settings
+    settings.domain_type = 'GAS'
+    settings.resolution_max = int(contact['smokeResolution'])
+    settings.cache_type = 'ALL'
+    settings.cache_directory = str(Path(job['outputDirectory']) / 'fluid_cache')
+    settings.cache_frame_start = int(frames[0]['frame'])
+    settings.cache_frame_end = int(frames[-1]['frame'])
+    settings.use_adaptive_domain = True
+    settings.vorticity = 0.35
+    settings.burning_rate = 0.7
+    settings.flame_smoke = 1.2
+    settings.use_dissolve_smoke = True
+    settings.dissolve_speed = 22
+    if hasattr(settings, 'gravity'):
+        settings.gravity = (-normal[0] * 9.81, -normal[1] * 9.81, -normal[2] * 9.81)
+    domain.data.materials.append(_volumeFireMaterial(bpy))
 
-    fireball = flyby._createBodySphere(bpy, 'KpgFireball', fireballRadius)
-    fireball.location = _offsetAlong(surface, normal, fireballRadius * 0.55)
-    fireball.data.materials.append(
-        _emissionMaterial(bpy, 'KpgFireballMat', (0.95, 0.18, 0.02), 3.1, 0.9)
-    )
-    core = flyby._createBodySphere(bpy, 'KpgFireballCore', fireballRadius * 0.34)
-    core.location = fireball.location
-    core.data.materials.append(
-        _emissionMaterial(bpy, 'KpgFireballCoreMat', (1.0, 0.40, 0.04), 5.2, 1.0)
-    )
+    emitter = flyby._createBodySphere(bpy, 'KpgSmokeFlow', earthRadius * 0.04)
+    emitter.location = _offsetAlong(surface, normal, earthRadius * 0.03)
+    emitter.hide_render = True
+    flowMod = emitter.modifiers.new(name='Fluid', type='FLUID')
+    flowMod.fluid_type = 'FLOW'
+    flow = flowMod.flow_settings
+    flow.flow_type = 'BOTH'
+    flow.flow_behavior = 'INFLOW'
+    flow.density = 1.0
+    flow.fuel_amount = 1.0
+    flow.temperature = 2.0
+    flow.smoke_color = (0.04, 0.03, 0.025)
+    flow.use_initial_velocity = True
+    flow.velocity_normal = 2.4
+    start = _impactFrame(frames)
+    stop = start + int(contact['smokeInflowFrames'])
+    flow.use_inflow = False
+    flow.keyframe_insert(data_path='use_inflow', frame=start - 1)
+    flow.use_inflow = True
+    flow.keyframe_insert(data_path='use_inflow', frame=start)
+    flow.use_inflow = True
+    flow.keyframe_insert(data_path='use_inflow', frame=stop)
+    flow.use_inflow = False
+    flow.keyframe_insert(data_path='use_inflow', frame=stop + 1)
 
-    streaks = _buildEjectaStreaks(bpy, contact, earthRadius, surface)
+    collide = earth.modifiers.new(name='Fluid', type='FLUID')
+    collide.fluid_type = 'EFFECTOR'
+    if hasattr(collide, 'effector_settings'):
+        collide.effector_settings.effector_type = 'COLLISION'
+    return domain, emitter, surface
 
-    plume = flyby._createBodySphere(bpy, 'KpgPlume', plumeRadius)
-    plume.scale = (1.0, 1.0, 0.62)
-    plume.location = _offsetAlong(surface, normal, plumeRadius * 0.28)
-    soot, _mix = _sootMaterial(bpy, 'KpgPlumeMat', (0.04, 0.03, 0.022), 0.82)
-    plume.data.materials.append(soot)
-    stem = flyby._createBodySphere(bpy, 'KpgSmokeStem', plumeRadius * 0.38)
-    stem.location = _offsetAlong(surface, normal, plumeRadius * 0.55)
-    stemSoot, _stemMix = _sootMaterial(bpy, 'KpgStemMat', (0.03, 0.022, 0.016), 0.84)
-    stem.data.materials.append(stemSoot)
-    return fireball, core, streaks, plume, stem, surface
+
+def _bakeGasDomain(bpy: Any, domain: Any) -> None:
+    viewLayer = bpy.context.view_layer
+    viewLayer.objects.active = domain
+    domain.select_set(True)
+    override = {'active_object': domain, 'object': domain, 'selected_objects': [domain]}
+    try:
+        with bpy.context.temp_override(**override):
+            bpy.ops.fluid.bake_all()
+    except (TypeError, RuntimeError, AttributeError):
+        bpy.ops.fluid.bake_all()
 
 
 def _buildFalloutShell(
@@ -324,15 +390,32 @@ def _buildFalloutShell(
     return cap, mix
 
 
-def _buildProjectiles(
-    bpy: Any, flyby: ModuleType, job: dict[str, Any], earthRadius: float
-) -> list[Any]:
+def _createDebrisChunk(bpy: Any, name: str, radius: float, seed: int) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_icosphere(builder, subdivisions=2, radius=radius)
+    state = seed * 997 + 13
+    for vert in builder.verts:
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        vert.co *= 1.0 + 0.45 * ((state / 0x7FFFFFFF) - 0.5)
+    builder.to_mesh(mesh)
+    builder.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    stretch = 0.35 + 0.8 * ((seed * 0.37) % 1.0)
+    obj.scale = (1.0, stretch, 0.45 + 0.4 * ((seed * 0.19) % 1.0))
+    return obj
+
+
+def _buildProjectiles(bpy: Any, job: dict[str, Any], earthRadius: float) -> list[Any]:
     count = int(job['contact']['projectileCount'])
-    glowing = _emissionMaterial(bpy, 'KpgProjectileMat', (0.88, 0.18, 0.03), 2.4, 1.0)
+    glowing = _emissionMaterial(bpy, 'KpgDebrisMat', (0.22, 0.09, 0.04), 0.9, 1.0)
     rocks: list[Any] = []
     for index in range(count):
-        radius = earthRadius * (0.014 + 0.018 * ((index * 0.37) % 1.0))
-        rock = flyby._createBodySphere(bpy, f'KpgProjectile{index:02d}', radius)
+        radius = earthRadius * (0.011 + 0.016 * ((index * 0.41) % 1.0))
+        rock = _createDebrisChunk(bpy, f'KpgDebris{index:02d}', radius, index + 1)
         rock.data.materials.append(glowing)
         rocks.append(rock)
     return rocks
@@ -348,11 +431,6 @@ def _keyframeShot(
     lookAt: Any,
     impactor: Any,
     flash: Any,
-    fireball: Any,
-    core: Any,
-    streaks: list[Any],
-    plume: Any,
-    stem: Any,
     fallout: Any,
     falloutMix: Any,
     projectiles: list[Any],
@@ -368,22 +446,19 @@ def _keyframeShot(
         _keyLocation(lookAt, tuple(float(value) for value in sample['lookAtAu']), frame)
         _keyLocation(impactor, tuple(float(value) for value in sample['impactorAu']), frame)
         _keyLocation(flash, tuple(float(value) for value in sample['impactorAu']), frame)
-        _keyScale(fireball, float(sample['fireballScale']), frame)
-        _keyScale(core, float(sample['fireballScale']), frame)
-        for spike in streaks:
-            _keyScale(spike, float(sample['ejectaScale']), frame)
-        _keyScale(plume, float(sample['plumeScale']), frame, zScale=0.62)
-        _keyScale(stem, float(sample['plumeScale']), frame, zScale=1.8)
         _keyScale(fallout, float(sample['falloutScale']), frame)
         _keyMixFac(falloutMix, 1.0 - 0.7 * float(sample['falloutScale']), frame)
-        for rock, position, scale in zip(
-            projectiles,
-            sample['projectileAu'],
-            sample['projectileScale'],
-            strict=True,
+        for index, (rock, position, scale) in enumerate(
+            zip(projectiles, sample['projectileAu'], sample['projectileScale'], strict=True)
         ):
             _keyLocation(rock, tuple(float(value) for value in position), frame)
             _keyScale(rock, float(scale), frame)
+            rock.rotation_euler = (
+                0.21 * index + 0.11 * frame,
+                0.17 * index + 0.07 * frame,
+                0.09 * frame,
+            )
+            rock.keyframe_insert(data_path='rotation_euler', frame=frame)
         rockVisible = float(sample['fireballScale']) < 1e-4
         _keyScale(impactor, 1.0 if rockVisible else 0.0, frame)
         lightData.energy = sunEnergy * float(sample['sunScale'])
@@ -404,9 +479,9 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     flyby._clearSceneObjects(bpy)
     earth, radius = _buildEarth(bpy, flyby, job)
     impactor = _buildImpactor(bpy, flyby, job, radius)
-    fireball, core, streaks, plume, stem, surface = _buildContactDrawings(bpy, flyby, job, radius)
+    domain, _emitter, surface = _buildSmokeSim(bpy, flyby, job, earth, radius, frames)
     fallout, falloutMix = _buildFalloutShell(bpy, flyby, job, radius, surface)
-    projectiles = _buildProjectiles(bpy, flyby, job, radius)
+    projectiles = _buildProjectiles(bpy, job, radius)
 
     lookAt = bpy.data.objects.new('KpgLookAt', None)
     bpy.context.scene.collection.objects.link(lookAt)
@@ -452,11 +527,6 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
         lookAt,
         impactor,
         flash,
-        fireball,
-        core,
-        streaks,
-        plume,
-        stem,
         fallout,
         falloutMix,
         projectiles,
@@ -481,6 +551,13 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     viewSettings = getattr(scene, 'view_settings', None)
     if viewSettings is not None and theme == 'light':
         viewSettings.exposure = 0.12
+    _enableEeveeVolumes(scene, radius)
+    impactStart = _impactFrame(frames)
+    for sample in frames:
+        domain.hide_render = int(sample['frame']) < impactStart
+        domain.keyframe_insert(data_path='hide_render', frame=int(sample['frame']))
+    print('Baking K–Pg fire/smoke cache...')
+    _bakeGasDomain(bpy, domain)
     bpy.ops.render.render(animation=True)
     written = sorted(outputDirectory.glob('frame_*.png'))
     if not written:
