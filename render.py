@@ -150,7 +150,7 @@ def buildParser() -> argparse.ArgumentParser:
             'pulsar_cinematic = pulsar lighthouse (EPN folded profiles + ATNF ages); '
             'rr_lyrae_cinematic = RR Lyrae / horizontal-branch clocks '
             '(OGLE-IV Magellanic Bailey diagram); '
-            'kpg_cinematic = K–Pg / Chicxulub camera-move impact, schematic fireball (Earth pack); '
+            'kpg_cinematic = K–Pg / Chicxulub Yucatán cinema (Earth pack); '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
