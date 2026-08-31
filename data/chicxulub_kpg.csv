@@ -4,10 +4,11 @@
 # Impactor diameter 10 km and speed 20 km/s are the round published teaching
 #   values (Alvarez et al. 1980; Collins et al. 2005 quote a 10-15 km range).
 # Crater diameter 180 km. One row — this is not a fitted catalogue.
-# The film uses the modern Blue Marble map as a labelled stand-in for
-#   Late Cretaceous geography. Volumetric fire/smoke, irregular debris and
-#   the fallout cap are Hollywood-adjacent schematic, not hydro.
-# Worldwide ejecta is observed (Alvarez et al. 1980); the rocks on screen
-#   are a labelled drawing of that fact.
+# The globe uses an artist reconstruction of Late Cretaceous geography
+#   (not a palaeomap). The rock is true scale and too small to see on a globe.
+#   Contact is a scripted cinema cascade on that globe (entry, slam, crust
+#   tear, ejecta, tsunami rings, wildfire, soot), not a hydro model.
+# Worldwide ejecta is observed (Alvarez et al. 1980); this drawing does not
+#   invent a debris field.
 name,latitude_deg,longitude_deg,age_ma,crater_diameter_km,impactor_diameter_km,speed_km_s
 Chicxulub,21.4,-89.5,66.0,180,10,20

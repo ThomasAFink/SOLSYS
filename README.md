@@ -87,7 +87,7 @@ SOLSYS/
 │       ├── rr_lyrae_cinematic.py                  # RR Lyrae / horizontal-branch clocks (#160)
 │       ├── type_ia_cinematic.py                   # Type Ia standard candles, Pantheon+ Hubble diagram (#126)
 │       ├── pulsar_cinematic.py                    # pulsar lighthouse, EPN profiles + ATNF ages (#103)
-│       ├── kpg_cinematic.py                       # K–Pg / Chicxulub camera-move impact (#86 / #210)
+│       ├── kpg_cinematic.py                       # K–Pg / Chicxulub Yucatán cinema (#86 / #210)
 │       ├── interstellar_objects.py                # 1I/2I/3I hyperbolic passages (side + oblique)
 │       └── blender/                               # Blender close-up pipeline (catalog → JSON → bpy)
 │           ├── README.md                          # Pipeline docs + CLI examples
@@ -98,7 +98,7 @@ SOLSYS/
 │           ├── flyby_camera.py                    # Body-centered close-up camera path
 │           ├── flyby_scene.py                     # Host close-up orchestration + GIF assembly
 │           ├── render_flyby.py                    # Blender EEVEE PNG close-up renderer
-│           └── render_kpg.py                      # Blender Earth + fireball / ejecta (#86 / #210)
+│           └── render_kpg.py                      # Blender Earth + fire on the Yucatán (#86 / #210)
 │
 ├── static/                                        # SIDE PRODUCT — still images
 │   ├── __init__.py
@@ -119,7 +119,7 @@ SOLSYS/
 │   ├── test_rr_lyrae_cinematic.py                 # Bailey split, Wesenheit, SMC offset vs EBs (#160)
 │   ├── test_type_ia_cinematic.py                  # Δm15, Phillips, Hubble-diagram slope (#126)
 │   ├── test_pulsar_cinematic.py                   # W50, playhead clocks, Crab age vs SN 1054 (#103)
-│   ├── test_kpg_cinematic.py                      # Chicxulub vector, dive, schematic contact (#86 / #210)
+│   ├── test_kpg_cinematic.py                      # Chicxulub vector, globe view, site mark (#86 / #210)
 │   ├── test_blender_body_sprites.py               # Blender sprites + cinematic billboards
 │   └── test_blender_pipeline.py                   # Blender export / ingest scaffold
 │
@@ -147,7 +147,7 @@ SOLSYS/
     ├── animate/
     │   ├── 2d/                                    # inner_solar_system_{light,dark}.gif
     │   ├── 3d/                                    # solar_system_{light,dark}.gif
-│   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
+    │   ├── alpha_centauri/                        # ab / system_wide / proxima_planets GIFs
 │   ├── sol_centauri/                          # classic cinematic GIFs
 │   │   └── blender/                           # cinematic with textured Earth/Moon
 │   ├── sol_trappist/                          # Sol → TRAPPIST-1 cinematic GIFs
@@ -262,7 +262,7 @@ solsys.motion    → moving asteroid fields for animation frames
 |-------|------|
 | ![Pulsar cinema light](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/pulsar/cinematic/pulsar_lighthouse_light.gif?raw=true) | ![Pulsar cinema dark](https://github.com/ThomasAFink/SOLSYS/blob/main/output/animate/pulsar/cinematic/pulsar_lighthouse_dark.gif?raw=true) |
 
-**K–Pg cinema (camera move into Chicxulub, schematic fireball and ejecta)**
+**K–Pg cinema (push into the Yucatán)**
 
 | Light | Dark |
 |-------|------|
@@ -732,12 +732,11 @@ Nothing is precomputed. Duty cycle is the fraction of the folded profile above h
 
 CLI: `render.py animate --system pulsar_cinematic` (no Blender pack needed).
 
-**K–Pg cinema** (issues #86 / #210) is a camera move, not a chart. Stay on Earth. A committed one-row table (`data/chicxulub_kpg.csv`) plus the catalogue Earth diameter drive it: Chicxulub at 21.4°N, 89.5°W, 66.0 Ma, a 10 km body at 20 km/s, a 180 km crater.
+**K–Pg cinema** (issues #86 / #210) is one camera move. A committed one-row table (`data/chicxulub_kpg.csv`) plus the catalogue Earth diameter drive it: Chicxulub at 21.4°N, 89.5°W, 66.0 Ma, a 10 km body at 20 km/s, a 180 km crater.
 
-1. **Quiet** — Late Cretaceous Earth, modern Blue Marble as a labelled stand-in. The Yucatán faces the camera.
-2. **Approach** — the camera dives. The rock is true scale (10 / 12,742 of Earth's diameter), so it is a speck until the last radii. The inbound clock is distance / 20 km/s.
-3. **Strike** — contact. A baked volumetric fire/smoke plume, labelled Hollywood-adjacent schematic, not a hydro simulation.
-4. **Veil** — irregular debris around the globe and a spreading dust cap. Worldwide ejecta is observed; the rocks on screen are schematic. Not a climate model.
+1. **Quiet / Approach** — Late Cretaceous Earth as an artist reconstruction (not a palaeomap). The inbound clock is distance / 20 km/s. The camera pushes from a globe view into the Yucatán. The rock is true scale (10 / 12,742 of Earth's diameter) and too small to see.
+2. **Strike** — cinema-scale rock hits the Yucatán; a shock and soot run across the globe. Not a hydro simulation. The rock is enlarged; true scale is 10/12,742.
+3. **Aftermath** — pull back. Worldwide ejecta is observed; this cut does not invent a climate or a debris field.
 
 - `output/animate/earth/cinematic/earth_kpg_{light,dark}.gif`
 
