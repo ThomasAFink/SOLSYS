@@ -19,7 +19,6 @@ from types import ModuleType
 from typing import Any
 
 JOB_SCHEMA_ID = 'solsys.blender_kpg_job/v1'
-_IMPACT_FRAME = 170
 _SPIN_START = 360
 _SPIN_END = 430
 _VEIL_START_DELAY = 40
@@ -32,19 +31,19 @@ def _smooth01(progress: float) -> float:
     return clamped * clamped * (3.0 - 2.0 * clamped)
 
 
-def _veilAngleRad(frame: int) -> float:
+def _veilAngleRad(frame: int, impactFrame: int) -> float:
     """Dark crawl. Starts after the site cloud, not at the bang."""
-    if frame < _IMPACT_FRAME + _VEIL_START_DELAY:
+    if frame < impactFrame + _VEIL_START_DELAY:
         return 0.0
-    age = (frame - _IMPACT_FRAME - _VEIL_START_DELAY) / _VEIL_GROW_FRAMES
+    age = (frame - impactFrame - _VEIL_START_DELAY) / _VEIL_GROW_FRAMES
     return _VEIL_START_RAD + (math.pi * 1.12 - _VEIL_START_RAD) * _smooth01(age)
 
 
-def _siteCloudRad(frame: int) -> float:
+def _siteCloudRad(frame: int, impactFrame: int) -> float:
     """White impact patch stays at the site, then yields to the crawl."""
-    if frame < _IMPACT_FRAME:
+    if frame < impactFrame:
         return 0.0
-    age = float(frame - _IMPACT_FRAME)
+    age = float(frame - impactFrame)
     grow = _smooth01(age / 8.0)
     fade = _smooth01((age - 36.0) / 55.0)
     leftover = 0.068 * grow * (1.0 - 0.88 * fade)
@@ -53,18 +52,18 @@ def _siteCloudRad(frame: int) -> float:
     return leftover * (1.0 - _smooth01((frame - _SPIN_START) / float(_SPIN_END - _SPIN_START)))
 
 
-def _falloutAngleRad(frame: int) -> float:
+def _falloutAngleRad(frame: int, impactFrame: int) -> float:
     """Molten rain on the globe. Hours compressed."""
-    if frame < _IMPACT_FRAME + 18:
+    if frame < impactFrame + 18:
         return 0.0
-    return 0.05 + (math.pi * 0.72) * _smooth01((frame - _IMPACT_FRAME - 18) / 240.0)
+    return 0.05 + (math.pi * 0.72) * _smooth01((frame - impactFrame - 18) / 240.0)
 
 
-def _blastLampScale(frame: int, flashScale: float) -> float:
+def _blastLampScale(frame: int, flashScale: float, impactFrame: int) -> float:
     """Keep the locked bang at contact. Do not keep lighting half the globe after."""
-    if frame <= _IMPACT_FRAME:
+    if frame <= impactFrame:
         return flashScale
-    return flashScale * math.exp(-0.55 * (frame - _IMPACT_FRAME))
+    return flashScale * math.exp(-0.55 * (frame - impactFrame))
 
 
 def _argvAfterDoubleDash(argv: list[str]) -> list[str]:
@@ -684,10 +683,8 @@ def _driveCloudBlast(
     links: Any,
     shock: Any,
     angle: Any,
-    inside: Any,
     normal: tuple[float, float, float],
 ) -> Any:
-    del inside
     armed = _shockActive(nodes, links, shock)
     lead = _raggedLead(nodes, links, shock)
     swept = nodes.new('ShaderNodeMath')
@@ -859,10 +856,8 @@ def _attachImpactWeather(
     tsunami = _valueNode(nodes, 'KpgTsunami', 0.0)
     dieback = _valueNode(nodes, 'KpgDieback', 0.0)
     angle = _impactAngleSocket(nodes, links, normal, inbound)
-    inside, ring = _shockGates(nodes, links, angle, veil)
-    waveInside, _waveRing = _shockGates(nodes, links, angle, tsunami)
-    del _waveRing
-    front = _driveCloudBlast(nodes, links, tsunami, angle, waveInside, normal)
+    _, ring = _shockGates(nodes, links, angle, veil)
+    front = _driveCloudBlast(nodes, links, tsunami, angle, normal)
     pushed = _mixWaveCloudPush(nodes, links, incoming, angle, tsunami, front)
     cloud = _cloudMask(nodes, links, incoming)
     rim = _colorMix(nodes)
@@ -2798,31 +2793,35 @@ def _keySecondaryPlates(
         _keyBillboard(card, tuple(float(value) for value in sample['cameraAu']), frame)
 
 
-def _keyWeather(weather: dict[str, Any], sample: dict[str, Any], frame: int) -> None:
-    for key, sampleKey in (
-        ('shock', 'shockAngle'),
-        ('fire', 'wildfireAngle'),
-        ('soot', 'soot'),
-        ('flash', 'flashScale'),
-        ('tsunami', 'tsunamiAngle'),
-        ('smolder', 'smolder'),
-        ('veil', 'veilAngle'),
-        ('site', 'site'),
-        ('fallout', 'fallout'),
-        ('glow', 'siteGlow'),
-        ('dieback', 'dieback'),
-    ):
+def _keyWeather(
+    weather: dict[str, Any], sample: dict[str, Any], frame: int, impactFrame: int
+) -> None:
+    derived = {
+        'veil': _veilAngleRad(frame, impactFrame),
+        'site': _siteCloudRad(frame, impactFrame),
+        'fallout': _falloutAngleRad(frame, impactFrame),
+    }
+    sampled = {
+        'shock': 'shockAngle',
+        'fire': 'wildfireAngle',
+        'soot': 'soot',
+        'flash': 'flashScale',
+        'tsunami': 'tsunamiAngle',
+        'smolder': 'smolder',
+        'glow': 'siteGlow',
+        'dieback': 'dieback',
+    }
+    for key, value in derived.items():
         node = weather.get(key)
         if node is None:
             continue
-        if key == 'veil':
-            node.outputs[0].default_value = _veilAngleRad(frame)
-        elif key == 'site':
-            node.outputs[0].default_value = _siteCloudRad(frame)
-        elif key == 'fallout':
-            node.outputs[0].default_value = _falloutAngleRad(frame)
-        else:
-            node.outputs[0].default_value = float(sample.get(sampleKey, 0.0))
+        node.outputs[0].default_value = value
+        node.outputs[0].keyframe_insert(data_path='default_value', frame=frame)
+    for key, sampleKey in sampled.items():
+        node = weather.get(key)
+        if node is None:
+            continue
+        node.outputs[0].default_value = float(sample.get(sampleKey, 0.0))
         node.outputs[0].keyframe_insert(data_path='default_value', frame=frame)
 
 
@@ -2967,6 +2966,7 @@ def _keyframeShot(
     flashEnergy: float,
     frames: list[dict[str, Any]],
 ) -> None:
+    impactFrame = _impactFrame(frames)
     for sample in frames:
         frame = int(sample['frame'])
         _keyLocation(camera, tuple(float(value) for value in sample['cameraAu']), frame)
@@ -2982,7 +2982,9 @@ def _keyframeShot(
         _keyScale(impactor, 1.0 if rockVisible else 0.0, frame)
         lightData.energy = sunEnergy * float(sample['sunScale'])
         lightData.keyframe_insert(data_path='energy', frame=frame)
-        flashData.energy = flashEnergy * _blastLampScale(frame, float(sample['flashScale']))
+        flashData.energy = flashEnergy * _blastLampScale(
+            frame, float(sample['flashScale']), impactFrame
+        )
         flashData.keyframe_insert(data_path='energy', frame=frame)
 
 
@@ -3651,6 +3653,7 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     if tools is not None and hasattr(tools, 'keyframe_interpolation'):
         tools.keyframe_interpolation = 'LINEAR'
 
+    impactFrame = _impactFrame(frames)
     for sample in frames:
         frame = int(sample['frame'])
         earth.rotation_euler = (0.0, 0.0, float(sample.get('earthSpin', 0.0)))
@@ -3666,7 +3669,7 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
             frame,
         )
         _keyRockLook(impactor, sample, frame)
-        _keyWeather(weather, sample, frame)
+        _keyWeather(weather, sample, frame, impactFrame)
         _keyInboundTrail(trail, trailHeight, inbound, sample, frame)
         _keyImpactBurst(bursts, sample, frame, normal, radius)
         _keyCrustPlates(plates, sample, frame, normal, radius)
@@ -3674,7 +3677,9 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
         _keyRocks(rocks, sample, frame)
         surface = (normal[0] * radius, normal[1] * radius, normal[2] * radius)
         _keyLocation(blast, _offsetAlong(surface, normal, radius * 0.08), frame)
-        flashData.energy = flashEnergy * _blastLampScale(frame, float(sample['flashScale']))
+        flashData.energy = flashEnergy * _blastLampScale(
+            frame, float(sample['flashScale']), impactFrame
+        )
         flashData.keyframe_insert(data_path='energy', frame=frame)
         lightData.energy = sunEnergy * float(sample['sunScale'])
         lightData.keyframe_insert(data_path='energy', frame=frame)
