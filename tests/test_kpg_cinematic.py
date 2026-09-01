@@ -198,18 +198,19 @@ class ImpactCameraTests(unittest.TestCase):
             cameraFollowSpinRad(IMPACT_FRAME), earthSpinRad(IMPACT_FRAME), places=9
         )
         self.assertAlmostEqual(cameraFollowSpinRad(0), earthSpinRad(0), places=9)
-        inbound = self.samples[APPROACH_END + 8]
-        rock = np.array(inbound.impactorRadii)
-        spunRock = rotateAroundNorth(rock, cameraFollowSpinRad(inbound.frame))
-        uRock, vRock, rockDepth = projectSiteOnScreen(
-            inbound.cameraRadii,
-            inbound.lookAtRadii,
-            (float(spunRock[0]), float(spunRock[1]), float(spunRock[2])),
-            inbound.lens,
+        lateInbound = self.samples[IMPACT_FRAME - 1]
+        rock = rotateAroundNorth(
+            np.array(lateInbound.impactorRadii), cameraFollowSpinRad(lateInbound.frame)
         )
-        self.assertGreater(rockDepth, 0.0)
-        self.assertGreater(uRock, 0.05)
-        self.assertLess(uRock, 0.95)
+        uRock, _vRock, rockDepth = projectSiteOnScreen(
+            lateInbound.cameraRadii,
+            lateInbound.lookAtRadii,
+            (float(rock[0]), float(rock[1]), float(rock[2])),
+            lateInbound.lens,
+        )
+        self.assertGreater(rockDepth, 0.2)
+        self.assertGreater(uRock, 0.15)
+        self.assertLess(uRock, 0.85)
 
     def test_contact_places_the_impactor_on_the_surface(self) -> None:
         sample = self.samples[IMPACT_FRAME]
