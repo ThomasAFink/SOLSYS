@@ -38,7 +38,7 @@ KPG_EARTH_PACK = Path('data/textures/bodies/earth_kpg')
 ANIMATION_FPS = 20
 ANIMATION_FRAMES = 720
 RENDER_RESOLUTION = 960
-GALLERY_SIZE = 560
+GALLERY_SIZE = 568
 
 INBOUND_START_RADII = 7.2
 OBLIQUITY_FROM_VERTICAL_DEG = 40.0
@@ -48,17 +48,22 @@ APPROACH_END = 120
 ENTRY_END = 170
 IMPACT_FRAME = 170
 CONTACT_END = 190
-CRUST_END = 230
-EJECTA_END = 290
-TSUNAMI_END = 360
+CRUST_END = 210
+EJECTA_END = 235
+TSUNAMI_END = 370
 SPIN_END = 430
-SOOT_END = 520
-TWILIGHT_END = 610
+SOOT_END = 535
+TWILIGHT_END = 585
 HOLD_END = IMPACT_FRAME
+CAMERA_FOLLOW_END = 360
 SLAM_FRAMES = 16
 SPIN_SLOW_RAD_PER_FRAME = math.tau / 1600.0
 SPIN_FAST_RAD_PER_FRAME = math.tau / 180.0
 SPIN_RAMP_FRAMES = 100
+SOOT_SPIN_RAD_PER_FRAME = math.tau / 70.0
+RECOVERY_SPIN_RAD_PER_FRAME = math.tau / 520.0
+SOOT_SPIN_RAMP = 36
+RECOVERY_SPIN_RAMP = 55
 # Drawn rock is enlarged so the inbound slam reads. True scale stays in the CSV.
 CINEMA_ROCK_RADII = 0.010
 ASTEROID_TEXTURE = Path('data/textures/bodies/bennu/color.png')
@@ -82,7 +87,6 @@ ACT_BOUNDARIES = (
     (CRUST_END, 'crust'),
     (EJECTA_END, 'ejecta'),
     (TSUNAMI_END, 'tsunami'),
-    (SPIN_END, 'spin'),
     (SOOT_END, 'soot'),
     (TWILIGHT_END, 'twilight'),
 )
@@ -349,33 +353,52 @@ def smolderEnvelope(frame: int) -> float:
     if frame < IMPACT_FRAME:
         return 0.0
     peak = min(1.0, 0.62 + 0.38 * smoothStep((frame - IMPACT_FRAME) / 6.0))
-    if frame < TSUNAMI_END:
+    if frame < CAMERA_FOLLOW_END:
         return peak
-    return peak * (1.0 - 0.92 * smoothStep((frame - TSUNAMI_END) / float(SPIN_END - TSUNAMI_END)))
+    return peak * (
+        1.0 - 0.92 * smoothStep((frame - CAMERA_FOLLOW_END) / float(SPIN_END - CAMERA_FOLLOW_END))
+    )
 
 
 def siteGlowEnvelope(frame: int) -> float:
-    """Yucatán ember stays through the cascade, then dies as Earth turns."""
+    """Locked bang at contact, then the ember dies with the local fire disk."""
     if frame < IMPACT_FRAME:
         return 0.0
-    if frame < TSUNAMI_END:
+    age = frame - IMPACT_FRAME
+    if age <= 8:
         return 1.0
-    return 1.0 - smoothStep((frame - TSUNAMI_END) / float(SPIN_END - TSUNAMI_END))
+    return 1.0 - smoothStep((age - 8) / 36.0)
+
+
+def _rampIntegral(age: int, startRate: float, endRate: float, ramp: int) -> float:
+    """Spin added over `age` frames: lerp start→end across `ramp`, then hold end."""
+    if age <= 0:
+        return 0.0
+    if ramp <= 0:
+        return age * endRate
+    stepped = min(age, ramp)
+    added = stepped * startRate + (endRate - startRate) * stepped * (stepped + 1) / (2.0 * ramp)
+    if age > ramp:
+        added += (age - ramp) * endRate
+    return added
 
 
 def earthSpinRad(frame: int) -> float:
-    """Axis spin around +Z. Slow from the open, faster after contact. Not a real day."""
+    """Slow inbound, faster after the hit, quicker through soot, ease into recovery."""
     slow = SPIN_SLOW_RAD_PER_FRAME
     fast = SPIN_FAST_RAD_PER_FRAME
-    ramp = float(SPIN_RAMP_FRAMES)
+    sootFast = SOOT_SPIN_RAD_PER_FRAME
+    recover = RECOVERY_SPIN_RAD_PER_FRAME
     if frame <= HOLD_END:
         return frame * slow
-    held = HOLD_END * slow
-    age = frame - HOLD_END
-    if age <= SPIN_RAMP_FRAMES:
-        return held + age * slow + (fast - slow) * age * (age + 1) / (2.0 * ramp)
-    rampSpin = ramp * slow + (fast - slow) * ramp * (ramp + 1) / (2.0 * ramp)
-    return held + rampSpin + (age - ramp) * fast
+    spin = HOLD_END * slow
+    spin += _rampIntegral(min(frame, SPIN_END) - HOLD_END, slow, fast, SPIN_RAMP_FRAMES)
+    if frame <= SPIN_END:
+        return spin
+    spin += _rampIntegral(min(frame, TWILIGHT_END) - SPIN_END, fast, sootFast, SOOT_SPIN_RAMP)
+    if frame <= TWILIGHT_END:
+        return spin
+    return spin + _rampIntegral(frame - TWILIGHT_END, sootFast, recover, RECOVERY_SPIN_RAMP)
 
 
 def rotateAroundNorth(vector: np.ndarray, angle: float) -> np.ndarray:
@@ -393,21 +416,21 @@ def rotateAroundNorth(vector: np.ndarray, angle: float) -> np.ndarray:
 
 def cameraFollowSpinRad(frame: int) -> float:
     """Track Yucatán at Earth's spin through the hit. Then hold — no reverse catch-up."""
-    if frame <= TSUNAMI_END:
+    if frame <= CAMERA_FOLLOW_END:
         return earthSpinRad(frame)
-    return earthSpinRad(TSUNAMI_END)
+    return earthSpinRad(CAMERA_FOLLOW_END)
 
 
 def diebackEnvelope(frame: int) -> float:
-    """Land stays brown after the fires. Green only creeps back at the end of recovery."""
+    """Barren land first when the light returns. Green only in late recovery."""
     if frame < IMPACT_FRAME + 24:
         return 0.0
     killed = 0.97 * smoothStep((frame - IMPACT_FRAME - 24) / 70.0)
-    regenStart = TWILIGHT_END + 70
-    if frame < regenStart:
+    barrenHold = TWILIGHT_END + 48
+    if frame < barrenHold:
         return killed
-    recover = smoothStep((frame - regenStart) / float(ANIMATION_FRAMES - 1 - regenStart))
-    return killed * (1.0 - 0.18 * recover)
+    recover = smoothStep((frame - barrenHold) / float(ANIMATION_FRAMES - 1 - barrenHold))
+    return killed * (1.0 - 0.78 * recover)
 
 
 def crustTearEnvelope(frame: int) -> float:
@@ -417,12 +440,15 @@ def crustTearEnvelope(frame: int) -> float:
 
 
 def tsunamiAngleRad(frame: int) -> float:
-    # Hours across a basin, compressed. Keep growing past the far limb so
-    # the last ring leaves the shot instead of parking on the globe.
-    if frame < IMPACT_FRAME + 16:
+    # Starts with the shock, slower than the blast. Park past the far limb.
+    # Do not shrink the angle — the shader treats it as radius, so a fade
+    # walks the ring back and reads as a second blast in twilight.
+    start = IMPACT_FRAME + 8
+    if frame < start:
         return 0.0
-    age = frame - IMPACT_FRAME - 16
-    return math.pi * 1.12 * min(1.0, age / 270.0)
+    age = frame - start
+    grow = float(SOOT_END - start)
+    return math.pi * 1.12 * min(1.0, age / grow)
 
 
 def falloutEnvelope(frame: int) -> float:
@@ -463,13 +489,13 @@ def wildfireAngleRad(frame: int) -> float:
 
 
 def sootEnvelope(frame: int) -> float:
-    # Hours-to-years of soot, compressed. Hold until the site cloud has formed.
-    if frame < IMPACT_FRAME + 36:
+    # Hours-to-years of soot, compressed. Keep the inbound and first wave in daylight.
+    if frame < IMPACT_FRAME + 40:
         return 0.0
-    early = 0.82 * smoothStep((frame - IMPACT_FRAME - 36) / 200.0)
+    early = 0.82 * smoothStep((frame - IMPACT_FRAME - 40) / 160.0)
     if frame < SPIN_END:
         return early
-    settled = 0.82 * smoothStep((SPIN_END - IMPACT_FRAME - 36) / 200.0)
+    settled = 0.82 * smoothStep((SPIN_END - IMPACT_FRAME - 40) / 160.0)
     if frame < SOOT_END:
         return settled + (0.96 - settled) * smoothStep(
             (frame - SPIN_END) / float(SOOT_END - SPIN_END)
@@ -555,7 +581,7 @@ def _cameraPoses() -> tuple[tuple[float, ...], ...]:
         (float(IMPACT_FRAME), 0.22, 0.52, 1.70, 0.72, 40.0),
         (float(CRUST_END), 0.30, 0.66, 2.00, 0.52, 37.0),
         (float(EJECTA_END), 0.38, 0.85, 2.35, 0.22, 36.0),
-        (float(TSUNAMI_END), 0.45, 1.00, 2.65, 0.00, 35.0),
+        (float(CAMERA_FOLLOW_END), 0.45, 1.00, 2.65, 0.00, 35.0),
         (float(SPIN_END), 0.58, 0.82, 2.88, 0.00, 34.0),
         (float(SOOT_END), 0.68, 0.58, 3.05, 0.00, 33.0),
         (float(TWILIGHT_END), 0.74, 0.42, 3.18, 0.00, 32.0),
@@ -744,7 +770,10 @@ def captionForSample(event: ImpactEvent, sample: ImpactSample) -> str:
             'not a climate model'
         )
     if act == 'recovery':
-        return 'sunlight returns over ~6 years  ·  land re-greens slowly  ·  years compressed'
+        return (
+            'sunlight returns over ~6 years  ·  barren land first, then re-greens  ·  '
+            'years compressed'
+        )
     return f'{event.ageMa:.0f} Ma  ·  worldwide fallout is observed · not a climate model'
 
 
@@ -1454,6 +1483,7 @@ def renderKpgCinematicAnimations(
 __all__ = [
     'ANIMATION_FRAMES',
     'ACT_BOUNDARIES',
+    'CAMERA_FOLLOW_END',
     'IMPACT_FRAME',
     'ImpactEvent',
     'ImpactSample',

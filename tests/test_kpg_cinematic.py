@@ -248,9 +248,12 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertIn('worldwide', ejecta)
         tsunami = captionForSample(self.event, self.samples[TSUNAMI_END - 4])
         self.assertIn('hours compressed', tsunami)
-        spin = captionForSample(self.event, self.samples[SPIN_END - 4])
-        self.assertIn('glow', spin)
-        self.assertIn('compressed', spin)
+        self.assertIn('water rings', tsunami)
+        earlySoot = captionForSample(self.event, self.samples[TSUNAMI_END + 4])
+        self.assertIn('12', earlySoot)
+        self.assertNotIn('water rings', earlySoot)
+        afterSoot = captionForSample(self.event, self.samples[SOOT_END + 4])
+        self.assertNotIn('water rings', afterSoot)
         soot = captionForSample(self.event, self.samples[SOOT_END - 4])
         self.assertIn('12', soot)
         self.assertIn('hours compressed', soot)
@@ -263,7 +266,7 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertIn('years compressed', recovery)
         self.assertEqual(titleForAct('contact'), 'Contact')
         self.assertEqual(titleForAct('ejecta'), 'Ejecta')
-        self.assertEqual(titleForAct('spin'), 'The globe turns')
+        self.assertEqual(titleForAct('tsunami'), 'Tsunami')
         self.assertEqual(titleForAct('recovery'), 'Recovery')
 
     def test_contact_drawings_are_zero_until_impact(self) -> None:
@@ -311,14 +314,31 @@ class ImpactCameraTests(unittest.TestCase):
             self.samples[IMPACT_FRAME].earthSpin - self.samples[IMPACT_FRAME - 80].earthSpin,
         )
         self.assertGreater(self.samples[-1].earthSpin, 2.0 * math.pi)
+        sootStep = self.samples[SOOT_END].earthSpin - self.samples[SOOT_END - 1].earthSpin
+        midFast = (
+            self.samples[IMPACT_FRAME + 120].earthSpin
+            - self.samples[IMPACT_FRAME + 119].earthSpin
+        )
+        recoverStep = self.samples[-1].earthSpin - self.samples[-2].earthSpin
+        self.assertGreater(sootStep, midFast)
+        self.assertGreater(sootStep, recoverStep)
+        self.assertGreater(midFast, recoverStep)
         self.assertEqual(self.samples[IMPACT_FRAME + 10].dieback, 0.0)
         self.assertGreater(self.samples[TWILIGHT_END - 1].dieback, 0.8)
-        self.assertGreater(self.samples[TWILIGHT_END + 40].dieback, 0.9)
+        self.assertGreater(self.samples[IMPACT_FRAME + 12].tsunamiAngle, 0.0)
+        self.assertGreater(self.samples[SOOT_END].tsunamiAngle, 2.0)
+        self.assertAlmostEqual(
+            self.samples[-1].tsunamiAngle, self.samples[SOOT_END].tsunamiAngle, places=6
+        )
+        self.assertGreater(self.samples[TWILIGHT_END + 20].dieback, 0.8)
         self.assertLess(self.samples[-1].dieback, self.samples[TWILIGHT_END - 1].dieback)
-        self.assertGreater(self.samples[-1].dieback, 0.75)
+        self.assertLess(self.samples[-1].dieback, self.samples[TWILIGHT_END + 20].dieback)
+        self.assertLess(self.samples[-1].dieback, 0.40)
+        self.assertGreater(self.samples[-1].dieback, 0.12)
+        self.assertLess(self.samples[IMPACT_FRAME + 55].siteGlow, 0.15)
+        self.assertGreater(ANIMATION_FRAMES - TWILIGHT_END, 120)
         self.assertLess(self.samples[TWILIGHT_END - 1].sunScale, 0.08)
         self.assertGreater(self.samples[-1].sunScale, 0.7)
-        self.assertGreater(self.samples[-1].tsunamiAngle, 2.0)
         self.assertGreater(FIREBALL_MAX_RADII, CINEMA_ROCK_RADII)
         self.assertEqual(contactPlateAmount(IMPACT_FRAME), 0.0)
 
@@ -370,7 +390,10 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertGreater(job['frames'][-1]['earthSpin'], 2.0 * math.pi)
         self.assertLess(job['frames'][SPIN_END]['siteGlow'], 0.05)
         self.assertGreater(job['frames'][TWILIGHT_END - 1]['dieback'], 0.8)
-        self.assertGreater(job['frames'][-1]['dieback'], 0.75)
+        self.assertGreater(job['frames'][TWILIGHT_END + 20]['dieback'], 0.8)
+        self.assertLess(job['frames'][-1]['dieback'], 0.40)
+        self.assertGreater(job['frames'][-1]['dieback'], 0.12)
+        self.assertLess(job['frames'][-1]['dieback'], job['frames'][TWILIGHT_END - 1]['dieback'])
         self.assertEqual(job['contact']['textures']['explosion'], [])
 
     def test_gallery_gifs_follow_a_custom_output_directory(self) -> None:
