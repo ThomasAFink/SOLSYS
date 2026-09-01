@@ -59,7 +59,6 @@ SLAM_FRAMES = 16
 SPIN_SLOW_RAD_PER_FRAME = math.tau / 1600.0
 SPIN_FAST_RAD_PER_FRAME = math.tau / 180.0
 SPIN_RAMP_FRAMES = 100
-SPIN_RAD_PER_FRAME = SPIN_FAST_RAD_PER_FRAME
 # Drawn rock is enlarged so the inbound slam reads. True scale stays in the CSV.
 CINEMA_ROCK_RADII = 0.010
 ASTEROID_TEXTURE = Path('data/textures/bodies/bennu/color.png')
@@ -74,7 +73,6 @@ ROCK_BURST_COUNT = 26000
 EMBER_BURST_COUNT = 11200
 FALLOUT_SHELL = 0.72
 CRUST_PLATE_COUNT = 6
-ACT_STILL_FRAMES = (20, 80, 145, 175, 210, 255, 320, 400, 480, 560, 680)
 
 ACT_BOUNDARIES = (
     (QUIET_END, 'quiet'),
@@ -370,10 +368,10 @@ def earthSpinRad(frame: int) -> float:
     slow = SPIN_SLOW_RAD_PER_FRAME
     fast = SPIN_FAST_RAD_PER_FRAME
     ramp = float(SPIN_RAMP_FRAMES)
-    if frame <= IMPACT_FRAME:
+    if frame <= HOLD_END:
         return frame * slow
-    held = IMPACT_FRAME * slow
-    age = frame - IMPACT_FRAME
+    held = HOLD_END * slow
+    age = frame - HOLD_END
     if age <= SPIN_RAMP_FRAMES:
         return held + age * slow + (fast - slow) * age * (age + 1) / (2.0 * ramp)
     rampSpin = ramp * slow + (fast - slow) * ramp * (ramp + 1) / (2.0 * ramp)
@@ -1385,6 +1383,17 @@ def _runBlenderKpgJob(jobPath: Path) -> None:
         raise RuntimeError(f'Blender K–Pg render failed with exit code {completed.returncode}')
 
 
+DEFAULT_GALLERY_DIRECTORY = Path('output/animate/earth/cinematic')
+
+
+def kpgGalleryDirectory(outputDirectory: Path | str) -> Path:
+    """GIFs stay in the documented gallery unless the caller picks another root."""
+    root = Path(outputDirectory)
+    if root == DEFAULT_OUTPUT_DIRECTORY:
+        return DEFAULT_GALLERY_DIRECTORY
+    return root / 'earth' / 'cinematic'
+
+
 def renderKpgCinematicAnimations(
     *,
     eventCsvPath: str | Path = DEFAULT_EVENT_CSV,
@@ -1399,7 +1408,7 @@ def renderKpgCinematicAnimations(
     )
     outputRoot = Path(outputDirectory)
     bodyDirectory = bodyOutputDirectory('planet', 'Earth', root=outputRoot)
-    galleryDirectory = Path('output/animate/earth/cinematic')
+    galleryDirectory = kpgGalleryDirectory(outputRoot)
     galleryDirectory.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for themeName in themes:
@@ -1462,6 +1471,8 @@ __all__ = [
     'inboundKmAtFrame',
     'impactNormal',
     'loadImpactEvent',
+    'kpgGalleryDirectory',
+    'DEFAULT_GALLERY_DIRECTORY',
     'renderKpgCinematicAnimations',
     'unitFromLatLon',
     'writeImpactPlate',

@@ -18,6 +18,7 @@ from animate.scenes.kpg_cinematic import (
     APPROACH_END,
     CINEMA_ROCK_RADII,
     DEFAULT_EVENT_CSV,
+    DEFAULT_GALLERY_DIRECTORY,
     EJECTA_END,
     FIREBALL_MAX_RADII,
     HOLD_END,
@@ -45,6 +46,7 @@ from animate.scenes.kpg_cinematic import (
     inboundDirection,
     inboundKmAtFrame,
     inboundTrailScale,
+    kpgGalleryDirectory,
     loadImpactEvent,
     projectileLaunches,
     projectilePositionRadii,
@@ -370,6 +372,13 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertGreater(job['frames'][TWILIGHT_END - 1]['dieback'], 0.8)
         self.assertGreater(job['frames'][-1]['dieback'], 0.75)
         self.assertEqual(job['contact']['textures']['explosion'], [])
+
+    def test_gallery_gifs_follow_a_custom_output_directory(self) -> None:
+        from animate.scenes.blender.export_body import DEFAULT_OUTPUT_DIRECTORY
+
+        self.assertEqual(kpgGalleryDirectory(DEFAULT_OUTPUT_DIRECTORY), DEFAULT_GALLERY_DIRECTORY)
+        custom = Path('/tmp/kpg-out')
+        self.assertEqual(kpgGalleryDirectory(custom), custom / 'earth' / 'cinematic')
 
     def test_ballistic_ejecta_leave_the_yucatan(self) -> None:
         normal = impactNormal(self.event)
