@@ -20,6 +20,8 @@ from typing import Any
 
 JOB_SCHEMA_ID = 'solsys.blender_kpg_job/v1'
 _IMPACT_FRAME = 170
+_SPIN_START = 360
+_SPIN_END = 430
 _VEIL_START_DELAY = 40
 _VEIL_START_RAD = 0.035
 _VEIL_GROW_FRAMES = 250.0
@@ -45,7 +47,10 @@ def _siteCloudRad(frame: int) -> float:
     age = float(frame - _IMPACT_FRAME)
     grow = _smooth01(age / 8.0)
     fade = _smooth01((age - 36.0) / 55.0)
-    return 0.068 * grow * (1.0 - 0.88 * fade)
+    leftover = 0.068 * grow * (1.0 - 0.88 * fade)
+    if frame < _SPIN_START:
+        return leftover
+    return leftover * (1.0 - _smooth01((frame - _SPIN_START) / float(_SPIN_END - _SPIN_START)))
 
 
 def _falloutAngleRad(frame: int) -> float:
@@ -99,6 +104,30 @@ def loadKpgJob(path: Path) -> dict[str, Any]:
     if not payload['frames']:
         raise ValueError('K–Pg job must include frames')
     return payload
+
+
+def _iterActionFcurves(action: Any) -> Any:
+    curves = getattr(action, 'fcurves', None)
+    if curves is not None:
+        yield from curves
+        return
+    for layer in getattr(action, 'layers', []):
+        for strip in getattr(layer, 'strips', []):
+            bag = getattr(strip, 'channelbag', None)
+            if bag is None:
+                continue
+            yield from getattr(bag, 'fcurves', [])
+
+
+def _linearizeEarthSpin(earth: Any) -> None:
+    action = getattr(getattr(earth, 'animation_data', None), 'action', None)
+    if action is None:
+        return
+    for curve in _iterActionFcurves(action):
+        if getattr(curve, 'data_path', '') != 'rotation_euler':
+            continue
+        for key in curve.keyframe_points:
+            key.interpolation = 'LINEAR'
 
 
 def _keyLocation(obj: Any, location: tuple[float, float, float], frame: int) -> None:
@@ -728,11 +757,7 @@ def _mixWaveCloudPush(
     return _mixOut(piled)
 
 
-def _landFireMask(nodes: Any, links: Any, incoming: Any, angle: Any, fire: Any, cloud: Any) -> Any:
-    inside = nodes.new('ShaderNodeMath')
-    inside.operation = 'LESS_THAN'
-    links.new(angle, inside.inputs[0])
-    links.new(fire.outputs[0], inside.inputs[1])
+def _landCoverMask(nodes: Any, links: Any, incoming: Any, cloud: Any) -> Any:
     try:
         land = nodes.new('ShaderNodeSeparateColor')
     except RuntimeError:
@@ -770,11 +795,37 @@ def _landFireMask(nodes: Any, links: Any, incoming: Any, angle: Any, fire: Any, 
     exposed.operation = 'MULTIPLY'
     links.new(clip.outputs['Result'], exposed.inputs[0])
     links.new(clear.outputs['Value'], exposed.inputs[1])
+    return exposed.outputs['Value']
+
+
+def _landFireMask(nodes: Any, links: Any, incoming: Any, angle: Any, fire: Any, cloud: Any) -> Any:
+    inside = nodes.new('ShaderNodeMath')
+    inside.operation = 'LESS_THAN'
+    links.new(angle, inside.inputs[0])
+    links.new(fire.outputs[0], inside.inputs[1])
+    cover = _landCoverMask(nodes, links, incoming, cloud)
     mask = nodes.new('ShaderNodeMath')
     mask.operation = 'MULTIPLY'
     links.new(inside.outputs['Value'], mask.inputs[0])
-    links.new(exposed.outputs['Value'], mask.inputs[1])
+    links.new(cover, mask.inputs[1])
     return mask.outputs['Value']
+
+
+def _mixDieback(nodes: Any, links: Any, color: Any, incoming: Any, cloud: Any, dieback: Any) -> Any:
+    """Hold land brown after the soot lifts. Green only returns with the dieback envelope."""
+    del cloud
+    ocean = _oceanMask(nodes, links, incoming)
+    land = nodes.new('ShaderNodeMath')
+    land.operation = 'SUBTRACT'
+    land.inputs[0].default_value = 1.0
+    links.new(ocean, land.inputs[1])
+    amount = nodes.new('ShaderNodeMath')
+    amount.operation = 'MULTIPLY'
+    links.new(land.outputs['Value'], amount.inputs[0])
+    links.new(dieback.outputs[0], amount.inputs[1])
+    dead = _colorMix(nodes)
+    _linkMix(links, dead, color, (0.17, 0.11, 0.05, 1.0), amount.outputs['Value'])
+    return _mixOut(dead)
 
 
 def _attachImpactWeather(
@@ -806,6 +857,7 @@ def _attachImpactWeather(
     site = _valueNode(nodes, 'KpgSite', 0.0)
     fallout = _valueNode(nodes, 'KpgFallout', 0.0)
     tsunami = _valueNode(nodes, 'KpgTsunami', 0.0)
+    dieback = _valueNode(nodes, 'KpgDieback', 0.0)
     angle = _impactAngleSocket(nodes, links, normal, inbound)
     inside, ring = _shockGates(nodes, links, angle, veil)
     waveInside, _waveRing = _shockGates(nodes, links, angle, tsunami)
@@ -828,14 +880,16 @@ def _attachImpactWeather(
     links.new(landMask, burnAmt.inputs[0])
     _linkMix(links, burned, _mixOut(rim), (0.10, 0.045, 0.02, 1.0), burnAmt.outputs['Value'])
     _linkMix(links, sooted, _mixOut(burned), (0.11, 0.09, 0.08, 1.0), soot.outputs[0])
+    wilted = _mixDieback(nodes, links, _mixOut(sooted), incoming, cloud, dieback)
     smolder = _valueNode(nodes, 'KpgSmolder', 0.0)
-    scar = _mixSmolder(nodes, links, _mixOut(sooted), angle, smolder, veil)
+    scar = _mixSmolder(nodes, links, wilted, angle, smolder, veil)
     umbrella = _mixTongaUmbrella(nodes, links, scar, angle, site, normal)
     rain = _mixMoltenRain(nodes, links, umbrella, angle, fallout)
     foam = _mixTsunamiFoam(nodes, links, rain, angle, tsunami, incoming)
     links.new(foam, principled.inputs['Base Color'])
     flash = _valueNode(nodes, 'KpgFlash', 0.0)
-    _wireImpactEmission(nodes, links, principled, angle, landMask, flash, shock)
+    glow = _valueNode(nodes, 'KpgSiteGlow', 0.0)
+    _wireImpactEmission(nodes, links, principled, angle, landMask, flash, shock, glow)
     return {
         'shock': shock,
         'fire': fire,
@@ -846,6 +900,8 @@ def _attachImpactWeather(
         'veil': veil,
         'site': site,
         'fallout': fallout,
+        'glow': glow,
+        'dieback': dieback,
     }
 
 
@@ -1294,6 +1350,7 @@ def _wireImpactEmission(
     landMask: Any,
     flash: Any,
     shock: Any | None = None,
+    glow: Any | None = None,
 ) -> None:
     if 'Emission Color' in principled.inputs:
         ember = nodes.new('ShaderNodeRGB')
@@ -1354,6 +1411,8 @@ def _wireImpactEmission(
     links.new(flash.outputs[0], punch.inputs[0])
     punch = _mathAdd(nodes, links, punch.outputs['Value'], 1.0)
     emberAmt = _mathMul(nodes, links, emberAmt, punch)
+    if glow is not None:
+        emberAmt = _mathMul(nodes, links, emberAmt, glow.outputs[0])
     total = nodes.new('ShaderNodeMath')
     total.operation = 'ADD'
     links.new(flashAmt.outputs['Value'], total.inputs[0])
@@ -2750,6 +2809,8 @@ def _keyWeather(weather: dict[str, Any], sample: dict[str, Any], frame: int) -> 
         ('veil', 'veilAngle'),
         ('site', 'site'),
         ('fallout', 'fallout'),
+        ('glow', 'siteGlow'),
+        ('dieback', 'dieback'),
     ):
         node = weather.get(key)
         if node is None:
@@ -3196,7 +3257,7 @@ def _buildHeatTrail(
 
 def _addFillLight(
     bpy: Any, scene: Any, earth: Any, sunLocation: tuple[float, float, float], theme: str
-) -> None:
+) -> Any:
     fillData = bpy.data.lights.new('KpgFill', type='SUN')
     fillData.energy = 0.32 if theme == 'dark' else 0.58
     fillData.color = (0.55, 0.68, 1.0)
@@ -3208,6 +3269,7 @@ def _addFillLight(
     track.target = earth
     track.track_axis = 'TRACK_NEGATIVE_Z'
     track.up_axis = 'UP_Y'
+    return fillData
 
 
 def _keyCinematicVolumes(
@@ -3579,10 +3641,20 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     sunTrack.target = earth
     sunTrack.track_axis = 'TRACK_NEGATIVE_Z'
     sunTrack.up_axis = 'UP_Y'
-    _addFillLight(bpy, scene, earth, sun.location, theme)
+    fillData = _addFillLight(bpy, scene, earth, sun.location, theme)
+    fillEnergy = float(fillData.energy)
+    earth.rotation_mode = 'XYZ'
+    impactor.parent = earth
+    trail.parent = earth
+    blast.parent = earth
+    tools = getattr(scene, 'tool_settings', None)
+    if tools is not None and hasattr(tools, 'keyframe_interpolation'):
+        tools.keyframe_interpolation = 'LINEAR'
 
     for sample in frames:
         frame = int(sample['frame'])
+        earth.rotation_euler = (0.0, 0.0, float(sample.get('earthSpin', 0.0)))
+        earth.keyframe_insert(data_path='rotation_euler', frame=frame)
         _keyLocation(camera, tuple(float(value) for value in sample['cameraAu']), frame)
         _keyLocation(lookAt, tuple(float(value) for value in sample['lookAtAu']), frame)
         cameraData.lens = float(sample.get('lens', 35.0))
@@ -3606,6 +3678,9 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
         flashData.keyframe_insert(data_path='energy', frame=frame)
         lightData.energy = sunEnergy * float(sample['sunScale'])
         lightData.keyframe_insert(data_path='energy', frame=frame)
+        fillData.energy = fillEnergy * float(sample['sunScale'])
+        fillData.keyframe_insert(data_path='energy', frame=frame)
+    _linearizeEarthSpin(earth)
 
     _spaceWorld(bpy)
     flyby._configureFlybyRenderer(

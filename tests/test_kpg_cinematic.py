@@ -6,6 +6,7 @@ and the scripted act list from the committed CSV and PlanetCatalog Earth diamete
 
 from __future__ import annotations
 
+import math
 import unittest
 from pathlib import Path
 
@@ -25,13 +26,19 @@ from animate.scenes.kpg_cinematic import (
     KPG_EARTH_PACK,
     PROJECTILE_COUNT,
     QUIET_END,
+    SOOT_END,
+    SPIN_END,
+    TSUNAMI_END,
+    TWILIGHT_END,
     actName,
     buildImpactSamples,
     buildKpgJob,
+    cameraFollowSpinRad,
     captionForSample,
     contactCenterRadii,
     contactPlateAmount,
     debrisRadiusScales,
+    earthSpinRad,
     ejectaDirections,
     falloutEnvelope,
     impactNormal,
@@ -42,6 +49,7 @@ from animate.scenes.kpg_cinematic import (
     projectileLaunches,
     projectilePositionRadii,
     projectSiteOnScreen,
+    rotateAroundNorth,
     titleForAct,
     unitFromLatLon,
 )
@@ -140,8 +148,8 @@ class ImpactCameraTests(unittest.TestCase):
             name = actName(frame)
             if not seen or seen[-1] != name:
                 seen.append(name)
-        self.assertEqual(seen, [name for _, name in ACT_BOUNDARIES] + ['veil'])
-        self.assertEqual(ANIMATION_FRAMES, 480)
+        self.assertEqual(seen, [name for _, name in ACT_BOUNDARIES] + ['recovery'])
+        self.assertEqual(ANIMATION_FRAMES, 720)
 
     def test_the_camera_dives_then_pulls_back(self) -> None:
         def distance(index: int) -> float:
@@ -174,7 +182,7 @@ class ImpactCameraTests(unittest.TestCase):
 
     def test_the_impact_site_projects_onto_the_frame(self) -> None:
         sample = self.samples[IMPACT_FRAME]
-        site = contactCenterRadii(self.event)
+        site = rotateAroundNorth(contactCenterRadii(self.event), cameraFollowSpinRad(IMPACT_FRAME))
         uCoord, vCoord, depth = projectSiteOnScreen(
             sample.cameraRadii,
             sample.lookAtRadii,
@@ -186,6 +194,22 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertLess(uCoord, 0.85)
         self.assertGreater(vCoord, 0.15)
         self.assertLess(vCoord, 0.85)
+        self.assertAlmostEqual(
+            cameraFollowSpinRad(IMPACT_FRAME), earthSpinRad(IMPACT_FRAME), places=9
+        )
+        self.assertAlmostEqual(cameraFollowSpinRad(0), earthSpinRad(0), places=9)
+        inbound = self.samples[APPROACH_END + 8]
+        rock = np.array(inbound.impactorRadii)
+        spunRock = rotateAroundNorth(rock, cameraFollowSpinRad(inbound.frame))
+        uRock, vRock, rockDepth = projectSiteOnScreen(
+            inbound.cameraRadii,
+            inbound.lookAtRadii,
+            (float(spunRock[0]), float(spunRock[1]), float(spunRock[2])),
+            inbound.lens,
+        )
+        self.assertGreater(rockDepth, 0.0)
+        self.assertGreater(uRock, 0.05)
+        self.assertLess(uRock, 0.95)
 
     def test_contact_places_the_impactor_on_the_surface(self) -> None:
         sample = self.samples[IMPACT_FRAME]
@@ -219,12 +243,25 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertIn('hydro', crust)
         ejecta = captionForSample(self.event, self.samples[EJECTA_END - 4])
         self.assertIn('worldwide', ejecta)
-        veil = captionForSample(self.event, self.samples[-1])
-        self.assertIn(f'{self.event.ageMa:.0f}', veil)
-        self.assertIn('worldwide', veil)
+        tsunami = captionForSample(self.event, self.samples[TSUNAMI_END - 4])
+        self.assertIn('hours compressed', tsunami)
+        spin = captionForSample(self.event, self.samples[SPIN_END - 4])
+        self.assertIn('glow', spin)
+        self.assertIn('compressed', spin)
+        soot = captionForSample(self.event, self.samples[SOOT_END - 4])
+        self.assertIn('12', soot)
+        self.assertIn('hours compressed', soot)
+        twilight = captionForSample(self.event, self.samples[TWILIGHT_END - 4])
+        self.assertIn('99%', twilight)
+        self.assertIn('years compressed', twilight)
+        recovery = captionForSample(self.event, self.samples[-1])
+        self.assertIn('6 years', recovery)
+        self.assertIn('re-green', recovery)
+        self.assertIn('years compressed', recovery)
         self.assertEqual(titleForAct('contact'), 'Contact')
         self.assertEqual(titleForAct('ejecta'), 'Ejecta')
-        self.assertEqual(titleForAct('veil'), 'Aftermath')
+        self.assertEqual(titleForAct('spin'), 'The globe turns')
+        self.assertEqual(titleForAct('recovery'), 'Recovery')
 
     def test_contact_drawings_are_zero_until_impact(self) -> None:
         for sample in self.samples[:IMPACT_FRAME]:
@@ -240,6 +277,9 @@ class ImpactCameraTests(unittest.TestCase):
             self.assertEqual(sample.soot, 0.0)
             self.assertEqual(sample.shockAngle, 0.0)
             self.assertEqual(sample.smolder, 0.0)
+            self.assertEqual(sample.siteGlow, 0.0)
+            self.assertEqual(sample.dieback, 0.0)
+            self.assertGreaterEqual(sample.earthSpin, 0.0)
         self.assertEqual(inboundTrailScale(0), 0.0)
         self.assertGreater(inboundTrailScale(IMPACT_FRAME - 1), 0.5)
         self.assertEqual(inboundTrailScale(IMPACT_FRAME), 0.0)
@@ -257,8 +297,24 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertGreater(later.crustTear, 0.1)
         self.assertGreater(self.samples[IMPACT_FRAME + 40].plumeScale, 0.4)
         self.assertGreater(self.samples[-1].shockAngle, 2.5)
-        self.assertGreater(self.samples[-1].soot, 0.5)
-        self.assertGreater(self.samples[-1].smolder, 0.5)
+        self.assertGreater(self.samples[TWILIGHT_END - 1].soot, 0.9)
+        self.assertLess(self.samples[-1].soot, self.samples[TWILIGHT_END - 1].soot)
+        self.assertLess(self.samples[SPIN_END].smolder, 0.15)
+        self.assertLess(self.samples[SPIN_END].siteGlow, 0.05)
+        self.assertGreater(self.samples[IMPACT_FRAME + 10].siteGlow, 0.9)
+        self.assertGreater(self.samples[QUIET_END].earthSpin, 0.0)
+        self.assertGreater(
+            self.samples[IMPACT_FRAME + 80].earthSpin - self.samples[IMPACT_FRAME].earthSpin,
+            self.samples[IMPACT_FRAME].earthSpin - self.samples[IMPACT_FRAME - 80].earthSpin,
+        )
+        self.assertGreater(self.samples[-1].earthSpin, 2.0 * math.pi)
+        self.assertEqual(self.samples[IMPACT_FRAME + 10].dieback, 0.0)
+        self.assertGreater(self.samples[TWILIGHT_END - 1].dieback, 0.8)
+        self.assertGreater(self.samples[TWILIGHT_END + 40].dieback, 0.9)
+        self.assertLess(self.samples[-1].dieback, self.samples[TWILIGHT_END - 1].dieback)
+        self.assertGreater(self.samples[-1].dieback, 0.75)
+        self.assertLess(self.samples[TWILIGHT_END - 1].sunScale, 0.08)
+        self.assertGreater(self.samples[-1].sunScale, 0.7)
         self.assertGreater(self.samples[-1].tsunamiAngle, 2.0)
         self.assertGreater(FIREBALL_MAX_RADII, CINEMA_ROCK_RADII)
         self.assertEqual(contactPlateAmount(IMPACT_FRAME), 0.0)
@@ -307,7 +363,11 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertEqual(debris, list(debrisRadiusScales(self.event.radiusRatio)))
         self.assertTrue(all(scale < self.event.radiusRatio for scale in debris))
         self.assertGreater(job['frames'][IMPACT_FRAME + 24]['crustTear'], 0.3)
-        self.assertGreater(job['frames'][-1]['soot'], 0.5)
+        self.assertGreater(job['frames'][TWILIGHT_END - 1]['soot'], 0.9)
+        self.assertGreater(job['frames'][-1]['earthSpin'], 2.0 * math.pi)
+        self.assertLess(job['frames'][SPIN_END]['siteGlow'], 0.05)
+        self.assertGreater(job['frames'][TWILIGHT_END - 1]['dieback'], 0.8)
+        self.assertGreater(job['frames'][-1]['dieback'], 0.75)
         self.assertEqual(job['contact']['textures']['explosion'], [])
 
     def test_ballistic_ejecta_leave_the_yucatan(self) -> None:
