@@ -2,8 +2,11 @@
 
 Late Cretaceous Earth, a cinema-scale rock enters, hits the Yucatán, and a
 drawn cascade (crust tear, ejecta, tsunami, wildfire, soot) plays out on that
-globe. The map is an artist reconstruction, not a palaeomap. The rock is
-enlarged; true scale is 10/12742. This is a cinema drawing, not a hydro model.
+globe. Earth is already turning slowly; after contact the spin picks up, the site
+glow dies, and a cinema-compressed soot / twilight / recovery beat follows.
+Land stays brown when the soot lifts and re-greens slowly. The map is an artist
+reconstruction, not a palaeomap. The rock is enlarged; true scale is 10/12742.
+This is a cinema drawing, not a hydro or climate model.
 
 Geometry is derived at runtime from `data/chicxulub_kpg.csv` and the Earth
 diameter in PlanetCatalog.
@@ -33,7 +36,7 @@ RENDER_SCRIPT = Path('animate/scenes/blender/render_kpg.py')
 KPG_EARTH_PACK = Path('data/textures/bodies/earth_kpg')
 
 ANIMATION_FPS = 20
-ANIMATION_FRAMES = 480
+ANIMATION_FRAMES = 720
 RENDER_RESOLUTION = 960
 GALLERY_SIZE = 640
 
@@ -48,8 +51,15 @@ CONTACT_END = 190
 CRUST_END = 230
 EJECTA_END = 290
 TSUNAMI_END = 360
+SPIN_END = 430
+SOOT_END = 520
+TWILIGHT_END = 610
 HOLD_END = IMPACT_FRAME
 SLAM_FRAMES = 16
+SPIN_SLOW_RAD_PER_FRAME = math.tau / 1600.0
+SPIN_FAST_RAD_PER_FRAME = math.tau / 180.0
+SPIN_RAMP_FRAMES = 100
+SPIN_RAD_PER_FRAME = SPIN_FAST_RAD_PER_FRAME
 # Drawn rock is enlarged so the inbound slam reads. True scale stays in the CSV.
 CINEMA_ROCK_RADII = 0.010
 ASTEROID_TEXTURE = Path('data/textures/bodies/bennu/color.png')
@@ -64,7 +74,7 @@ ROCK_BURST_COUNT = 26000
 EMBER_BURST_COUNT = 11200
 FALLOUT_SHELL = 0.72
 CRUST_PLATE_COUNT = 6
-ACT_STILL_FRAMES = (20, 80, 145, 175, 210, 255, 320, 430)
+ACT_STILL_FRAMES = (20, 80, 145, 175, 210, 255, 320, 400, 480, 560, 680)
 
 ACT_BOUNDARIES = (
     (QUIET_END, 'quiet'),
@@ -74,6 +84,9 @@ ACT_BOUNDARIES = (
     (CRUST_END, 'crust'),
     (EJECTA_END, 'ejecta'),
     (TSUNAMI_END, 'tsunami'),
+    (SPIN_END, 'spin'),
+    (SOOT_END, 'soot'),
+    (TWILIGHT_END, 'twilight'),
 )
 # Leftovers for unused plate helpers. The GIF path does not cut to stills.
 EXPLOSION_SEQUENCE = 16
@@ -337,7 +350,66 @@ def entryHeatEnvelope(frame: int) -> float:
 def smolderEnvelope(frame: int) -> float:
     if frame < IMPACT_FRAME:
         return 0.0
-    return min(1.0, 0.62 + 0.38 * smoothStep((frame - IMPACT_FRAME) / 6.0))
+    peak = min(1.0, 0.62 + 0.38 * smoothStep((frame - IMPACT_FRAME) / 6.0))
+    if frame < TSUNAMI_END:
+        return peak
+    return peak * (1.0 - 0.92 * smoothStep((frame - TSUNAMI_END) / float(SPIN_END - TSUNAMI_END)))
+
+
+def siteGlowEnvelope(frame: int) -> float:
+    """Yucatán ember stays through the cascade, then dies as Earth turns."""
+    if frame < IMPACT_FRAME:
+        return 0.0
+    if frame < TSUNAMI_END:
+        return 1.0
+    return 1.0 - smoothStep((frame - TSUNAMI_END) / float(SPIN_END - TSUNAMI_END))
+
+
+def earthSpinRad(frame: int) -> float:
+    """Axis spin around +Z. Slow from the open, faster after contact. Not a real day."""
+    slow = SPIN_SLOW_RAD_PER_FRAME
+    fast = SPIN_FAST_RAD_PER_FRAME
+    ramp = float(SPIN_RAMP_FRAMES)
+    if frame <= IMPACT_FRAME:
+        return frame * slow
+    held = IMPACT_FRAME * slow
+    age = frame - IMPACT_FRAME
+    if age <= SPIN_RAMP_FRAMES:
+        return held + age * slow + (fast - slow) * age * (age + 1) / (2.0 * ramp)
+    rampSpin = ramp * slow + (fast - slow) * ramp * (ramp + 1) / (2.0 * ramp)
+    return held + rampSpin + (age - ramp) * fast
+
+
+def rotateAroundNorth(vector: np.ndarray, angle: float) -> np.ndarray:
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    return np.array(
+        [
+            cosine * float(vector[0]) - sine * float(vector[1]),
+            sine * float(vector[0]) + cosine * float(vector[1]),
+            float(vector[2]),
+        ],
+        dtype=float,
+    )
+
+
+def cameraFollowSpinRad(frame: int) -> float:
+    """Track Yucatán at Earth's spin through the hit. Then hold — no reverse catch-up."""
+    if frame <= TSUNAMI_END:
+        return earthSpinRad(frame)
+    return earthSpinRad(TSUNAMI_END)
+
+
+def diebackEnvelope(frame: int) -> float:
+    """Land stays brown after the fires. Green only creeps back at the end of recovery."""
+    if frame < IMPACT_FRAME + 24:
+        return 0.0
+    killed = 0.97 * smoothStep((frame - IMPACT_FRAME - 24) / 70.0)
+    regenStart = TWILIGHT_END + 70
+    if frame < regenStart:
+        return killed
+    recover = smoothStep((frame - regenStart) / float(ANIMATION_FRAMES - 1 - regenStart))
+    return killed * (1.0 - 0.18 * recover)
 
 
 def crustTearEnvelope(frame: int) -> float:
@@ -361,9 +433,19 @@ def falloutEnvelope(frame: int) -> float:
     return smoothStep((frame - IMPACT_FRAME) / 120.0)
 
 
-def lightingEnvelope(frame: int, _frameCount: int) -> tuple[float, float]:
-    veil = sootEnvelope(frame)
-    return 1.0 - 0.55 * veil, veil
+def lightingEnvelope(frame: int, frameCount: int) -> tuple[float, float]:
+    soot = sootEnvelope(frame)
+    if frame < SPIN_END:
+        return 1.0 - 0.55 * soot, soot
+    if frame < TWILIGHT_END:
+        start = 1.0 - 0.55 * sootEnvelope(SPIN_END)
+        floor = 0.02
+        mix = smoothStep((frame - SPIN_END) / float(TWILIGHT_END - SPIN_END))
+        return start + (floor - start) * mix, soot
+    floor = 0.02
+    recovered = 0.88
+    mix = smoothStep((frame - TWILIGHT_END) / max(frameCount - 1 - TWILIGHT_END, 1.0))
+    return floor + (recovered - floor) * mix, soot
 
 
 def shockAngleRad(frame: int) -> float:
@@ -383,10 +465,22 @@ def wildfireAngleRad(frame: int) -> float:
 
 
 def sootEnvelope(frame: int) -> float:
-    # Days-to-years of soot, compressed. Hold until the site cloud has formed.
+    # Hours-to-years of soot, compressed. Hold until the site cloud has formed.
     if frame < IMPACT_FRAME + 36:
         return 0.0
-    return 0.82 * smoothStep((frame - IMPACT_FRAME - 36) / 200.0)
+    early = 0.82 * smoothStep((frame - IMPACT_FRAME - 36) / 200.0)
+    if frame < SPIN_END:
+        return early
+    settled = 0.82 * smoothStep((SPIN_END - IMPACT_FRAME - 36) / 200.0)
+    if frame < SOOT_END:
+        return settled + (0.96 - settled) * smoothStep(
+            (frame - SPIN_END) / float(SOOT_END - SPIN_END)
+        )
+    if frame < TWILIGHT_END:
+        return 0.96
+    return 0.96 - 0.72 * smoothStep(
+        (frame - TWILIGHT_END) / float(ANIMATION_FRAMES - 1 - TWILIGHT_END)
+    )
 
 
 def contactEnvelope(frame: int, _frameCount: int) -> tuple[float, float, float]:
@@ -438,13 +532,16 @@ class ImpactSample:
     inboundKm: float
     secondsToImpact: float
     lens: float
+    earthSpin: float
+    siteGlow: float
+    dieback: float
 
 
 def actName(frame: int) -> str:
     for boundary, name in ACT_BOUNDARIES:
         if frame < boundary:
             return name
-    return 'veil'
+    return 'recovery'
 
 
 def _asTuple(vector: np.ndarray) -> tuple[float, float, float]:
@@ -461,7 +558,10 @@ def _cameraPoses() -> tuple[tuple[float, ...], ...]:
         (float(CRUST_END), 0.30, 0.66, 2.00, 0.52, 37.0),
         (float(EJECTA_END), 0.38, 0.85, 2.35, 0.22, 36.0),
         (float(TSUNAMI_END), 0.45, 1.00, 2.65, 0.00, 35.0),
-        (float(ANIMATION_FRAMES - 1), 0.48, 1.05, 2.80, 0.00, 34.0),
+        (float(SPIN_END), 0.58, 0.82, 2.88, 0.00, 34.0),
+        (float(SOOT_END), 0.68, 0.58, 3.05, 0.00, 33.0),
+        (float(TWILIGHT_END), 0.74, 0.42, 3.18, 0.00, 32.0),
+        (float(ANIMATION_FRAMES - 1), 0.76, 0.38, 3.22, 0.00, 32.0),
     )
 
 
@@ -535,7 +635,14 @@ def buildImpactSamples(
         if frame > IMPACT_FRAME:
             punched = min((frame - IMPACT_FRAME) / SLAM_FRAMES, 1.0)
             impactor = contact + inbound * (CINEMA_ROCK_RADII * (0.20 + 0.90 * punched))
-        camera, lookAt = _earthCamera(frame, frameCount, normal, east, lift)
+        follow = cameraFollowSpinRad(frame)
+        camera, lookAt = _earthCamera(
+            frame,
+            frameCount,
+            rotateAroundNorth(normal, follow),
+            rotateAroundNorth(east, follow),
+            rotateAroundNorth(lift, follow),
+        )
         fireball, ejecta, plume = contactEnvelope(frame, frameCount)
         flash = flashEnvelope(frame)
         sunScale, veil = lightingEnvelope(frame, frameCount)
@@ -574,6 +681,9 @@ def buildImpactSamples(
                 inboundKm=remainingKm,
                 secondsToImpact=remainingKm / event.speedKmS,
                 lens=shotLens(frame),
+                earthSpin=earthSpinRad(frame),
+                siteGlow=siteGlowEnvelope(frame),
+                dieback=diebackEnvelope(frame),
             )
         )
     return tuple(samples)
@@ -588,6 +698,10 @@ def titleForAct(act: str) -> str:
         'crust': 'Crust',
         'ejecta': 'Ejecta',
         'tsunami': 'Tsunami',
+        'spin': 'The globe turns',
+        'soot': 'Soot',
+        'twilight': 'Twilight',
+        'recovery': 'Recovery',
         'veil': 'Aftermath',
     }
     return titles.get(act, 'Aftermath')
@@ -622,6 +736,17 @@ def captionForSample(event: ImpactEvent, sample: ImpactSample) -> str:
         return 'worldwide ejecta is observed  ·  hours compressed  ·  not a debris simulation'
     if act == 'tsunami':
         return 'drawn water rings  ·  hours compressed  ·  not a tsunami height model'
+    if act == 'spin':
+        return 'Earth turns  ·  impact glow fades  ·  days compressed  ·  not a climate model'
+    if act == 'soot':
+        return 'wildfires loft soot  ·  12–36 hours compressed  ·  not a wildfire model'
+    if act == 'twilight':
+        return (
+            'soot blocks ~99% of sunlight  ·  ~2 years compressed  ·  photosynthesis shuts down  ·  '
+            'not a climate model'
+        )
+    if act == 'recovery':
+        return 'sunlight returns over ~6 years  ·  land re-greens slowly  ·  years compressed'
     return f'{event.ageMa:.0f} Ma  ·  worldwide fallout is observed · not a climate model'
 
 
@@ -1018,6 +1143,9 @@ def buildKpgJob(
                 'slamScale': sample.slamScale,
                 'rockHeat': sample.rockHeat,
                 'smolder': sample.smolder,
+                'earthSpin': sample.earthSpin,
+                'siteGlow': sample.siteGlow,
+                'dieback': sample.dieback,
             }
         )
     job = {
