@@ -36,6 +36,12 @@ Render the first polished Earth flyby (light + dark GIFs; needs `blender` on `PA
 .venv/bin/python render.py blender --body Earth --flyby --theme dark
 ```
 
+K–Pg cinema (Earth + fire on the Yucatán; needs `blender` on PATH):
+
+```bash
+.venv/bin/python render.py animate --system kpg_cinematic
+```
+
 Outputs (organized by kind):
 
 ```text
