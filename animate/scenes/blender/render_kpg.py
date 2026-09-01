@@ -19,11 +19,9 @@ from types import ModuleType
 from typing import Any
 
 JOB_SCHEMA_ID = 'solsys.blender_kpg_job/v1'
-_SPIN_START = 360
-_SPIN_END = 430
-_VEIL_START_DELAY = 40
+_VEIL_START_DELAY = 16
 _VEIL_START_RAD = 0.035
-_VEIL_GROW_FRAMES = 250.0
+_VEIL_GROW_FRAMES = 150.0
 
 
 def _smooth01(progress: float) -> float:
@@ -40,16 +38,13 @@ def _veilAngleRad(frame: int, impactFrame: int) -> float:
 
 
 def _siteCloudRad(frame: int, impactFrame: int) -> float:
-    """White impact patch stays at the site, then yields to the crawl."""
+    """Local fire disk. Grows behind the shock, then dies. Not a hemisphere."""
     if frame < impactFrame:
         return 0.0
     age = float(frame - impactFrame)
-    grow = _smooth01(age / 8.0)
-    fade = _smooth01((age - 36.0) / 55.0)
-    leftover = 0.068 * grow * (1.0 - 0.88 * fade)
-    if frame < _SPIN_START:
-        return leftover
-    return leftover * (1.0 - _smooth01((frame - _SPIN_START) / float(_SPIN_END - _SPIN_START)))
+    grown = 0.155 * _smooth01(age / 32.0)
+    fade = _smooth01((age - 18.0) / 32.0)
+    return grown * (1.0 - fade)
 
 
 def _falloutAngleRad(frame: int, impactFrame: int) -> float:
@@ -435,7 +430,7 @@ def _cloudCoverageScale(nodes: Any, links: Any, front: Any, inside: Any, armed: 
     links.new(thin.outputs['Value'], kept.inputs[1])
     pile = nodes.new('ShaderNodeMath')
     pile.operation = 'MULTIPLY'
-    pile.inputs[1].default_value = 1.65
+    pile.inputs[1].default_value = 0.0
     links.new(front, pile.inputs[0])
     piled = nodes.new('ShaderNodeMath')
     piled.operation = 'ADD'
@@ -731,27 +726,9 @@ def _cloudMask(nodes: Any, links: Any, incoming: Any) -> Any:
 def _mixWaveCloudPush(
     nodes: Any, links: Any, color: Any, angle: Any, tsunami: Any, front: Any
 ) -> Any:
-    """Brighten actual (warped) cloud texels at the front. Not a painted torus."""
-    del angle
-    alpha = _cloudAlphaSocket(_cloudTextureNode(nodes))
-    if alpha is None:
-        return color
-    if getattr(alpha, 'type', '') == 'RGBA':
-        luma = nodes.new('ShaderNodeRGBToBW')
-        colorIn = luma.inputs['Color'] if 'Color' in luma.inputs else luma.inputs[0]
-        links.new(alpha, colorIn)
-        alpha = luma.outputs['Val'] if 'Val' in luma.outputs else luma.outputs[0]
-    armed = _shockActive(nodes, links, tsunami)
-    chop = _generatedNoise(nodes, links, 38.0, 4.0)
-    chop = _mathMulConst(nodes, links, chop, 0.40)
-    chop = _mathAdd(nodes, links, chop, 0.60)
-    pile = _mathMul(nodes, links, front, alpha)
-    pile = _mathMul(nodes, links, pile, chop)
-    pile = _mathMul(nodes, links, pile, armed)
-    pile = _mathMulConst(nodes, links, pile, 0.88)
-    piled = _colorMix(nodes)
-    _linkMix(links, piled, color, (0.91, 0.93, 0.95, 1.0), pile)
-    return _mixOut(piled)
+    """Clouds stay warped. Do not paint a shock banner on the lead."""
+    del nodes, links, angle, tsunami, front
+    return color
 
 
 def _landCoverMask(nodes: Any, links: Any, incoming: Any, cloud: Any) -> Any:
@@ -876,12 +853,14 @@ def _attachImpactWeather(
     _linkMix(links, burned, _mixOut(rim), (0.10, 0.045, 0.02, 1.0), burnAmt.outputs['Value'])
     _linkMix(links, sooted, _mixOut(burned), (0.11, 0.09, 0.08, 1.0), soot.outputs[0])
     wilted = _mixDieback(nodes, links, _mixOut(sooted), incoming, cloud, dieback)
+    crater = _valueNode(nodes, 'KpgCrater', 0.0)
     smolder = _valueNode(nodes, 'KpgSmolder', 0.0)
     scar = _mixSmolder(nodes, links, wilted, angle, smolder, veil)
     umbrella = _mixTongaUmbrella(nodes, links, scar, angle, site, normal)
     rain = _mixMoltenRain(nodes, links, umbrella, angle, fallout)
     foam = _mixTsunamiFoam(nodes, links, rain, angle, tsunami, incoming)
-    links.new(foam, principled.inputs['Base Color'])
+    cratered = _mixImpactCrater(nodes, links, foam, angle, crater)
+    links.new(cratered, principled.inputs['Base Color'])
     flash = _valueNode(nodes, 'KpgFlash', 0.0)
     glow = _valueNode(nodes, 'KpgSiteGlow', 0.0)
     _wireImpactEmission(nodes, links, principled, angle, landMask, flash, shock, glow)
@@ -897,6 +876,7 @@ def _attachImpactWeather(
         'fallout': fallout,
         'glow': glow,
         'dieback': dieback,
+        'crater': crater,
     }
 
 
@@ -1080,6 +1060,43 @@ def _mixSmolder(nodes: Any, links: Any, color: Any, angle: Any, smolder: Any, ve
     scar = _colorMix(nodes)
     _linkMix(links, scar, color, (0.05, 0.03, 0.018, 1.0), amount.outputs['Value'])
     return _mixOut(scar)
+
+
+def _mixImpactCrater(nodes: Any, links: Any, color: Any, angle: Any, armed: Any) -> Any:
+    """Dark Chicxulub bowl with an ashy lip. Cinema-scale, still a local hole."""
+    floor = nodes.new('ShaderNodeMapRange')
+    floor.inputs['From Min'].default_value = 0.0
+    floor.inputs['From Max'].default_value = 0.062
+    floor.inputs['To Min'].default_value = 1.0
+    floor.inputs['To Max'].default_value = 0.0
+    if hasattr(floor, 'clamp'):
+        floor.clamp = True
+    links.new(angle, floor.inputs['Value'])
+    outer = nodes.new('ShaderNodeMapRange')
+    outer.inputs['From Min'].default_value = 0.0
+    outer.inputs['From Max'].default_value = 0.092
+    outer.inputs['To Min'].default_value = 1.0
+    outer.inputs['To Max'].default_value = 0.0
+    if hasattr(outer, 'clamp'):
+        outer.clamp = True
+    links.new(angle, outer.inputs['Value'])
+    rim = nodes.new('ShaderNodeMath')
+    rim.operation = 'SUBTRACT'
+    links.new(outer.outputs['Result'], rim.inputs[0])
+    links.new(floor.outputs['Result'], rim.inputs[1])
+    floorAmt = nodes.new('ShaderNodeMath')
+    floorAmt.operation = 'MULTIPLY'
+    links.new(floor.outputs['Result'], floorAmt.inputs[0])
+    links.new(armed.outputs[0], floorAmt.inputs[1])
+    rimAmt = nodes.new('ShaderNodeMath')
+    rimAmt.operation = 'MULTIPLY'
+    links.new(rim.outputs['Value'], rimAmt.inputs[0])
+    links.new(armed.outputs[0], rimAmt.inputs[1])
+    bowl = _colorMix(nodes)
+    _linkMix(links, bowl, color, (0.025, 0.018, 0.012, 1.0), floorAmt.outputs['Value'])
+    lip = _colorMix(nodes)
+    _linkMix(links, lip, _mixOut(bowl), (0.22, 0.16, 0.10, 1.0), rimAmt.outputs['Value'])
+    return _mixOut(lip)
 
 
 def _sphereNoise(nodes: Any, links: Any, scale: float, detail: float) -> Any:
@@ -2800,6 +2817,7 @@ def _keyWeather(
         'veil': _veilAngleRad(frame, impactFrame),
         'site': _siteCloudRad(frame, impactFrame),
         'fallout': _falloutAngleRad(frame, impactFrame),
+        'crater': 1.0 if frame >= impactFrame else 0.0,
     }
     sampled = {
         'shock': 'shockAngle',
@@ -3271,7 +3289,7 @@ def _addFillLight(
     track.target = earth
     track.track_axis = 'TRACK_NEGATIVE_Z'
     track.up_axis = 'UP_Y'
-    return fillData
+    return fill
 
 
 def _keyCinematicVolumes(
@@ -3643,12 +3661,15 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     sunTrack.target = earth
     sunTrack.track_axis = 'TRACK_NEGATIVE_Z'
     sunTrack.up_axis = 'UP_Y'
-    fillData = _addFillLight(bpy, scene, earth, sun.location, theme)
+    fill = _addFillLight(bpy, scene, earth, sun.location, theme)
+    fillData = fill.data
     fillEnergy = float(fillData.energy)
     earth.rotation_mode = 'XYZ'
     impactor.parent = earth
     trail.parent = earth
     blast.parent = earth
+    sun.parent = earth
+    fill.parent = earth
     tools = getattr(scene, 'tool_settings', None)
     if tools is not None and hasattr(tools, 'keyframe_interpolation'):
         tools.keyframe_interpolation = 'LINEAR'
