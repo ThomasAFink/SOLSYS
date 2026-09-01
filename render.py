@@ -19,6 +19,7 @@ from animate.scenes.blender.export_body import exportBodyScene
 from animate.scenes.blender.flyby_scene import renderPlanetFlyby, renderPlanetSpin
 from animate.scenes.cepheid_ladder_cinematic import renderCepheidLadderCinematicAnimations
 from animate.scenes.interstellar_objects import renderInterstellarObjectAnimations
+from animate.scenes.kpg_cinematic import renderKpgCinematicAnimations
 from animate.scenes.pulsar_cinematic import renderPulsarCinematicAnimations
 from animate.scenes.rr_lyrae_cinematic import renderRrLyraeCinematicAnimations
 from animate.scenes.sol_centauri_cinematic import renderSolCentauriCinematicAnimations
@@ -129,6 +130,7 @@ def buildParser() -> argparse.ArgumentParser:
             'type_ia_cinematic',
             'pulsar_cinematic',
             'rr_lyrae_cinematic',
+            'kpg_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -148,6 +150,7 @@ def buildParser() -> argparse.ArgumentParser:
             'pulsar_cinematic = pulsar lighthouse (EPN folded profiles + ATNF ages); '
             'rr_lyrae_cinematic = RR Lyrae / horizontal-branch clocks '
             '(OGLE-IV Magellanic Bailey diagram); '
+            'kpg_cinematic = K–Pg / Chicxulub Yucatán cinema (Earth pack); '
             'interstellar = 1I/2I/3I GIFs; oumuamua = \u02bbOumuamua only (alias).'
         ),
     )
@@ -212,6 +215,7 @@ def buildParser() -> argparse.ArgumentParser:
             'type_ia_cinematic',
             'pulsar_cinematic',
             'rr_lyrae_cinematic',
+            'kpg_cinematic',
             'oumuamua',
             'interstellar',
             'all',
@@ -441,6 +445,9 @@ def _renderAnimations(
             starsCsvPath=starsCsvPath,
         )
     _renderLightcurveCinemas(systemChoice, starsCsvPath)
+    if systemChoice == 'kpg_cinematic':
+        # Requires the Earth Blender pack (textures already in-repo).
+        renderKpgCinematicAnimations()
     if systemChoice == 'oumuamua':
         renderInterstellarObjectAnimations(
             objectIds=('oumuamua',),

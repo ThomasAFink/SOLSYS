@@ -7,3 +7,5 @@ __pycache__/
 # Local debug / probe frames (never products)
 output/**/*_smoke_*
 output/**/overlay_probe.png
+output/**/kpg_hero_explosion/
+output/**/kpg_impact_plate/

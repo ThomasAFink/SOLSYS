@@ -38,6 +38,7 @@ Atmosphere is not a texture file: enable a fresnel limb-haze shell per body in `
 
 ## Earth
 
+- **K–Pg cinema pack:** `bodies/earth_kpg/` — artist reconstruction of Late Cretaceous land and clouds, plus four photoreal contact stills. Not a palaeomap and not a hydro simulation. Used only by `kpg_cinematic`. Clouds are an artist reconstruction of Late Cretaceous cover, plus one painted tropical cyclone over the southeastern Pacific (about 23°S, 104°W) on the Yucatán-facing wide shot. Not a palaeomap and not a weather model.
 - **Color:** `bodies/earth/color.png` (2048×1024)
   - **Source:** NASA Scientific Visualization Studio — [Blue Marble seamless mosaic (SVS 2915)](https://svs.gsfc.nasa.gov/2915) (`bluemarble-2048.png`)
   - **Credit:** NASA Goddard Space Flight Center / Earth Observatory (Reto Stöckli et al.); MODIS / Terra
