@@ -347,9 +347,12 @@ def crustTearEnvelope(frame: int) -> float:
 
 
 def tsunamiAngleRad(frame: int) -> float:
-    if frame < IMPACT_FRAME:
+    # Hours across a basin, compressed. Keep growing past the far limb so
+    # the last ring leaves the shot instead of parking on the globe.
+    if frame < IMPACT_FRAME + 16:
         return 0.0
-    return math.pi * 0.88 * smoothStep((frame - IMPACT_FRAME) / 55.0)
+    age = frame - IMPACT_FRAME - 16
+    return math.pi * 1.12 * min(1.0, age / 270.0)
 
 
 def falloutEnvelope(frame: int) -> float:
@@ -380,9 +383,10 @@ def wildfireAngleRad(frame: int) -> float:
 
 
 def sootEnvelope(frame: int) -> float:
-    if frame < IMPACT_FRAME + 12:
+    # Days-to-years of soot, compressed. Hold until the site cloud has formed.
+    if frame < IMPACT_FRAME + 36:
         return 0.0
-    return 0.82 * smoothStep((frame - IMPACT_FRAME - 12) / 120.0)
+    return 0.82 * smoothStep((frame - IMPACT_FRAME - 36) / 200.0)
 
 
 def contactEnvelope(frame: int, _frameCount: int) -> tuple[float, float, float]:
@@ -615,9 +619,9 @@ def captionForSample(event: ImpactEvent, sample: ImpactSample) -> str:
     if act == 'crust':
         return 'cinema tear at the site  ·  not a crater hydro model'
     if act == 'ejecta':
-        return 'worldwide ejecta is observed  ·  not a debris simulation'
+        return 'worldwide ejecta is observed  ·  hours compressed  ·  not a debris simulation'
     if act == 'tsunami':
-        return 'drawn water rings  ·  not a tsunami height model'
+        return 'drawn water rings  ·  hours compressed  ·  not a tsunami height model'
     return f'{event.ageMa:.0f} Ma  ·  worldwide fallout is observed · not a climate model'
 
 

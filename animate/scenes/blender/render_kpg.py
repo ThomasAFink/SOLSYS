@@ -20,18 +20,39 @@ from typing import Any
 
 JOB_SCHEMA_ID = 'solsys.blender_kpg_job/v1'
 _IMPACT_FRAME = 170
+_VEIL_START_DELAY = 40
 _VEIL_START_RAD = 0.035
-_VEIL_GROW_FRAMES = 280.0
+_VEIL_GROW_FRAMES = 250.0
+
+
+def _smooth01(progress: float) -> float:
+    clamped = max(0.0, min(1.0, progress))
+    return clamped * clamped * (3.0 - 2.0 * clamped)
 
 
 def _veilAngleRad(frame: int) -> float:
-    """Visual soot radius. Shock envelope is faster; do not use it as the disk."""
+    """Dark crawl. Starts after the site cloud, not at the bang."""
+    if frame < _IMPACT_FRAME + _VEIL_START_DELAY:
+        return 0.0
+    age = (frame - _IMPACT_FRAME - _VEIL_START_DELAY) / _VEIL_GROW_FRAMES
+    return _VEIL_START_RAD + (math.pi * 1.12 - _VEIL_START_RAD) * _smooth01(age)
+
+
+def _siteCloudRad(frame: int) -> float:
+    """White impact patch stays at the site, then yields to the crawl."""
     if frame < _IMPACT_FRAME:
         return 0.0
-    age = (frame - _IMPACT_FRAME) / _VEIL_GROW_FRAMES
-    age = max(0.0, min(1.0, age))
-    smooth = age * age * (3.0 - 2.0 * age)
-    return _VEIL_START_RAD + (math.pi * 0.96 - _VEIL_START_RAD) * smooth
+    age = float(frame - _IMPACT_FRAME)
+    grow = _smooth01(age / 8.0)
+    fade = _smooth01((age - 36.0) / 55.0)
+    return 0.068 * grow * (1.0 - 0.88 * fade)
+
+
+def _falloutAngleRad(frame: int) -> float:
+    """Molten rain on the globe. Hours compressed."""
+    if frame < _IMPACT_FRAME + 18:
+        return 0.0
+    return 0.05 + (math.pi * 0.72) * _smooth01((frame - _IMPACT_FRAME - 18) / 240.0)
 
 
 def _blastLampScale(frame: int, flashScale: float) -> float:
@@ -327,67 +348,41 @@ def _equirectFromDirection(nodes: Any, links: Any, direction: Any) -> Any:
     return combine.outputs['Vector']
 
 
-def _cloudPushAmount(
-    nodes: Any, links: Any, angle: Any, shock: Any, inside: Any
-) -> tuple[Any, Any]:
+def _raggedLead(nodes: Any, links: Any, shock: Any) -> Any:
+    """Break the first-wave radius so the cloud bank is not a perfect circle."""
+    chop = _generatedNoise(nodes, links, 20.0, 3.5)
+    wobble = _mathMulConst(nodes, links, chop, 0.16)
+    scale = _mathAdd(nodes, links, wobble, 0.92)
+    return _mathMul(nodes, links, shock.outputs[0], scale)
+
+
+def _angleTent(nodes: Any, links: Any, angle: Any, radius: Any, width: float) -> Any:
     delta = nodes.new('ShaderNodeMath')
     delta.operation = 'SUBTRACT'
     links.new(angle, delta.inputs[0])
-    links.new(shock.outputs[0], delta.inputs[1])
+    links.new(radius, delta.inputs[1])
     ringAbs = nodes.new('ShaderNodeMath')
     ringAbs.operation = 'ABSOLUTE'
     links.new(delta.outputs['Value'], ringAbs.inputs[0])
-    width = nodes.new('ShaderNodeMath')
-    width.operation = 'DIVIDE'
-    width.inputs[1].default_value = 0.05
-    links.new(ringAbs.outputs['Value'], width.inputs[0])
-    front = nodes.new('ShaderNodeMath')
-    front.operation = 'SUBTRACT'
-    front.inputs[0].default_value = 1.0
-    links.new(width.outputs['Value'], front.inputs[1])
-    frontClip = nodes.new('ShaderNodeClamp')
-    frontClip.inputs['Min'].default_value = 0.0
-    frontClip.inputs['Max'].default_value = 1.0
-    links.new(front.outputs['Value'], frontClip.inputs['Value'])
-    span = nodes.new('ShaderNodeMath')
-    span.operation = 'MAXIMUM'
-    span.inputs[1].default_value = 0.08
-    links.new(shock.outputs[0], span.inputs[0])
-    gap = nodes.new('ShaderNodeMath')
-    gap.operation = 'SUBTRACT'
-    links.new(shock.outputs[0], gap.inputs[0])
-    links.new(angle, gap.inputs[1])
-    interior = nodes.new('ShaderNodeMath')
-    interior.operation = 'DIVIDE'
-    links.new(gap.outputs['Value'], interior.inputs[0])
-    links.new(span.outputs['Value'], interior.inputs[1])
-    interiorClip = nodes.new('ShaderNodeClamp')
-    interiorClip.inputs['Min'].default_value = 0.0
-    interiorClip.inputs['Max'].default_value = 1.0
-    links.new(interior.outputs['Value'], interiorClip.inputs['Value'])
-    stream = nodes.new('ShaderNodeMath')
-    stream.operation = 'MULTIPLY'
-    links.new(interiorClip.outputs['Result'], stream.inputs[0])
-    links.new(inside, stream.inputs[1])
-    frontPush = nodes.new('ShaderNodeMath')
-    frontPush.operation = 'MULTIPLY'
-    frontPush.inputs[1].default_value = 0.40
-    links.new(frontClip.outputs['Result'], frontPush.inputs[0])
-    streamPush = nodes.new('ShaderNodeMath')
-    streamPush.operation = 'MULTIPLY'
-    streamPush.inputs[1].default_value = 0.55
-    links.new(stream.outputs['Value'], streamPush.inputs[0])
-    push = nodes.new('ShaderNodeMath')
-    push.operation = 'ADD'
-    links.new(frontPush.outputs['Value'], push.inputs[0])
-    links.new(streamPush.outputs['Value'], push.inputs[1])
-    return push.outputs['Value'], frontClip.outputs['Result']
+    norm = nodes.new('ShaderNodeMath')
+    norm.operation = 'DIVIDE'
+    norm.inputs[1].default_value = width
+    links.new(ringAbs.outputs['Value'], norm.inputs[0])
+    tent = nodes.new('ShaderNodeMath')
+    tent.operation = 'SUBTRACT'
+    tent.inputs[0].default_value = 1.0
+    links.new(norm.outputs['Value'], tent.inputs[1])
+    clip = nodes.new('ShaderNodeClamp')
+    clip.inputs['Min'].default_value = 0.0
+    clip.inputs['Max'].default_value = 1.0
+    links.new(tent.outputs['Value'], clip.inputs['Value'])
+    return clip.outputs['Result']
 
 
 def _shockActive(nodes: Any, links: Any, shock: Any) -> Any:
     gate = nodes.new('ShaderNodeMath')
     gate.operation = 'GREATER_THAN'
-    gate.inputs[1].default_value = 0.04
+    gate.inputs[1].default_value = 0.02
     links.new(shock.outputs[0], gate.inputs[0])
     return gate.outputs['Value']
 
@@ -400,37 +395,20 @@ def _scaleBy(nodes: Any, links: Any, value: Any, factor: Any) -> Any:
     return mul.outputs['Value']
 
 
-def _cloudCoverageScale(nodes: Any, links: Any, angle: Any, shock: Any, front: Any) -> Any:
-    """Thin and pile clouds. Never wipe the layer, and do nothing before contact."""
-    active = _shockActive(nodes, links, shock)
-    low = nodes.new('ShaderNodeMath')
-    low.operation = 'SUBTRACT'
-    low.inputs[1].default_value = 0.08
-    links.new(shock.outputs[0], low.inputs[0])
-    ramp = nodes.new('ShaderNodeMath')
-    ramp.operation = 'SUBTRACT'
-    links.new(angle, ramp.inputs[0])
-    links.new(low.outputs['Value'], ramp.inputs[1])
-    norm = nodes.new('ShaderNodeMath')
-    norm.operation = 'DIVIDE'
-    norm.inputs[1].default_value = 0.16
-    links.new(ramp.outputs['Value'], norm.inputs[0])
-    clear = nodes.new('ShaderNodeClamp')
-    clear.inputs['Min'].default_value = 0.0
-    clear.inputs['Max'].default_value = 1.0
-    links.new(norm.outputs['Value'], clear.inputs['Value'])
-    residual = nodes.new('ShaderNodeMath')
-    residual.operation = 'MULTIPLY'
-    residual.inputs[1].default_value = 0.08
-    links.new(clear.outputs['Result'], residual.inputs[0])
+def _cloudCoverageScale(nodes: Any, links: Any, front: Any, inside: Any, armed: Any) -> Any:
+    """Thin weather behind the front and pile it on the front. Do not punch to land."""
+    thin = nodes.new('ShaderNodeMath')
+    thin.operation = 'MULTIPLY'
+    thin.inputs[1].default_value = 0.28
+    links.new(inside, thin.inputs[0])
     kept = nodes.new('ShaderNodeMath')
-    kept.operation = 'ADD'
-    kept.inputs[0].default_value = 0.90
-    links.new(residual.outputs['Value'], kept.inputs[1])
+    kept.operation = 'SUBTRACT'
+    kept.inputs[0].default_value = 1.0
+    links.new(thin.outputs['Value'], kept.inputs[1])
     pile = nodes.new('ShaderNodeMath')
     pile.operation = 'MULTIPLY'
-    pile.inputs[1].default_value = 0.45
-    links.new(_scaleBy(nodes, links, front, active), pile.inputs[0])
+    pile.inputs[1].default_value = 1.65
+    links.new(front, pile.inputs[0])
     piled = nodes.new('ShaderNodeMath')
     piled.operation = 'ADD'
     piled.inputs[0].default_value = 1.0
@@ -442,18 +420,61 @@ def _cloudCoverageScale(nodes: Any, links: Any, angle: Any, shock: Any, front: A
     off = nodes.new('ShaderNodeMath')
     off.operation = 'SUBTRACT'
     off.inputs[0].default_value = 1.0
-    links.new(active, off.inputs[1])
-    armed = _scaleBy(nodes, links, scaled.outputs['Value'], active)
+    links.new(armed, off.inputs[1])
+    active = _scaleBy(nodes, links, scaled.outputs['Value'], armed)
     idle = nodes.new('ShaderNodeMath')
     idle.operation = 'ADD'
-    links.new(armed, idle.inputs[0])
+    links.new(active, idle.inputs[0])
     links.new(off.outputs['Value'], idle.inputs[1])
     return idle.outputs['Value']
 
 
-def _warpedCloudVector(
-    nodes: Any, links: Any, normal: tuple[float, float, float], push: Any
+def _vectorScale(nodes: Any, links: Any, vector: Any, scalar: Any) -> Any:
+    scaled = nodes.new('ShaderNodeVectorMath')
+    scaled.operation = 'SCALE'
+    vecIn = scaled.inputs['Vector'] if 'Vector' in scaled.inputs else scaled.inputs[0]
+    scaleIn = scaled.inputs['Scale'] if 'Scale' in scaled.inputs else scaled.inputs[1]
+    links.new(vector, vecIn)
+    links.new(scalar, scaleIn)
+    return scaled.outputs['Vector']
+
+
+def _cloudPullTowardImpact(
+    nodes: Any, links: Any, angle: Any, lead: Any, inside: Any, armed: Any
 ) -> Any:
+    """How far to sample toward the impact so interior weather reads at the front."""
+    span = nodes.new('ShaderNodeMath')
+    span.operation = 'MAXIMUM'
+    span.inputs[1].default_value = 0.08
+    links.new(lead, span.inputs[0])
+    gap = nodes.new('ShaderNodeMath')
+    gap.operation = 'SUBTRACT'
+    links.new(lead, gap.inputs[0])
+    links.new(angle, gap.inputs[1])
+    behind = nodes.new('ShaderNodeMath')
+    behind.operation = 'DIVIDE'
+    links.new(gap.outputs['Value'], behind.inputs[0])
+    links.new(span.outputs['Value'], behind.inputs[1])
+    behindClip = nodes.new('ShaderNodeClamp')
+    behindClip.inputs['Min'].default_value = 0.0
+    behindClip.inputs['Max'].default_value = 1.0
+    links.new(behind.outputs['Value'], behindClip.inputs['Value'])
+    extra = nodes.new('ShaderNodeMath')
+    extra.operation = 'MULTIPLY'
+    extra.inputs[1].default_value = 0.18
+    links.new(behindClip.outputs['Result'], extra.inputs[0])
+    pull = nodes.new('ShaderNodeMath')
+    pull.operation = 'ADD'
+    pull.inputs[0].default_value = 0.38
+    links.new(extra.outputs['Value'], pull.inputs[1])
+    gated = _scaleBy(nodes, links, pull.outputs['Value'], inside)
+    return _scaleBy(nodes, links, gated, armed)
+
+
+def _pushedCloudVector(
+    nodes: Any, links: Any, normal: tuple[float, float, float], pull: Any
+) -> Any:
+    """Sample clouds from closer to the impact so they read as shoved outward."""
     texcoord = nodes.new('ShaderNodeTexCoord')
     direction = nodes.new('ShaderNodeVectorMath')
     direction.operation = 'NORMALIZE'
@@ -462,47 +483,171 @@ def _warpedCloudVector(
     impact.inputs[0].default_value = normal[0]
     impact.inputs[1].default_value = normal[1]
     impact.inputs[2].default_value = normal[2]
-    axis = nodes.new('ShaderNodeVectorMath')
-    axis.operation = 'CROSS_PRODUCT'
-    links.new(impact.outputs['Vector'], axis.inputs[0])
-    links.new(direction.outputs['Vector'], axis.inputs[1])
-    rotate = nodes.new('ShaderNodeVectorRotate')
-    if hasattr(rotate, 'rotation_type'):
-        rotate.rotation_type = 'AXIS_ANGLE'
-    invert = nodes.new('ShaderNodeMath')
-    invert.operation = 'MULTIPLY'
-    invert.inputs[1].default_value = -1.0
-    links.new(push, invert.inputs[0])
-    links.new(direction.outputs['Vector'], rotate.inputs['Vector'])
-    links.new(axis.outputs['Vector'], rotate.inputs['Axis'])
-    links.new(invert.outputs['Value'], rotate.inputs['Angle'])
-    return _equirectFromDirection(nodes, links, rotate.outputs['Vector'])
+    stay = nodes.new('ShaderNodeMath')
+    stay.operation = 'SUBTRACT'
+    stay.inputs[0].default_value = 1.0
+    links.new(pull, stay.inputs[1])
+    fromHere = _vectorScale(nodes, links, direction.outputs['Vector'], stay.outputs['Value'])
+    fromImpact = _vectorScale(nodes, links, impact.outputs['Vector'], pull)
+    mixed = nodes.new('ShaderNodeVectorMath')
+    mixed.operation = 'ADD'
+    links.new(fromHere, mixed.inputs[0])
+    links.new(fromImpact, mixed.inputs[1])
+    heading = nodes.new('ShaderNodeVectorMath')
+    heading.operation = 'NORMALIZE'
+    links.new(mixed.outputs['Vector'], heading.inputs[0])
+    return _equirectFromDirection(nodes, links, heading.outputs['Vector'])
+
+
+def _cloudTextureNode(nodes: Any) -> Any | None:
+    for node in nodes:
+        if getattr(node, 'type', '') != 'TEX_IMAGE':
+            continue
+        tag = f'{getattr(node, "label", "")} {node.name}'.lower()
+        if 'cloud' in tag:
+            return node
+    return None
+
+
+def _cloudAlphaSocket(texture: Any) -> Any | None:
+    if texture is None:
+        return None
+    if 'Alpha' in texture.outputs:
+        return texture.outputs['Alpha']
+    if 'Color' in texture.outputs:
+        return texture.outputs['Color']
+    return None
+
+
+def _cloudMixNode(nodes: Any, links: Any) -> Any | None:
+    for node in nodes:
+        if getattr(node, 'type', '') != 'RGB':
+            continue
+        tint = tuple(float(channel) for channel in node.outputs[0].default_value[:3])
+        if abs(tint[0] - 0.86) > 0.12 or abs(tint[1] - 0.88) > 0.12:
+            continue
+        for link in links:
+            if link.from_socket != node.outputs[0]:
+                continue
+            return link.to_socket.node
+    return None
+
+
+def _cloudSurfaceSocket(nodes: Any, links: Any) -> Any | None:
+    mix = _cloudMixNode(nodes, links)
+    if mix is None:
+        return None
+    dest = mix.inputs['A'] if 'A' in mix.inputs else mix.inputs.get('Color1')
+    if dest is None:
+        return None
+    incoming = next((link for link in links if link.to_socket == dest), None)
+    return incoming.from_socket if incoming is not None else None
+
+
+def _revealLandUnderWave(nodes: Any, links: Any, cloudy: Any, fade: Any) -> Any:
+    """Swap cloudy color for bare surface inside the first wave."""
+    surface = _cloudSurfaceSocket(nodes, links)
+    if surface is None:
+        print('K–Pg cloud push: no surface socket; fading mix factor')
+        _insertCoverageFade(nodes, links, fade)
+        return cloudy
+    print('K–Pg cloud push: revealing land behind first wave')
+    reveal = _colorMix(nodes)
+    _linkMix(links, reveal, surface, cloudy, fade)
+    return _mixOut(reveal)
+
+
+def _cloudScaleNode(nodes: Any) -> Any | None:
+    for target in (0.75, 0.95):
+        for node in nodes:
+            if (
+                getattr(node, 'type', '') == 'MATH'
+                and getattr(node, 'operation', '') == 'MULTIPLY'
+                and not node.inputs[1].is_linked
+                and abs(float(node.inputs[1].default_value) - target) < 1e-6
+            ):
+                return node
+    return None
+
+
+def _spliceFadeOntoSocket(
+    links: Any, source: Any, targets: list[Any], fade: Any, nodes: Any
+) -> None:
+    mul = nodes.new('ShaderNodeMath')
+    mul.operation = 'MULTIPLY'
+    links.new(source, mul.inputs[0])
+    links.new(fade, mul.inputs[1])
+    for target in targets:
+        links.new(mul.outputs['Value'], target)
 
 
 def _insertCoverageFade(nodes: Any, links: Any, fade: Any) -> None:
-    scale = next(
-        (
-            node
-            for node in nodes
-            if getattr(node, 'type', '') == 'MATH'
-            and getattr(node, 'operation', '') == 'MULTIPLY'
-            and abs(float(node.inputs[1].default_value) - 0.75) < 1e-6
-        ),
+    scale = _cloudScaleNode(nodes)
+    if scale is not None:
+        outgoing = [link for link in links if link.from_socket == scale.outputs['Value']]
+        if outgoing:
+            targets = [link.to_socket for link in outgoing]
+            for link in outgoing:
+                links.remove(link)
+            _spliceFadeOntoSocket(links, scale.outputs['Value'], targets, fade, nodes)
+            return
+    _insertCoverageFadeOnCloudMix(nodes, links, fade)
+
+
+def _insertCoverageFadeOnCloudMix(nodes: Any, links: Any, fade: Any) -> None:
+    for node in nodes:
+        if getattr(node, 'type', '') != 'RGB':
+            continue
+        tint = tuple(float(channel) for channel in node.outputs[0].default_value[:3])
+        if abs(tint[0] - 0.86) > 0.09 or abs(tint[1] - 0.88) > 0.09:
+            continue
+        for link in list(links):
+            if link.from_socket != node.outputs[0]:
+                continue
+            mix = link.to_socket.node
+            fac = mix.inputs['Factor'] if 'Factor' in mix.inputs else mix.inputs.get('Fac')
+            if fac is None:
+                continue
+            incoming = next((item for item in links if item.to_socket == fac), None)
+            if incoming is None:
+                continue
+            source = incoming.from_socket
+            links.remove(incoming)
+            _spliceFadeOntoSocket(links, source, [fac], fade, nodes)
+            return
+
+
+def _insertCloudPushWarp(
+    nodes: Any,
+    links: Any,
+    normal: tuple[float, float, float],
+    pull: Any,
+    mixFac: Any,
+) -> None:
+    """Slide cloud UVs toward the impact so weather bunches at the first wave."""
+    cloudTex = _cloudTextureNode(nodes)
+    if cloudTex is None or 'Vector' not in cloudTex.inputs:
+        return
+    incoming = next(
+        (link for link in links if link.to_socket == cloudTex.inputs['Vector']),
         None,
     )
-    if scale is None:
+    if incoming is None:
         return
-    outgoing = [link for link in links if link.from_socket == scale.outputs['Value']]
-    if not outgoing:
+    original = incoming.from_socket
+    links.remove(incoming)
+    warped = _pushedCloudVector(nodes, links, normal, pull)
+    mix = nodes.new('ShaderNodeMix')
+    if hasattr(mix, 'data_type'):
+        mix.data_type = 'VECTOR'
+        factor = mix.inputs['Factor'] if 'Factor' in mix.inputs else mix.inputs[0]
+        links.new(mixFac, factor)
+        links.new(original, mix.inputs['A'] if 'A' in mix.inputs else mix.inputs[1])
+        links.new(warped, mix.inputs['B'] if 'B' in mix.inputs else mix.inputs[2])
+        result = mix.outputs['Result'] if 'Result' in mix.outputs else mix.outputs[0]
+        links.new(result, cloudTex.inputs['Vector'])
         return
-    mul = nodes.new('ShaderNodeMath')
-    mul.operation = 'MULTIPLY'
-    links.new(scale.outputs['Value'], mul.inputs[0])
-    links.new(fade, mul.inputs[1])
-    for link in outgoing:
-        target = link.to_socket
-        links.remove(link)
-        links.new(mul.outputs['Value'], target)
+    links.new(warped, cloudTex.inputs['Vector'])
 
 
 def _driveCloudBlast(
@@ -512,13 +657,22 @@ def _driveCloudBlast(
     angle: Any,
     inside: Any,
     normal: tuple[float, float, float],
-) -> None:
-    del normal
-    # Coverage burn-off only. UV warp around the site reads as a white cone.
-    _push, front = _cloudPushAmount(nodes, links, angle, shock, inside)
-    fade = _cloudCoverageScale(nodes, links, angle, shock, front)
+) -> Any:
+    del inside
+    armed = _shockActive(nodes, links, shock)
+    lead = _raggedLead(nodes, links, shock)
+    swept = nodes.new('ShaderNodeMath')
+    swept.operation = 'LESS_THAN'
+    links.new(angle, swept.inputs[0])
+    links.new(lead, swept.inputs[1])
+    behind = _scaleBy(nodes, links, swept.outputs['Value'], armed)
+    front = _angleTent(nodes, links, angle, lead, 0.055)
+    pull = _cloudPullTowardImpact(nodes, links, angle, lead, behind, armed)
+    _insertCloudPushWarp(nodes, links, normal, pull, behind)
+    fade = _cloudCoverageScale(nodes, links, front, behind, armed)
     _insertCoverageFade(nodes, links, fade)
     _boostKpgCloudReadout(nodes)
+    return front
 
 
 def _boostKpgCloudReadout(nodes: Any) -> None:
@@ -546,6 +700,32 @@ def _cloudMask(nodes: Any, links: Any, incoming: Any) -> Any:
     lumaOut = luma.outputs['Val'] if 'Val' in luma.outputs else luma.outputs[0]
     links.new(lumaOut, bright.inputs[0])
     return bright.outputs['Value']
+
+
+def _mixWaveCloudPush(
+    nodes: Any, links: Any, color: Any, angle: Any, tsunami: Any, front: Any
+) -> Any:
+    """Brighten actual (warped) cloud texels at the front. Not a painted torus."""
+    del angle
+    alpha = _cloudAlphaSocket(_cloudTextureNode(nodes))
+    if alpha is None:
+        return color
+    if getattr(alpha, 'type', '') == 'RGBA':
+        luma = nodes.new('ShaderNodeRGBToBW')
+        colorIn = luma.inputs['Color'] if 'Color' in luma.inputs else luma.inputs[0]
+        links.new(alpha, colorIn)
+        alpha = luma.outputs['Val'] if 'Val' in luma.outputs else luma.outputs[0]
+    armed = _shockActive(nodes, links, tsunami)
+    chop = _generatedNoise(nodes, links, 38.0, 4.0)
+    chop = _mathMulConst(nodes, links, chop, 0.40)
+    chop = _mathAdd(nodes, links, chop, 0.60)
+    pile = _mathMul(nodes, links, front, alpha)
+    pile = _mathMul(nodes, links, pile, chop)
+    pile = _mathMul(nodes, links, pile, armed)
+    pile = _mathMulConst(nodes, links, pile, 0.88)
+    piled = _colorMix(nodes)
+    _linkMix(links, piled, color, (0.91, 0.93, 0.95, 1.0), pile)
+    return _mixOut(piled)
 
 
 def _landFireMask(nodes: Any, links: Any, incoming: Any, angle: Any, fire: Any, cloud: Any) -> Any:
@@ -623,9 +803,15 @@ def _attachImpactWeather(
     fire = _valueNode(nodes, 'KpgFireFront', 0.0)
     soot = _valueNode(nodes, 'KpgSoot', 0.0)
     veil = _valueNode(nodes, 'KpgVeil', 0.0)
+    site = _valueNode(nodes, 'KpgSite', 0.0)
+    fallout = _valueNode(nodes, 'KpgFallout', 0.0)
+    tsunami = _valueNode(nodes, 'KpgTsunami', 0.0)
     angle = _impactAngleSocket(nodes, links, normal, inbound)
     inside, ring = _shockGates(nodes, links, angle, veil)
-    _driveCloudBlast(nodes, links, veil, angle, inside, normal)
+    waveInside, _waveRing = _shockGates(nodes, links, angle, tsunami)
+    del _waveRing
+    front = _driveCloudBlast(nodes, links, tsunami, angle, waveInside, normal)
+    pushed = _mixWaveCloudPush(nodes, links, incoming, angle, tsunami, front)
     cloud = _cloudMask(nodes, links, incoming)
     rim = _colorMix(nodes)
     burned = _colorMix(nodes)
@@ -634,7 +820,7 @@ def _attachImpactWeather(
     rimAmt.operation = 'MULTIPLY'
     rimAmt.inputs[1].default_value = 0.0
     links.new(ring, rimAmt.inputs[0])
-    _linkMix(links, rim, incoming, (1.0, 0.58, 0.20, 1.0), rimAmt.outputs['Value'])
+    _linkMix(links, rim, pushed, (1.0, 0.58, 0.20, 1.0), rimAmt.outputs['Value'])
     landMask = _landFireMask(nodes, links, incoming, angle, veil, cloud)
     burnAmt = nodes.new('ShaderNodeMath')
     burnAmt.operation = 'MULTIPLY'
@@ -642,12 +828,12 @@ def _attachImpactWeather(
     links.new(landMask, burnAmt.inputs[0])
     _linkMix(links, burned, _mixOut(rim), (0.10, 0.045, 0.02, 1.0), burnAmt.outputs['Value'])
     _linkMix(links, sooted, _mixOut(burned), (0.11, 0.09, 0.08, 1.0), soot.outputs[0])
-    tsunami = _valueNode(nodes, 'KpgTsunami', 0.0)
-    foam = _mixTsunamiFoam(nodes, links, _mixOut(sooted), angle, veil)
     smolder = _valueNode(nodes, 'KpgSmolder', 0.0)
-    scar = _mixSmolder(nodes, links, foam, angle, smolder, veil)
-    umbrella = _mixTongaUmbrella(nodes, links, scar, angle, veil, normal)
-    links.new(umbrella, principled.inputs['Base Color'])
+    scar = _mixSmolder(nodes, links, _mixOut(sooted), angle, smolder, veil)
+    umbrella = _mixTongaUmbrella(nodes, links, scar, angle, site, normal)
+    rain = _mixMoltenRain(nodes, links, umbrella, angle, fallout)
+    foam = _mixTsunamiFoam(nodes, links, rain, angle, tsunami, incoming)
+    links.new(foam, principled.inputs['Base Color'])
     flash = _valueNode(nodes, 'KpgFlash', 0.0)
     _wireImpactEmission(nodes, links, principled, angle, landMask, flash, shock)
     return {
@@ -658,19 +844,135 @@ def _attachImpactWeather(
         'tsunami': tsunami,
         'smolder': smolder,
         'veil': veil,
+        'site': site,
+        'fallout': fallout,
     }
 
 
-def _mixTsunamiFoam(nodes: Any, links: Any, color: Any, angle: Any, tsunami: Any) -> Any:
-    _inside, ring = _shockGates(nodes, links, angle, tsunami)
-    del _inside
-    foam = _colorMix(nodes)
+def _oceanMask(nodes: Any, links: Any, incoming: Any) -> Any:
+    try:
+        split = nodes.new('ShaderNodeSeparateColor')
+    except RuntimeError:
+        split = nodes.new('ShaderNodeSeparateRGB')
+    colorIn = split.inputs['Color'] if 'Color' in split.inputs else split.inputs[0]
+    links.new(incoming, colorIn)
+    red = split.outputs['Red'] if 'Red' in split.outputs else split.outputs[0]
+    green = split.outputs['Green'] if 'Green' in split.outputs else split.outputs[1]
+    blue = split.outputs['Blue'] if 'Blue' in split.outputs else split.outputs[2]
+    veg = nodes.new('ShaderNodeMath')
+    veg.operation = 'SUBTRACT'
+    links.new(green, veg.inputs[0])
+    links.new(blue, veg.inputs[1])
+    dry = nodes.new('ShaderNodeMath')
+    dry.operation = 'SUBTRACT'
+    links.new(red, dry.inputs[0])
+    links.new(blue, dry.inputs[1])
+    land = nodes.new('ShaderNodeMath')
+    land.operation = 'ADD'
+    links.new(veg.outputs['Value'], land.inputs[0])
+    links.new(dry.outputs['Value'], land.inputs[1])
+    landClip = nodes.new('ShaderNodeClamp')
+    landClip.inputs['Min'].default_value = 0.0
+    landClip.inputs['Max'].default_value = 1.0
+    links.new(land.outputs['Value'], landClip.inputs['Value'])
+    ocean = nodes.new('ShaderNodeMath')
+    ocean.operation = 'SUBTRACT'
+    ocean.inputs[0].default_value = 1.0
+    links.new(landClip.outputs['Result'], ocean.inputs[1])
+    return ocean.outputs['Value']
+
+
+def _angleRing(nodes: Any, links: Any, angle: Any, radius: Any, width: float) -> Any:
+    delta = nodes.new('ShaderNodeMath')
+    delta.operation = 'SUBTRACT'
+    links.new(angle, delta.inputs[0])
+    links.new(radius, delta.inputs[1])
+    ringAbs = nodes.new('ShaderNodeMath')
+    ringAbs.operation = 'ABSOLUTE'
+    links.new(delta.outputs['Value'], ringAbs.inputs[0])
+    norm = nodes.new('ShaderNodeMath')
+    norm.operation = 'DIVIDE'
+    norm.inputs[1].default_value = width
+    links.new(ringAbs.outputs['Value'], norm.inputs[0])
+    ring = nodes.new('ShaderNodeMath')
+    ring.operation = 'LESS_THAN'
+    ring.inputs[1].default_value = 1.0
+    links.new(norm.outputs['Value'], ring.inputs[0])
+    grown = nodes.new('ShaderNodeMath')
+    grown.operation = 'GREATER_THAN'
+    grown.inputs[1].default_value = 0.03
+    links.new(radius, grown.inputs[0])
+    return _mathMul(nodes, links, ring.outputs['Value'], grown.outputs['Value'])
+
+
+def _mixTsunamiFoam(
+    nodes: Any, links: Any, color: Any, angle: Any, tsunami: Any, incoming: Any
+) -> Any:
+    """One thin ocean ring. Mixed last. Leaves the far side instead of parking."""
+    ocean = _oceanMask(nodes, links, incoming)
+    lead = tsunami.outputs[0]
+    rings = _angleRing(nodes, links, angle, lead, 0.012)
+    cover = _mathMul(nodes, links, rings, ocean)
+    fade = nodes.new('ShaderNodeMapRange')
+    fade.inputs['From Min'].default_value = 2.20
+    fade.inputs['From Max'].default_value = math.pi
+    fade.inputs['To Min'].default_value = 1.0
+    fade.inputs['To Max'].default_value = 0.0
+    if hasattr(fade, 'clamp'):
+        fade.clamp = True
+    links.new(lead, fade.inputs['Value'])
+    cover = _mathMul(nodes, links, cover, fade.outputs['Result'])
+    gone = nodes.new('ShaderNodeMath')
+    gone.operation = 'GREATER_THAN'
+    gone.inputs[1].default_value = math.pi
+    links.new(lead, gone.inputs[0])
+    keep = nodes.new('ShaderNodeMath')
+    keep.operation = 'SUBTRACT'
+    keep.inputs[0].default_value = 1.0
+    links.new(gone.outputs['Value'], keep.inputs[1])
+    cover = _mathMul(nodes, links, cover, keep.outputs['Value'])
     amount = nodes.new('ShaderNodeMath')
     amount.operation = 'MULTIPLY'
-    amount.inputs[1].default_value = 0.72
-    links.new(ring, amount.inputs[0])
-    _linkMix(links, foam, color, (0.62, 0.58, 0.52, 1.0), amount.outputs['Value'])
+    amount.inputs[1].default_value = 0.90
+    links.new(cover, amount.inputs[0])
+    amountClip = nodes.new('ShaderNodeClamp')
+    amountClip.inputs['Min'].default_value = 0.0
+    amountClip.inputs['Max'].default_value = 1.0
+    links.new(amount.outputs['Value'], amountClip.inputs['Value'])
+    foam = _colorMix(nodes)
+    _linkMix(links, foam, color, (0.82, 0.86, 0.90, 1.0), amountClip.outputs['Result'])
     return _mixOut(foam)
+
+
+def _mixMoltenRain(nodes: Any, links: Any, color: Any, angle: Any, fallout: Any) -> Any:
+    """Glowing fallback on the surface. Not flying pearls."""
+    inside = nodes.new('ShaderNodeMath')
+    inside.operation = 'LESS_THAN'
+    links.new(angle, inside.inputs[0])
+    links.new(fallout.outputs[0], inside.inputs[1])
+    armed = nodes.new('ShaderNodeMath')
+    armed.operation = 'GREATER_THAN'
+    armed.inputs[1].default_value = 0.04
+    links.new(fallout.outputs[0], armed.inputs[0])
+    grain = _generatedNoise(nodes, links, 150.0, 5.0)
+    hot = nodes.new('ShaderNodeMath')
+    hot.operation = 'SUBTRACT'
+    hot.inputs[1].default_value = 0.78
+    links.new(grain, hot.inputs[0])
+    hot = _mathMulConst(nodes, links, hot.outputs['Value'], 6.5)
+    clip = nodes.new('ShaderNodeClamp')
+    clip.inputs['Min'].default_value = 0.0
+    clip.inputs['Max'].default_value = 1.0
+    links.new(hot, clip.inputs['Value'])
+    spots = _mathMul(nodes, links, clip.outputs['Result'], inside.outputs['Value'])
+    spots = _mathMul(nodes, links, spots, armed.outputs['Value'])
+    amount = nodes.new('ShaderNodeMath')
+    amount.operation = 'MULTIPLY'
+    amount.inputs[1].default_value = 0.82
+    links.new(spots, amount.inputs[0])
+    rain = _colorMix(nodes)
+    _linkMix(links, rain, color, (1.0, 0.32, 0.05, 1.0), amount.outputs['Value'])
+    return _mixOut(rain)
 
 
 def _mixSmolder(nodes: Any, links: Any, color: Any, angle: Any, smolder: Any, veil: Any) -> Any:
@@ -843,7 +1145,7 @@ def _mixTongaUmbrella(
     links.new(wind.outputs['Value'], oval.inputs[0])
     ovalAmt = nodes.new('ShaderNodeMath')
     ovalAmt.operation = 'MULTIPLY'
-    ovalAmt.inputs[1].default_value = 0.08
+    ovalAmt.inputs[1].default_value = 0.22
     links.new(oval.outputs['Value'], ovalAmt.inputs[0])
     ovalBias = nodes.new('ShaderNodeMath')
     ovalBias.operation = 'ADD'
@@ -852,7 +1154,7 @@ def _mixTongaUmbrella(
     rag = _generatedNoise(nodes, links, 55.0, 3.0)
     ragAmt = nodes.new('ShaderNodeMath')
     ragAmt.operation = 'MULTIPLY'
-    ragAmt.inputs[1].default_value = 0.14
+    ragAmt.inputs[1].default_value = 0.32
     links.new(rag, ragAmt.inputs[0])
     ragBias = nodes.new('ShaderNodeMath')
     ragBias.operation = 'ADD'
@@ -2446,12 +2748,18 @@ def _keyWeather(weather: dict[str, Any], sample: dict[str, Any], frame: int) -> 
         ('tsunami', 'tsunamiAngle'),
         ('smolder', 'smolder'),
         ('veil', 'veilAngle'),
+        ('site', 'site'),
+        ('fallout', 'fallout'),
     ):
         node = weather.get(key)
         if node is None:
             continue
         if key == 'veil':
             node.outputs[0].default_value = _veilAngleRad(frame)
+        elif key == 'site':
+            node.outputs[0].default_value = _siteCloudRad(frame)
+        elif key == 'fallout':
+            node.outputs[0].default_value = _falloutAngleRad(frame)
         else:
             node.outputs[0].default_value = float(sample.get(sampleKey, 0.0))
         node.outputs[0].keyframe_insert(data_path='default_value', frame=frame)
