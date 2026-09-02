@@ -12,6 +12,10 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore(SOLSYS)
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
 
   - package-ecosystem: pip
     directory: /
