@@ -10,6 +10,10 @@ Built with `numpy`, `pandas`, and `matplotlib`. Orbital elements include ellipti
 
 ## What's included
 
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/pre-commit install && .venv/bin/pre-commit install --hook-type commit-msg
+```
+
 | Layer | Path | Role |
 |-------|------|------|
 | CLI | `render.py` | Single entry point: `animate` / `static` / `neighborhood` / `blender` / `all` |
