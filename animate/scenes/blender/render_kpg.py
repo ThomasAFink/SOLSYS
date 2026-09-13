@@ -840,19 +840,26 @@ def _landFireMask(nodes: Any, links: Any, incoming: Any, angle: Any, fire: Any, 
     return mask.outputs['Value']
 
 
+def _winterCover(nodes: Any, links: Any, soot: Any) -> Any:
+    """Full sheet by mid-winter. Peak soot is 0.96; do not wait until 1.0 to seal land."""
+    cover = nodes.new('ShaderNodeMapRange')
+    cover.inputs['From Min'].default_value = 0.12
+    cover.inputs['From Max'].default_value = 0.58
+    cover.inputs['To Min'].default_value = 0.0
+    cover.inputs['To Max'].default_value = 1.0
+    if hasattr(cover, 'clamp'):
+        cover.clamp = True
+    links.new(soot.outputs[0], cover.inputs['Value'])
+    return cover.outputs['Result']
+
+
 def _mixAshBlanket(nodes: Any, links: Any, color: Any, soot: Any) -> Any:
-    """Thick low-contrast soot on the globe. Clouds are painted back on after this."""
+    """Replace globe albedo once winter settles. Grain stays in the dust, not as holes to land."""
     grain = _generatedNoise(nodes, links, 7.5, 6.0)
-    density = _mathAdd(nodes, links, _mathMulConst(nodes, links, grain, 0.06), 0.96)
-    amount = _mathMul(nodes, links, soot.outputs[0], density)
-    amountClip = nodes.new('ShaderNodeClamp')
-    amountClip.inputs['Min'].default_value = 0.0
-    amountClip.inputs['Max'].default_value = 1.0
-    links.new(amount, amountClip.inputs['Value'])
-    crush = _colorMix(nodes, multiply=True)
-    _linkMix(links, crush, color, (0.045, 0.040, 0.036, 1.0), amountClip.outputs['Result'])
+    dust = _colorMix(nodes)
+    _linkMix(links, dust, (0.028, 0.024, 0.020, 1.0), (0.014, 0.012, 0.010, 1.0), grain)
     ash = _colorMix(nodes)
-    _linkMix(links, ash, _mixOut(crush), (0.012, 0.010, 0.009, 1.0), amountClip.outputs['Result'])
+    _linkMix(links, ash, color, _mixOut(dust), _winterCover(nodes, links, soot))
     return _mixOut(ash)
 
 
@@ -884,8 +891,12 @@ def _mixReturnOvercast(
         _mathAdd(nodes, links, _mathMulConst(nodes, links, shred, 0.55), 0.40),
     )
     amount = _mathMul(nodes, links, behind, soot.outputs[0])
-    amount = _mathMul(nodes, links, amount, texture)
-    amount = _mathMulConst(nodes, links, amount, 0.94)
+    amount = _mathMul(
+        nodes,
+        links,
+        amount,
+        _mathAdd(nodes, links, _mathMulConst(nodes, links, texture, 0.46), 0.48),
+    )
     amountClip = nodes.new('ShaderNodeClamp')
     amountClip.inputs['Min'].default_value = 0.0
     amountClip.inputs['Max'].default_value = 1.0
@@ -975,7 +986,8 @@ def _attachImpactWeather(
     links.new(sky, principled.inputs['Base Color'])
     flash = _valueNode(nodes, 'KpgFlash', 0.0)
     glow = _valueNode(nodes, 'KpgSiteGlow', 0.0)
-    _wireImpactEmission(nodes, links, principled, angle, landMask, flash, shock, glow)
+    _flattenWinterShading(nodes, links, principled, soot)
+    _wireImpactEmission(nodes, links, principled, angle, landMask, flash, shock, glow, soot)
     return {
         'shock': shock,
         'fire': fire,
@@ -1469,6 +1481,45 @@ def _mathAdd(nodes: Any, links: Any, value: Any, constant: float) -> Any:
     return added.outputs['Value']
 
 
+def _mathMix(nodes: Any, links: Any, left: Any, right: Any, factor: Any) -> Any:
+    """(1-factor)*left + factor*right. `right` may be a socket or a float."""
+    stay = nodes.new('ShaderNodeMath')
+    stay.operation = 'SUBTRACT'
+    stay.inputs[0].default_value = 1.0
+    links.new(factor, stay.inputs[1])
+    kept = _mathMul(nodes, links, left, stay.outputs['Value'])
+    if hasattr(right, 'id_data'):
+        added = _mathMul(nodes, links, right, factor)
+    else:
+        added = _mathMulConst(nodes, links, factor, float(right))
+    return _mathAddSocket(nodes, links, kept, added)
+
+
+def _linkedOrDefault(nodes: Any, links: Any, dest: Any) -> Any:
+    incoming = next((link for link in links if link.to_socket == dest), None)
+    if incoming is None:
+        return _valueNode(nodes, '', float(dest.default_value)).outputs[0]
+    source = incoming.from_socket
+    links.remove(incoming)
+    return source
+
+
+def _flattenWinterShading(nodes: Any, links: Any, principled: Any, soot: Any) -> None:
+    """EEVEE relights leftover ocean spec and land albedo. Material view does not."""
+    cover = _winterCover(nodes, links, soot)
+    if 'Roughness' in principled.inputs:
+        dest = principled.inputs['Roughness']
+        source = _linkedOrDefault(nodes, links, dest)
+        links.new(_mathMix(nodes, links, source, 1.0, cover), dest)
+    for inputName in ('Specular IOR Level', 'Specular'):
+        if inputName not in principled.inputs:
+            continue
+        dest = principled.inputs[inputName]
+        source = _linkedOrDefault(nodes, links, dest)
+        links.new(_mathMix(nodes, links, source, 0.0, cover), dest)
+        break
+
+
 def _wireImpactEmission(
     nodes: Any,
     links: Any,
@@ -1478,6 +1529,7 @@ def _wireImpactEmission(
     flash: Any,
     shock: Any | None = None,
     glow: Any | None = None,
+    soot: Any | None = None,
 ) -> None:
     if 'Emission Color' in principled.inputs:
         ember = nodes.new('ShaderNodeRGB')
@@ -1505,6 +1557,18 @@ def _wireImpactEmission(
     landGlow.operation = 'MULTIPLY'
     landGlow.inputs[1].default_value = 0.55
     links.new(landMask, landGlow.inputs[0])
+    if soot is not None:
+        winter = nodes.new('ShaderNodeMapRange')
+        winter.inputs['From Min'].default_value = 0.12
+        winter.inputs['From Max'].default_value = 0.50
+        winter.inputs['To Min'].default_value = 1.0
+        winter.inputs['To Max'].default_value = 0.0
+        if hasattr(winter, 'clamp'):
+            winter.clamp = True
+        links.new(soot.outputs[0], winter.inputs['Value'])
+        landGlow = _mathMul(nodes, links, landGlow.outputs['Value'], winter.outputs['Result'])
+    else:
+        landGlow = landGlow.outputs['Value']
     core = nodes.new('ShaderNodeMapRange')
     core.inputs['From Min'].default_value = 0.0
     core.inputs['From Max'].default_value = 0.036
@@ -1543,7 +1607,7 @@ def _wireImpactEmission(
     total = nodes.new('ShaderNodeMath')
     total.operation = 'ADD'
     links.new(flashAmt.outputs['Value'], total.inputs[0])
-    links.new(landGlow.outputs['Value'], total.inputs[1])
+    links.new(landGlow, total.inputs[1])
     total = _mathAddSocket(nodes, links, total.outputs['Value'], emberAmt)
     links.new(total, principled.inputs['Emission Strength'])
 
