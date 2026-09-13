@@ -4040,7 +4040,20 @@ def _keyCrustPlates(
         _keyScale(plate, tear * (0.75 + 0.35 * ((index * 0.37) % 1.0)), frame, zScale=0.88)
 
 
-def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
+_KPG_FRAME_MARK = '_solsys_kpg_frame'
+
+
+def _replaceKpgFrameHandler(bpy: Any, handler: Any) -> None:
+    """Drop only prior K–Pg frame callbacks. Leave add-on and user handlers alone."""
+    setattr(handler, _KPG_FRAME_MARK, True)
+    bag = bpy.app.handlers.frame_change_pre
+    for existing in list(bag):
+        if getattr(existing, _KPG_FRAME_MARK, False):
+            bag.remove(existing)
+    bag.append(handler)
+
+
+def applyKpgJobInBlender(job: dict[str, Any], *, render: bool = True) -> Path:
     import bpy  # type: ignore[import-not-found]
 
     flyby = _flybyModule()
@@ -4174,7 +4187,7 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
         lightData.energy = sunEnergy * float(sample['sunScale'])
         fillData.energy = fillEnergy * float(sample['sunScale'])
 
-    bpy.app.handlers.frame_change_pre.append(_onFrame)
+    _replaceKpgFrameHandler(bpy, _onFrame)
     _onFrame(scene)
 
     _spaceWorld(bpy)
@@ -4191,18 +4204,19 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     )
     _applyCinemaLook(scene)
     _enableExplosionBloom(scene)
-    stills = [int(frame) for frame in job.get('stillFrames') or []]
-    if stills:
-        print(f'Rendering {len(stills)} contact stills...')
-        for frame in stills:
-            scene.frame_set(frame)
-            _onFrame(scene)
-            bpy.context.view_layer.update()
-            scene.render.filepath = str(outputDirectory / f'frame_{frame:04d}')
-            bpy.ops.render.render(write_still=True)
-    else:
-        print('Rendering K–Pg full event...')
-        bpy.ops.render.render(animation=True)
+    if render:
+        stills = [int(frame) for frame in job.get('stillFrames') or []]
+        if stills:
+            print(f'Rendering {len(stills)} contact stills...')
+            for frame in stills:
+                scene.frame_set(frame)
+                _onFrame(scene)
+                bpy.context.view_layer.update()
+                scene.render.filepath = str(outputDirectory / f'frame_{frame:04d}')
+                bpy.ops.render.render(write_still=True)
+        else:
+            print('Rendering K–Pg full event...')
+            bpy.ops.render.render(animation=True)
     written = sorted(outputDirectory.glob('frame_*.png'))
     if not written:
         raise RuntimeError(f'Blender produced no PNG frames in {outputDirectory}')
