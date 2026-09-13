@@ -323,6 +323,10 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertGreater(sootStep, midFast)
         self.assertGreater(sootStep, recoverStep)
         self.assertGreater(midFast, recoverStep)
+        self.assertGreater(
+            self.samples[TWILIGHT_END].earthSpin - self.samples[SPIN_END].earthSpin,
+            8.0 * math.pi,
+        )
         self.assertEqual(self.samples[IMPACT_FRAME + 10].dieback, 0.0)
         self.assertGreater(self.samples[TWILIGHT_END - 1].dieback, 0.8)
         self.assertGreater(self.samples[IMPACT_FRAME + 12].tsunamiAngle, 0.0)
@@ -333,12 +337,12 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertGreater(self.samples[TWILIGHT_END + 20].dieback, 0.8)
         self.assertLess(self.samples[-1].dieback, self.samples[TWILIGHT_END - 1].dieback)
         self.assertLess(self.samples[-1].dieback, self.samples[TWILIGHT_END + 20].dieback)
-        self.assertLess(self.samples[-1].dieback, 0.40)
-        self.assertGreater(self.samples[-1].dieback, 0.12)
+        self.assertLess(self.samples[-1].dieback, 0.10)
+        self.assertLess(self.samples[-1].soot, 0.08)
         self.assertLess(self.samples[IMPACT_FRAME + 55].siteGlow, 0.15)
         self.assertGreater(ANIMATION_FRAMES - TWILIGHT_END, 120)
         self.assertLess(self.samples[TWILIGHT_END - 1].sunScale, 0.08)
-        self.assertGreater(self.samples[-1].sunScale, 0.7)
+        self.assertGreater(self.samples[-1].sunScale, 0.9)
         self.assertGreater(FIREBALL_MAX_RADII, CINEMA_ROCK_RADII)
         self.assertEqual(contactPlateAmount(IMPACT_FRAME), 0.0)
 
@@ -391,8 +395,8 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertLess(job['frames'][SPIN_END]['siteGlow'], 0.05)
         self.assertGreater(job['frames'][TWILIGHT_END - 1]['dieback'], 0.8)
         self.assertGreater(job['frames'][TWILIGHT_END + 20]['dieback'], 0.8)
-        self.assertLess(job['frames'][-1]['dieback'], 0.40)
-        self.assertGreater(job['frames'][-1]['dieback'], 0.12)
+        self.assertLess(job['frames'][-1]['dieback'], 0.10)
+        self.assertLess(job['frames'][-1]['soot'], 0.08)
         self.assertLess(job['frames'][-1]['dieback'], job['frames'][TWILIGHT_END - 1]['dieback'])
         self.assertEqual(job['contact']['textures']['explosion'], [])
 
