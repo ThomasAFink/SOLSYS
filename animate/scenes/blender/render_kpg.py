@@ -1058,6 +1058,7 @@ def _mixTsunamiFoam(
     dust = _generatedNoise(nodes, links, 42.0, 6.0)
     density = _mathAdd(nodes, links, _mathMulConst(nodes, links, dust, 0.50), 0.48)
     cover = _mathMul(nodes, links, rings, density)
+    cover = _mathMul(nodes, links, cover, _shockActive(nodes, links, tsunami))
     fade = nodes.new('ShaderNodeMapRange')
     fade.inputs['From Min'].default_value = 2.20
     fade.inputs['From Max'].default_value = math.pi
