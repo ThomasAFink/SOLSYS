@@ -151,7 +151,7 @@ class ImpactCameraTests(unittest.TestCase):
             if not seen or seen[-1] != name:
                 seen.append(name)
         self.assertEqual(seen, [name for _, name in ACT_BOUNDARIES] + ['recovery'])
-        self.assertEqual(ANIMATION_FRAMES, 720)
+        self.assertEqual(ANIMATION_FRAMES, 900)
 
     def test_the_camera_dives_then_pulls_back(self) -> None:
         def distance(index: int) -> float:
@@ -340,8 +340,10 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertLess(self.samples[-1].dieback, 0.10)
         self.assertLess(self.samples[-1].soot, 0.08)
         self.assertLess(self.samples[IMPACT_FRAME + 55].siteGlow, 0.15)
-        self.assertGreater(ANIMATION_FRAMES - TWILIGHT_END, 120)
-        self.assertLess(self.samples[TWILIGHT_END - 1].sunScale, 0.08)
+        self.assertGreater(ANIMATION_FRAMES - TWILIGHT_END, 250)
+        self.assertGreater(self.samples[TWILIGHT_END + 40].soot, 0.9)
+        self.assertLess(self.samples[TWILIGHT_END - 1].sunScale, 0.22)
+        self.assertGreater(self.samples[TWILIGHT_END - 1].sunScale, 0.12)
         self.assertGreater(self.samples[-1].sunScale, 0.9)
         self.assertGreater(FIREBALL_MAX_RADII, CINEMA_ROCK_RADII)
         self.assertEqual(contactPlateAmount(IMPACT_FRAME), 0.0)

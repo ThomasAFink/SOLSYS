@@ -262,9 +262,9 @@ def _softenCloseupTextures(material: Any) -> None:
         sat = node.inputs.get('Saturation')
         value = node.inputs.get('Value')
         if sat is not None and float(sat.default_value) > 1.05:
-            sat.default_value = 0.78
+            sat.default_value = 0.88
         if value is not None and float(value.default_value) > 0.90:
-            value.default_value = 0.68
+            value.default_value = 0.86
 
 
 def _valueNode(nodes: Any, name: str, value: float) -> Any:
@@ -1781,6 +1781,109 @@ def _createDisk(bpy: Any, name: str, radius: float) -> Any:
     return obj
 
 
+def _createCone(bpy: Any, name: str, radiusBottom: float, radiusTop: float, depth: float) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_cone(
+        builder,
+        cap_ends=True,
+        cap_tris=True,
+        segments=40,
+        radius1=radiusBottom,
+        radius2=radiusTop,
+        depth=depth,
+    )
+    builder.to_mesh(mesh)
+    builder.free()
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _tongaStemMaterial(bpy: Any) -> Any:
+    """White-hot column, ashy sides. Reads as a stem from the side."""
+    material = bpy.data.materials.new(name='KpgTongaStem')
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    emission = nodes.new('ShaderNodeEmission')
+    transparent = nodes.new('ShaderNodeBsdfTransparent')
+    mix = nodes.new('ShaderNodeMixShader')
+    texcoord = nodes.new('ShaderNodeTexCoord')
+    split = nodes.new('ShaderNodeSeparateXYZ')
+    links.new(texcoord.outputs['Object'], split.inputs['Vector'])
+    radial = nodes.new('ShaderNodeCombineXYZ')
+    links.new(split.outputs['X'], radial.inputs['X'])
+    links.new(split.outputs['Y'], radial.inputs['Y'])
+    width = nodes.new('ShaderNodeVectorMath')
+    width.operation = 'LENGTH'
+    links.new(radial.outputs['Vector'], width.inputs[0])
+    ramp = nodes.new('ShaderNodeValToRGB')
+    ramp.color_ramp.interpolation = 'B_SPLINE'
+    stops = (
+        (0.00, (1.0, 0.98, 0.92, 1.0)),
+        (0.22, (1.0, 0.82, 0.52, 1.0)),
+        (0.48, (0.42, 0.26, 0.14, 1.0)),
+        (1.00, (0.12, 0.08, 0.05, 0.0)),
+    )
+    while len(ramp.color_ramp.elements) < len(stops):
+        ramp.color_ramp.elements.new(1.0)
+    for element, (position, color) in zip(ramp.color_ramp.elements, stops, strict=False):
+        element.position = position
+        element.color = color
+    reach = nodes.new('ShaderNodeMapRange')
+    reach.inputs['From Min'].default_value = 0.0
+    reach.inputs['From Max'].default_value = 0.24
+    reach.inputs['To Min'].default_value = 0.0
+    reach.inputs['To Max'].default_value = 1.0
+    if hasattr(reach, 'clamp'):
+        reach.clamp = True
+    links.new(width.outputs['Value'], reach.inputs['Value'])
+    links.new(reach.outputs['Result'], ramp.inputs['Fac'])
+    grain = nodes.new('ShaderNodeTexNoise')
+    grain.inputs['Scale'].default_value = 18.0
+    if 'Detail' in grain.inputs:
+        grain.inputs['Detail'].default_value = 6.0
+    links.new(texcoord.outputs['Object'], grain.inputs['Vector'])
+    cover = _mathMul(
+        nodes,
+        links,
+        _mathAdd(nodes, links, _mathMulConst(nodes, links, grain.outputs['Fac'], 0.22), 0.72),
+        _mathAdd(nodes, links, _mathMulConst(nodes, links, reach.outputs['Result'], -1.0), 1.0),
+    )
+    luma = nodes.new('ShaderNodeRGBToBW')
+    lumaIn = luma.inputs['Color'] if 'Color' in luma.inputs else luma.inputs[0]
+    lumaOut = luma.outputs['Val'] if 'Val' in luma.outputs else luma.outputs[0]
+    links.new(ramp.outputs['Color'], lumaIn)
+    punch = nodes.new('ShaderNodeMath')
+    punch.operation = 'MULTIPLY'
+    punch.inputs[1].default_value = 8.0
+    links.new(lumaOut, punch.inputs[0])
+    links.new(ramp.outputs['Color'], emission.inputs['Color'])
+    links.new(punch.outputs['Value'], emission.inputs['Strength'])
+    invert = nodes.new('ShaderNodeMath')
+    invert.operation = 'SUBTRACT'
+    invert.inputs[0].default_value = 1.0
+    links.new(cover, invert.inputs[1])
+    links.new(emission.outputs['Emission'], mix.inputs[1])
+    links.new(transparent.outputs['BSDF'], mix.inputs[2])
+    factor = mix.inputs['Fac'] if 'Fac' in mix.inputs else mix.inputs['Factor']
+    links.new(invert.outputs['Value'], factor)
+    links.new(mix.outputs['Shader'], output.inputs['Surface'])
+    _markAlphaBlend(material)
+    if hasattr(material, 'use_backface_culling'):
+        material.use_backface_culling = False
+    if hasattr(material, 'shadow_method'):
+        material.shadow_method = 'NONE'
+    return material
+
+
 def _tongaSheetMaterial(bpy: Any) -> Any:
     material = bpy.data.materials.new(name='KpgTongaSheet')
     material.use_nodes = True
@@ -1896,15 +1999,21 @@ def _buildTongaPlume(
     core = _createSmoothOrb(bpy, 'KpgTongaCore', 0.18)
     core.data.materials.append(_fireOrbMaterial(bpy, 'KpgTongaCore', (1.0, 0.97, 0.90), 18.0))
     core.parent = empty
-    core.location = (0.0, 0.0, 0.04)
+    core.location = (0.0, 0.0, 0.38)
     sheet = _createDisk(bpy, 'KpgTongaSheet', 1.0)
     sheet.data.materials.append(_tongaSheetMaterial(bpy))
     sheet.parent = empty
-    sheet.location = (0.0, 0.0, 0.015)
+    sheet.location = (0.0, 0.0, 0.42)
+    stem = _createCone(bpy, 'KpgTongaStem', 0.04, 0.28, 0.88)
+    stem.data.materials.append(_tongaStemMaterial(bpy))
+    stem.parent = empty
+    stem.location = (0.0, 0.0, -0.02)
     if hasattr(sheet, 'visible_shadow'):
         sheet.visible_shadow = False
     if hasattr(core, 'visible_shadow'):
         core.visible_shadow = False
+    if hasattr(stem, 'visible_shadow'):
+        stem.visible_shadow = False
     return empty
 
 
@@ -1927,11 +2036,18 @@ def _keyTongaPlume(
     impactFrame: int,
 ) -> None:
     del sample
-    site = tuple(axis * earthRadius * 1.03 for axis in normal)
+    site = tuple(axis * earthRadius * 1.012 for axis in normal)
+    grow = _tongaPlumeGrow(frame, impactFrame)
     _keyLocation(plume, site, frame)
-    _keyScale(plume, _tongaPlumeGrow(frame, impactFrame) * earthRadius * 0.22, frame)
+    _keyScale(plume, grow * earthRadius * 0.22, frame)
     _alignPlusZ(plume, normal)
     plume.keyframe_insert(data_path='rotation_quaternion', frame=frame)
+    hidden = grow < 1e-4
+    for obj in (plume, *list(plume.children)):
+        obj.hide_render = hidden
+        obj.hide_viewport = hidden
+        obj.keyframe_insert(data_path='hide_render', frame=frame)
+        obj.keyframe_insert(data_path='hide_viewport', frame=frame)
 
 
 def _keyShockRing(
@@ -3072,36 +3188,43 @@ def _keySecondaryPlates(
         _keyBillboard(card, tuple(float(value) for value in sample['cameraAu']), frame)
 
 
-def _keyWeather(
-    weather: dict[str, Any], sample: dict[str, Any], frame: int, impactFrame: int
-) -> None:
-    derived = {
+def _weatherValues(sample: dict[str, Any], frame: int, impactFrame: int) -> dict[str, float]:
+    values = {
         'veil': _veilAngleRad(frame, impactFrame),
         'site': _siteCloudRad(frame, impactFrame),
         'fallout': _falloutAngleRad(frame, impactFrame),
         'crater': 1.0 if frame >= impactFrame else 0.0,
+        'shock': float(sample.get('shockAngle', 0.0)),
+        'fire': float(sample.get('wildfireAngle', 0.0)),
+        'soot': float(sample.get('soot', 0.0)),
+        'flash': float(sample.get('flashScale', 0.0)),
+        'tsunami': float(sample.get('tsunamiAngle', 0.0)),
+        'smolder': float(sample.get('smolder', 0.0)),
+        'glow': float(sample.get('siteGlow', 0.0)),
+        'dieback': float(sample.get('dieback', 0.0)),
     }
-    sampled = {
-        'shock': 'shockAngle',
-        'fire': 'wildfireAngle',
-        'soot': 'soot',
-        'flash': 'flashScale',
-        'tsunami': 'tsunamiAngle',
-        'smolder': 'smolder',
-        'glow': 'siteGlow',
-        'dieback': 'dieback',
-    }
-    for key, value in derived.items():
+    return values
+
+
+def _applyWeather(
+    weather: dict[str, Any], sample: dict[str, Any], frame: int, impactFrame: int
+) -> None:
+    """Push soot/dieback onto the shader. Node F-curves can miss EEVEE animation frames."""
+    for key, value in _weatherValues(sample, frame, impactFrame).items():
         node = weather.get(key)
         if node is None:
             continue
         node.outputs[0].default_value = value
-        node.outputs[0].keyframe_insert(data_path='default_value', frame=frame)
-    for key, sampleKey in sampled.items():
+
+
+def _keyWeather(
+    weather: dict[str, Any], sample: dict[str, Any], frame: int, impactFrame: int
+) -> None:
+    _applyWeather(weather, sample, frame, impactFrame)
+    for key in _weatherValues(sample, frame, impactFrame):
         node = weather.get(key)
         if node is None:
             continue
-        node.outputs[0].default_value = float(sample.get(sampleKey, 0.0))
         node.outputs[0].keyframe_insert(data_path='default_value', frame=frame)
 
 
@@ -3537,6 +3660,12 @@ def _buildHeatTrail(
     return trail
 
 
+def _aimGlobeLights(sun: Any, fill: Any, cameraLocation: tuple[float, float, float]) -> None:
+    """Keep the show face lit. Parenting these to Earth hides ash/recovery after the spin."""
+    sun.location = cameraLocation
+    fill.location = (-cameraLocation[0], -cameraLocation[1], -cameraLocation[2])
+
+
 def _addFillLight(
     bpy: Any, scene: Any, earth: Any, sunLocation: tuple[float, float, float], theme: str
 ) -> Any:
@@ -3890,12 +4019,6 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     swarm: list[tuple[Any, tuple[float, float, float, float, float], bool]] = []
     impact = _impactFrame(frames)
     fps = float(job.get('fps', 20))
-
-    def _onFrame(scene: Any) -> None:
-        _syncSwarm(swarm, int(scene.frame_current), normal, inbound, radius, impact, fps)
-
-    bpy.app.handlers.frame_change_pre.append(_onFrame)
-    _onFrame(scene)
     flashData = bpy.data.lights.new('KpgBlast', type='POINT')
     flashData.energy = 0.0
     flashData.color = (1.0, 0.88, 0.70)
@@ -3930,8 +4053,6 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     impactor.parent = earth
     trail.parent = earth
     blast.parent = earth
-    sun.parent = earth
-    fill.parent = earth
     plume.parent = earth
     tools = getattr(scene, 'tool_settings', None)
     if tools is not None and hasattr(tools, 'keyframe_interpolation'):
@@ -3942,8 +4063,12 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
         frame = int(sample['frame'])
         earth.rotation_euler = (0.0, 0.0, float(sample.get('earthSpin', 0.0)))
         earth.keyframe_insert(data_path='rotation_euler', frame=frame)
-        _keyLocation(camera, tuple(float(value) for value in sample['cameraAu']), frame)
+        cameraAu = tuple(float(value) for value in sample['cameraAu'])
+        _keyLocation(camera, cameraAu, frame)
         _keyLocation(lookAt, tuple(float(value) for value in sample['lookAtAu']), frame)
+        _aimGlobeLights(sun, fill, cameraAu)
+        _keyLocation(sun, tuple(float(value) for value in sun.location), frame)
+        _keyLocation(fill, tuple(float(value) for value in fill.location), frame)
         cameraData.lens = float(sample.get('lens', 35.0))
         cameraData.keyframe_insert(data_path='lens', frame=frame)
         _keyLocation(impactor, tuple(float(value) for value in sample['impactorAu']), frame)
@@ -3971,6 +4096,22 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
         fillData.keyframe_insert(data_path='energy', frame=frame)
     _linearizeEarthSpin(earth)
 
+    byFrame = {int(sample['frame']): sample for sample in frames}
+
+    def _onFrame(scene: Any) -> None:
+        frame = int(scene.frame_current)
+        _syncSwarm(swarm, frame, normal, inbound, radius, impact, fps)
+        sample = byFrame.get(frame)
+        if sample is None:
+            return
+        _applyWeather(weather, sample, frame, impactFrame)
+        _aimGlobeLights(sun, fill, tuple(float(value) for value in sample['cameraAu']))
+        lightData.energy = sunEnergy * float(sample['sunScale'])
+        fillData.energy = fillEnergy * float(sample['sunScale'])
+
+    bpy.app.handlers.frame_change_pre.append(_onFrame)
+    _onFrame(scene)
+
     _spaceWorld(bpy)
     _hideCinemaOverlays(bpy)
     flyby._configureFlybyRenderer(
@@ -3990,6 +4131,8 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
         print(f'Rendering {len(stills)} contact stills...')
         for frame in stills:
             scene.frame_set(frame)
+            _onFrame(scene)
+            bpy.context.view_layer.update()
             scene.render.filepath = str(outputDirectory / f'frame_{frame:04d}')
             bpy.ops.render.render(write_still=True)
     else:
