@@ -37,7 +37,7 @@ RENDER_SCRIPT = Path('animate/scenes/blender/render_kpg.py')
 KPG_EARTH_PACK = Path('data/textures/bodies/earth_kpg')
 
 ANIMATION_FPS = 20
-ANIMATION_FRAMES = 720
+ANIMATION_FRAMES = 900
 RENDER_RESOLUTION = 960
 GALLERY_SIZE = 568
 
@@ -55,6 +55,7 @@ TSUNAMI_END = 370
 SPIN_END = 430
 SOOT_END = 535
 TWILIGHT_END = 585
+SOOT_CLEAR_START = 645
 HOLD_END = IMPACT_FRAME
 CAMERA_FOLLOW_END = 360
 SLAM_FRAMES = 16
@@ -427,7 +428,7 @@ def diebackEnvelope(frame: int) -> float:
     if frame < IMPACT_FRAME + 24:
         return 0.0
     killed = 0.97 * smoothStep((frame - IMPACT_FRAME - 24) / 70.0)
-    barrenHold = TWILIGHT_END + 16
+    barrenHold = SOOT_CLEAR_START + 50
     if frame < barrenHold:
         return killed
     recover = smoothStep((frame - barrenHold) / float(ANIMATION_FRAMES - 1 - barrenHold))
@@ -459,17 +460,19 @@ def falloutEnvelope(frame: int) -> float:
 
 
 def lightingEnvelope(frame: int, frameCount: int) -> tuple[float, float]:
+    # Floor stays high enough that EEVEE still reads the ash sheet. 0.02
+    # turns the winter globe into a black silhouette with only the limb left.
     soot = sootEnvelope(frame)
+    floor = 0.18
     if frame < SPIN_END:
-        return 1.0 - 0.86 * soot, soot
-    if frame < TWILIGHT_END:
-        start = 1.0 - 0.86 * sootEnvelope(SPIN_END)
-        floor = 0.02
-        mix = smoothStep((frame - SPIN_END) / float(TWILIGHT_END - SPIN_END))
-        return start + (floor - start) * mix, soot
-    floor = 0.02
+        return 1.0 - 0.70 * soot, soot
+    if frame < SOOT_CLEAR_START:
+        start = 1.0 - 0.70 * sootEnvelope(SPIN_END)
+        mix = smoothStep((frame - SPIN_END) / float(max(TWILIGHT_END - SPIN_END, 1)))
+        dimmed = start + (floor - start) * min(mix, 1.0)
+        return dimmed, soot
     recovered = 0.98
-    mix = smoothStep((frame - TWILIGHT_END) / max(frameCount - 1 - TWILIGHT_END, 1.0))
+    mix = smoothStep((frame - SOOT_CLEAR_START) / max(frameCount - 1 - SOOT_CLEAR_START, 1.0))
     return floor + (recovered - floor) * mix, soot
 
 
@@ -501,10 +504,10 @@ def sootEnvelope(frame: int) -> float:
         return settled + (0.96 - settled) * smoothStep(
             (frame - SPIN_END) / float(SOOT_END - SPIN_END)
         )
-    if frame < TWILIGHT_END:
+    if frame < SOOT_CLEAR_START:
         return 0.96
     return 0.96 - 0.94 * smoothStep(
-        (frame - TWILIGHT_END) / float(ANIMATION_FRAMES - 1 - TWILIGHT_END)
+        (frame - SOOT_CLEAR_START) / float(ANIMATION_FRAMES - 1 - SOOT_CLEAR_START)
     )
 
 
@@ -1484,6 +1487,7 @@ def renderKpgCinematicAnimations(
 __all__ = [
     'ANIMATION_FRAMES',
     'ACT_BOUNDARIES',
+    'SOOT_CLEAR_START',
     'CAMERA_FOLLOW_END',
     'IMPACT_FRAME',
     'ImpactEvent',
