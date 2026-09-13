@@ -2,8 +2,9 @@
 
 Late Cretaceous Earth, a cinema-scale rock enters, hits the Yucatán, and a
 drawn cascade (crust tear, ejecta, tsunami, wildfire, soot) plays out on that
-globe. Earth is already turning slowly; after contact the spin picks up, the site
-glow dies, and a cinema-compressed soot / twilight / recovery beat follows.
+globe. Earth is already turning slowly; after contact the spin picks up, then
+turns many times under the ash, the site glow dies, and a cinema-compressed
+soot / twilight / recovery beat follows.
 Land stays brown when the soot lifts and re-greens slowly. The map is an artist
 reconstruction, not a palaeomap. The rock is enlarged; true scale is 10/12742.
 This is a cinema drawing, not a hydro or climate model.
@@ -58,9 +59,9 @@ HOLD_END = IMPACT_FRAME
 CAMERA_FOLLOW_END = 360
 SLAM_FRAMES = 16
 SPIN_SLOW_RAD_PER_FRAME = math.tau / 1600.0
-SPIN_FAST_RAD_PER_FRAME = math.tau / 180.0
+SPIN_FAST_RAD_PER_FRAME = math.tau / 90.0
 SPIN_RAMP_FRAMES = 100
-SOOT_SPIN_RAD_PER_FRAME = math.tau / 70.0
+SOOT_SPIN_RAD_PER_FRAME = math.tau / 26.0
 RECOVERY_SPIN_RAD_PER_FRAME = math.tau / 520.0
 SOOT_SPIN_RAMP = 36
 RECOVERY_SPIN_RAMP = 55
@@ -426,11 +427,11 @@ def diebackEnvelope(frame: int) -> float:
     if frame < IMPACT_FRAME + 24:
         return 0.0
     killed = 0.97 * smoothStep((frame - IMPACT_FRAME - 24) / 70.0)
-    barrenHold = TWILIGHT_END + 48
+    barrenHold = TWILIGHT_END + 16
     if frame < barrenHold:
         return killed
     recover = smoothStep((frame - barrenHold) / float(ANIMATION_FRAMES - 1 - barrenHold))
-    return killed * (1.0 - 0.78 * recover)
+    return killed * (1.0 - 0.97 * recover)
 
 
 def crustTearEnvelope(frame: int) -> float:
@@ -460,14 +461,14 @@ def falloutEnvelope(frame: int) -> float:
 def lightingEnvelope(frame: int, frameCount: int) -> tuple[float, float]:
     soot = sootEnvelope(frame)
     if frame < SPIN_END:
-        return 1.0 - 0.55 * soot, soot
+        return 1.0 - 0.86 * soot, soot
     if frame < TWILIGHT_END:
-        start = 1.0 - 0.55 * sootEnvelope(SPIN_END)
+        start = 1.0 - 0.86 * sootEnvelope(SPIN_END)
         floor = 0.02
         mix = smoothStep((frame - SPIN_END) / float(TWILIGHT_END - SPIN_END))
         return start + (floor - start) * mix, soot
     floor = 0.02
-    recovered = 0.88
+    recovered = 0.98
     mix = smoothStep((frame - TWILIGHT_END) / max(frameCount - 1 - TWILIGHT_END, 1.0))
     return floor + (recovered - floor) * mix, soot
 
@@ -502,7 +503,7 @@ def sootEnvelope(frame: int) -> float:
         )
     if frame < TWILIGHT_END:
         return 0.96
-    return 0.96 - 0.72 * smoothStep(
+    return 0.96 - 0.94 * smoothStep(
         (frame - TWILIGHT_END) / float(ANIMATION_FRAMES - 1 - TWILIGHT_END)
     )
 
