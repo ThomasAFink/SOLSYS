@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from animate.scenes.blender.render_kpg import (
+    _ejectaTailShape,
     _replaceKpgFrameHandler,
     applyKpgJobInBlender,
 )
@@ -50,6 +51,11 @@ class PreviewRootTests(unittest.TestCase):
 
 
 class PreviewApplyTests(unittest.TestCase):
+    def test_ejecta_tails_are_not_one_length(self) -> None:
+        depths = [_ejectaTailShape(index, 1.0)[2] for index in range(480)]
+        self.assertGreater(max(depths) / max(min(depths), 1e-9), 4.0)
+        self.assertGreater(len({round(depth, 4) for depth in depths}), 40)
+
     def test_apply_job_skips_render_when_asked(self) -> None:
         params = inspect.signature(applyKpgJobInBlender).parameters
         self.assertIn('render', params)

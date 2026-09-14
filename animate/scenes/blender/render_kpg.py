@@ -136,6 +136,13 @@ def _keyScale(obj: Any, scale: float, frame: int, *, zScale: float = 1.0) -> Non
     obj.keyframe_insert(data_path='hide_render', frame=frame)
 
 
+def _keyHiddenScale(obj: Any, scale: float, frame: int, *, zScale: float = 1.0) -> None:
+    _keyScale(obj, scale, frame, zScale=zScale)
+    hidden = scale < 1e-4
+    obj.hide_viewport = hidden
+    obj.keyframe_insert(data_path='hide_viewport', frame=frame)
+
+
 def _alignPlusZ(obj: Any, direction: tuple[float, float, float]) -> None:
     import mathutils  # type: ignore[import-not-found]
 
@@ -2646,6 +2653,275 @@ def _createDebrisChunk(bpy: Any, name: str, radius: float, seed: int) -> Any:
     return _createLumpyRock(bpy, name, radius, seed, subdivisions=2, squash=0.28)
 
 
+_EJECTA_SHOW = 480
+
+
+def _ejectaShowIndices(count: int) -> list[int]:
+    show = min(_EJECTA_SHOW, max(count, 0))
+    if show <= 0:
+        return []
+    if show >= count:
+        return list(range(count))
+    return [int(round(index * (count - 1) / (show - 1))) for index in range(show)]
+
+
+def _ejectaEmberMaterials(bpy: Any) -> tuple[Any, ...]:
+    return (
+        _fireOrbMaterial(bpy, 'KpgEjectaEmberHot', (1.0, 0.94, 0.62), 16.0),
+        _fireOrbMaterial(bpy, 'KpgEjectaEmber', (1.0, 0.52, 0.12), 12.0),
+        _fireOrbMaterial(bpy, 'KpgEjectaEmberDeep', (1.0, 0.26, 0.05), 8.5),
+    )
+
+
+def _ejectaTailMaterial(bpy: Any) -> Any:
+    material = bpy.data.materials.new(name='KpgEjectaTail')
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    emission = nodes.new('ShaderNodeEmission')
+    transparent = nodes.new('ShaderNodeBsdfTransparent')
+    mix = nodes.new('ShaderNodeMixShader')
+    texcoord = nodes.new('ShaderNodeTexCoord')
+    split = nodes.new('ShaderNodeSeparateXYZ')
+    along = nodes.new('ShaderNodeMapRange')
+    along.inputs['From Min'].default_value = 0.04
+    along.inputs['From Max'].default_value = 0.96
+    along.inputs['To Min'].default_value = 0.88
+    along.inputs['To Max'].default_value = 0.0
+    if hasattr(along, 'clamp'):
+        along.clamp = True
+    ramp = nodes.new('ShaderNodeValToRGB')
+    ramp.color_ramp.interpolation = 'B_SPLINE'
+    ramp.color_ramp.elements[0].position = 0.0
+    ramp.color_ramp.elements[0].color = (1.0, 0.42, 0.08, 1.0)
+    ramp.color_ramp.elements[1].position = 1.0
+    ramp.color_ramp.elements[1].color = (0.12, 0.10, 0.09, 1.0)
+    noise = nodes.new('ShaderNodeTexNoise')
+    noise.inputs['Scale'].default_value = 22.0
+    if 'Detail' in noise.inputs:
+        noise.inputs['Detail'].default_value = 6.0
+    if 'Roughness' in noise.inputs:
+        noise.inputs['Roughness'].default_value = 0.58
+    holes = nodes.new('ShaderNodeMapRange')
+    holes.inputs['From Min'].default_value = 0.22
+    holes.inputs['From Max'].default_value = 0.78
+    holes.inputs['To Min'].default_value = 0.35
+    holes.inputs['To Max'].default_value = 1.0
+    if hasattr(holes, 'clamp'):
+        holes.clamp = True
+    cover = nodes.new('ShaderNodeMath')
+    cover.operation = 'MULTIPLY'
+    links.new(texcoord.outputs['Generated'], split.inputs['Vector'])
+    links.new(split.outputs['Z'], along.inputs['Value'])
+    links.new(along.outputs['Result'], ramp.inputs['Fac'])
+    links.new(texcoord.outputs['Object'], noise.inputs['Vector'])
+    links.new(noise.outputs['Fac'], holes.inputs['Value'])
+    links.new(along.outputs['Result'], cover.inputs[0])
+    links.new(holes.outputs['Result'], cover.inputs[1])
+    emission.inputs['Strength'].default_value = 2.4
+    links.new(ramp.outputs['Color'], emission.inputs['Color'])
+    factor = mix.inputs['Fac'] if 'Fac' in mix.inputs else mix.inputs['Factor']
+    links.new(cover.outputs['Value'], factor)
+    links.new(transparent.outputs['BSDF'], mix.inputs[1])
+    links.new(emission.outputs['Emission'], mix.inputs[2])
+    links.new(mix.outputs['Shader'], output.inputs['Surface'])
+    _markAlphaBlend(material)
+    if hasattr(material, 'use_backface_culling'):
+        material.use_backface_culling = False
+    if hasattr(material, 'shadow_method'):
+        material.shadow_method = 'NONE'
+    return material
+
+
+def _ejectaTailShape(index: int, earthRadius: float) -> tuple[float, float, float]:
+    """Per-rock cone: short stubs through long streaks. Far and orbiting runs longer."""
+    kind = (index * 0.683 + 0.11) % 1.0
+    lengthMix = (index * 0.6180339887 + 0.17) % 1.0
+    thickMix = (index * 0.371 + 0.08) % 1.0
+    stretched = lengthMix**1.25
+    if kind >= 0.93:
+        depth = earthRadius * (0.055 + 0.090 * lengthMix)
+        radiusTop = earthRadius * (0.0016 + 0.0024 * thickMix)
+    elif kind >= 0.76:
+        depth = earthRadius * (0.070 + 0.12 * lengthMix)
+        radiusTop = earthRadius * (0.0014 + 0.0022 * thickMix)
+    else:
+        depth = earthRadius * (0.012 + 0.092 * stretched)
+        radiusTop = earthRadius * (0.0010 + 0.0038 * thickMix)
+    radiusBottom = earthRadius * (0.00018 + 0.00032 * thickMix)
+    return radiusBottom, radiusTop, depth
+
+
+def _createEjectaTail(
+    bpy: Any, name: str, radiusBottom: float, radiusTop: float, depth: float
+) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_cone(
+        builder,
+        cap_ends=True,
+        cap_tris=True,
+        segments=9,
+        radius1=radiusBottom,
+        radius2=radiusTop,
+        depth=depth,
+    )
+    builder.to_mesh(mesh)
+    builder.free()
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _buildEjectaSparks(
+    bpy: Any, job: dict[str, Any], earthRadius: float, indices: list[int]
+) -> list[Any]:
+    del job
+    skins = _ejectaEmberMaterials(bpy)
+    chunks: list[Any] = []
+    for show, index in enumerate(indices):
+        sizeMix = (index * 0.53 + 0.11) % 1.0
+        visual = earthRadius * (0.0014 + 0.0016 * (sizeMix**1.3))
+        chunk = _createLumpyRock(
+            bpy,
+            f'KpgEjecta{show:03d}',
+            visual,
+            index * 5 + 3,
+            subdivisions=1,
+            squash=0.16 + 0.14 * ((index * 0.37) % 1.0),
+        )
+        chunk.data.materials.append(skins[index % len(skins)])
+        if hasattr(chunk, 'visible_shadow'):
+            chunk.visible_shadow = False
+        chunks.append(chunk)
+    return chunks
+
+
+def _buildEjectaTails(
+    bpy: Any, job: dict[str, Any], earthRadius: float, indices: list[int]
+) -> list[tuple[Any, float]]:
+    del job
+    smoke = _ejectaTailMaterial(bpy)
+    tails: list[tuple[Any, float]] = []
+    for show, index in enumerate(indices):
+        radiusBottom, radiusTop, depth = _ejectaTailShape(index, earthRadius)
+        tail = _createEjectaTail(bpy, f'KpgEjectaTail{show:03d}', radiusBottom, radiusTop, depth)
+        tail.data.materials.append(smoke)
+        if hasattr(tail, 'visible_shadow'):
+            tail.visible_shadow = False
+        tails.append((tail, depth))
+    return tails
+
+
+def _createEjectaStrikeSplash(bpy: Any, name: str, radius: float) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_circle(builder, cap_ends=True, cap_tris=True, segments=16, radius=radius)
+    builder.to_mesh(mesh)
+    builder.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _createEjectaStrikeCore(bpy: Any, name: str, radius: float) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_icosphere(builder, subdivisions=1, radius=radius)
+    builder.to_mesh(mesh)
+    builder.free()
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _buildEjectaStrikes(
+    bpy: Any, job: dict[str, Any], earthRadius: float, indices: list[int]
+) -> list[tuple[Any, Any]]:
+    del job
+    coreSkin = _fireOrbMaterial(bpy, 'KpgEjectaStrikeCore', (1.0, 0.93, 0.55), 18.0)
+    splashSkin = _fireOrbMaterial(bpy, 'KpgEjectaStrikeSplash', (1.0, 0.42, 0.08), 7.5)
+    strikes: list[tuple[Any, Any]] = []
+    for show, index in enumerate(indices):
+        sizeMix = (index * 0.47 + 0.19) % 1.0
+        core = _createEjectaStrikeCore(
+            bpy, f'KpgEjectaHit{show:03d}', earthRadius * (0.0060 + 0.0075 * sizeMix)
+        )
+        splash = _createEjectaStrikeSplash(
+            bpy, f'KpgEjectaSplash{show:03d}', earthRadius * (0.016 + 0.020 * sizeMix)
+        )
+        core.data.materials.append(coreSkin)
+        splash.data.materials.append(splashSkin)
+        for obj in (core, splash):
+            if hasattr(obj, 'visible_shadow'):
+                obj.visible_shadow = False
+        strikes.append((core, splash))
+    return strikes
+
+
+def _keyEjectaSparks(
+    sparks: list[Any],
+    tails: list[tuple[Any, float]],
+    strikes: list[tuple[Any, Any]],
+    indices: list[int],
+    sample: dict[str, Any],
+    frame: int,
+    earthRadius: float,
+) -> None:
+    if not sparks:
+        return
+    positions = sample['projectileAu']
+    scales = sample['projectileScale']
+    directions = sample['projectileDir']
+    trails = sample['projectileTrail']
+    hits = sample['projectileStrike']
+    for spark, (tail, tailLength), (core, splash), index in zip(
+        sparks, tails, strikes, indices, strict=True
+    ):
+        site = tuple(float(value) for value in positions[index])
+        heading = tuple(float(value) for value in directions[index])
+        visible = float(scales[index])
+        trail = float(trails[index])
+        strike = float(hits[index])
+        _keyLocation(spark, site, frame)
+        _keyHiddenScale(spark, visible, frame)
+        spark.rotation_euler = (
+            0.21 * index + 0.11 * frame,
+            0.17 * index + 0.07 * frame,
+            0.09 * frame,
+        )
+        spark.keyframe_insert(data_path='rotation_euler', frame=frame)
+        back = (-heading[0], -heading[1], -heading[2])
+        _alignPlusZ(tail, back)
+        tail.keyframe_insert(data_path='rotation_quaternion', frame=frame)
+        _keyLocation(tail, _offsetAlong(site, back, tailLength * 0.48 * max(trail, 0.0)), frame)
+        _keyHiddenScale(tail, trail, frame)
+        length = math.sqrt(sum(component * component for component in site)) or 1.0
+        up = (site[0] / length, site[1] / length, site[2] / length)
+        lift = earthRadius * 1.014
+        planted = (up[0] * lift, up[1] * lift, up[2] * lift)
+        _keyLocation(core, planted, frame)
+        _keyLocation(splash, planted, frame)
+        _alignPlusZ(core, up)
+        _alignPlusZ(splash, up)
+        core.keyframe_insert(data_path='rotation_quaternion', frame=frame)
+        splash.keyframe_insert(data_path='rotation_quaternion', frame=frame)
+        _keyHiddenScale(core, strike, frame)
+        _keyHiddenScale(splash, strike, frame)
+
+
 def _buildProjectiles(bpy: Any, job: dict[str, Any], earthRadius: float) -> list[Any]:
     count = int(job['contact']['projectileCount'])
     skins = _darkRockSkins(bpy)
@@ -4053,6 +4329,125 @@ def _replaceKpgFrameHandler(bpy: Any, handler: Any) -> None:
     bag.append(handler)
 
 
+def _parentCinemaToEarth(
+    earth: Any,
+    children: list[Any],
+    sparks: list[Any],
+    tails: list[tuple[Any, float]],
+    strikes: list[tuple[Any, Any]],
+) -> None:
+    for obj in children:
+        obj.parent = earth
+    for obj in sparks:
+        obj.parent = earth
+    for tail, _depth in tails:
+        tail.parent = earth
+    for core, splash in strikes:
+        core.parent = earth
+        splash.parent = earth
+
+
+def _keyCinemaTimeline(
+    *,
+    frames: list[dict[str, Any]],
+    earth: Any,
+    camera: Any,
+    cameraData: Any,
+    lookAt: Any,
+    sun: Any,
+    fill: Any,
+    impactor: Any,
+    weather: dict[str, Any],
+    trail: Any,
+    trailHeight: float,
+    inbound: tuple[float, float, float],
+    plume: Any,
+    plates: list[tuple[Any, tuple[float, float, float], float]],
+    explosionCards: list[tuple[Any, str, float]],
+    rocks: list[Any],
+    sparks: list[Any],
+    tails: list[tuple[Any, float]],
+    strikes: list[tuple[Any, Any]],
+    ejectaIndices: list[int],
+    blast: Any,
+    flashData: Any,
+    lightData: Any,
+    fillData: Any,
+    normal: tuple[float, float, float],
+    radius: float,
+    flashEnergy: float,
+    sunEnergy: float,
+    fillEnergy: float,
+) -> int:
+    impactFrame = _impactFrame(frames)
+    for sample in frames:
+        frame = int(sample['frame'])
+        earth.rotation_euler = (0.0, 0.0, float(sample.get('earthSpin', 0.0)))
+        earth.keyframe_insert(data_path='rotation_euler', frame=frame)
+        cameraAu = tuple(float(value) for value in sample['cameraAu'])
+        _keyLocation(camera, cameraAu, frame)
+        _keyLocation(lookAt, tuple(float(value) for value in sample['lookAtAu']), frame)
+        _aimGlobeLights(sun, fill, cameraAu)
+        _keyLocation(sun, tuple(float(value) for value in sun.location), frame)
+        _keyLocation(fill, tuple(float(value) for value in fill.location), frame)
+        cameraData.lens = float(sample.get('lens', 35.0))
+        cameraData.keyframe_insert(data_path='lens', frame=frame)
+        _keyLocation(impactor, tuple(float(value) for value in sample['impactorAu']), frame)
+        _keyScale(
+            impactor,
+            float(sample.get('slamScale', 1.0 if sample.get('impactorVisible') else 0.0)),
+            frame,
+        )
+        _keyRockLook(impactor, sample, frame)
+        _keyWeather(weather, sample, frame, impactFrame)
+        _keyInboundTrail(trail, trailHeight, inbound, sample, frame)
+        _keyTongaPlume(plume, sample, frame, normal, radius, impactFrame)
+        _keyCrustPlates(plates, sample, frame, normal, radius)
+        _keyExplosionPlates(explosionCards, sample, frame, normal, radius)
+        _keyRocks(rocks, sample, frame)
+        _keyEjectaSparks(sparks, tails, strikes, ejectaIndices, sample, frame, radius)
+        surface = (normal[0] * radius, normal[1] * radius, normal[2] * radius)
+        _keyLocation(blast, _offsetAlong(surface, normal, radius * 0.08), frame)
+        flashData.energy = flashEnergy * _blastLampScale(
+            frame, float(sample['flashScale']), impactFrame
+        )
+        flashData.keyframe_insert(data_path='energy', frame=frame)
+        lightData.energy = sunEnergy * float(sample['sunScale'])
+        lightData.keyframe_insert(data_path='energy', frame=frame)
+        fillData.energy = fillEnergy * float(sample['sunScale'])
+        fillData.keyframe_insert(data_path='energy', frame=frame)
+    _linearizeEarthSpin(earth)
+    return impactFrame
+
+
+def _renderCinemaOutput(
+    bpy: Any,
+    scene: Any,
+    job: dict[str, Any],
+    outputDirectory: Path,
+    onFrame: Any,
+    *,
+    render: bool,
+) -> Path:
+    if render:
+        stills = [int(frame) for frame in job.get('stillFrames') or []]
+        if stills:
+            print(f'Rendering {len(stills)} contact stills...')
+            for frame in stills:
+                scene.frame_set(frame)
+                onFrame(scene)
+                bpy.context.view_layer.update()
+                scene.render.filepath = str(outputDirectory / f'frame_{frame:04d}')
+                bpy.ops.render.render(write_still=True)
+        else:
+            print('Rendering K–Pg full event...')
+            bpy.ops.render.render(animation=True)
+    written = sorted(outputDirectory.glob('frame_*.png'))
+    if not written:
+        raise RuntimeError(f'Blender produced no PNG frames in {outputDirectory}')
+    return outputDirectory
+
+
 def applyKpgJobInBlender(job: dict[str, Any], *, render: bool = True) -> Path:
     import bpy  # type: ignore[import-not-found]
 
@@ -4095,6 +4490,10 @@ def applyKpgJobInBlender(job: dict[str, Any], *, render: bool = True) -> Path:
     explosionCards: list[tuple[Any, str, float]] = []
     rocks: list[Any] = []
     swarm: list[tuple[Any, tuple[float, float, float, float, float], bool]] = []
+    ejectaIndices = _ejectaShowIndices(int(contact.get('projectileCount', 0)))
+    sparks = _buildEjectaSparks(bpy, job, radius, ejectaIndices)
+    tails = _buildEjectaTails(bpy, job, radius, ejectaIndices)
+    strikes = _buildEjectaStrikes(bpy, job, radius, ejectaIndices)
     impact = _impactFrame(frames)
     fps = float(job.get('fps', 20))
     flashData = bpy.data.lights.new('KpgBlast', type='POINT')
@@ -4128,51 +4527,42 @@ def applyKpgJobInBlender(job: dict[str, Any], *, render: bool = True) -> Path:
     fillData = fill.data
     fillEnergy = float(fillData.energy)
     earth.rotation_mode = 'XYZ'
-    impactor.parent = earth
-    trail.parent = earth
-    blast.parent = earth
-    plume.parent = earth
+    _parentCinemaToEarth(earth, [impactor, trail, blast, plume], sparks, tails, strikes)
     tools = getattr(scene, 'tool_settings', None)
     if tools is not None and hasattr(tools, 'keyframe_interpolation'):
         tools.keyframe_interpolation = 'LINEAR'
 
-    impactFrame = _impactFrame(frames)
-    for sample in frames:
-        frame = int(sample['frame'])
-        earth.rotation_euler = (0.0, 0.0, float(sample.get('earthSpin', 0.0)))
-        earth.keyframe_insert(data_path='rotation_euler', frame=frame)
-        cameraAu = tuple(float(value) for value in sample['cameraAu'])
-        _keyLocation(camera, cameraAu, frame)
-        _keyLocation(lookAt, tuple(float(value) for value in sample['lookAtAu']), frame)
-        _aimGlobeLights(sun, fill, cameraAu)
-        _keyLocation(sun, tuple(float(value) for value in sun.location), frame)
-        _keyLocation(fill, tuple(float(value) for value in fill.location), frame)
-        cameraData.lens = float(sample.get('lens', 35.0))
-        cameraData.keyframe_insert(data_path='lens', frame=frame)
-        _keyLocation(impactor, tuple(float(value) for value in sample['impactorAu']), frame)
-        _keyScale(
-            impactor,
-            float(sample.get('slamScale', 1.0 if sample.get('impactorVisible') else 0.0)),
-            frame,
-        )
-        _keyRockLook(impactor, sample, frame)
-        _keyWeather(weather, sample, frame, impactFrame)
-        _keyInboundTrail(trail, trailHeight, inbound, sample, frame)
-        _keyTongaPlume(plume, sample, frame, normal, radius, impactFrame)
-        _keyCrustPlates(plates, sample, frame, normal, radius)
-        _keyExplosionPlates(explosionCards, sample, frame, normal, radius)
-        _keyRocks(rocks, sample, frame)
-        surface = (normal[0] * radius, normal[1] * radius, normal[2] * radius)
-        _keyLocation(blast, _offsetAlong(surface, normal, radius * 0.08), frame)
-        flashData.energy = flashEnergy * _blastLampScale(
-            frame, float(sample['flashScale']), impactFrame
-        )
-        flashData.keyframe_insert(data_path='energy', frame=frame)
-        lightData.energy = sunEnergy * float(sample['sunScale'])
-        lightData.keyframe_insert(data_path='energy', frame=frame)
-        fillData.energy = fillEnergy * float(sample['sunScale'])
-        fillData.keyframe_insert(data_path='energy', frame=frame)
-    _linearizeEarthSpin(earth)
+    impactFrame = _keyCinemaTimeline(
+        frames=frames,
+        earth=earth,
+        camera=camera,
+        cameraData=cameraData,
+        lookAt=lookAt,
+        sun=sun,
+        fill=fill,
+        impactor=impactor,
+        weather=weather,
+        trail=trail,
+        trailHeight=trailHeight,
+        inbound=inbound,
+        plume=plume,
+        plates=plates,
+        explosionCards=explosionCards,
+        rocks=rocks,
+        sparks=sparks,
+        tails=tails,
+        strikes=strikes,
+        ejectaIndices=ejectaIndices,
+        blast=blast,
+        flashData=flashData,
+        lightData=lightData,
+        fillData=fillData,
+        normal=normal,
+        radius=radius,
+        flashEnergy=flashEnergy,
+        sunEnergy=sunEnergy,
+        fillEnergy=fillEnergy,
+    )
 
     byFrame = {int(sample['frame']): sample for sample in frames}
 
@@ -4204,23 +4594,7 @@ def applyKpgJobInBlender(job: dict[str, Any], *, render: bool = True) -> Path:
     )
     _applyCinemaLook(scene)
     _enableExplosionBloom(scene)
-    if render:
-        stills = [int(frame) for frame in job.get('stillFrames') or []]
-        if stills:
-            print(f'Rendering {len(stills)} contact stills...')
-            for frame in stills:
-                scene.frame_set(frame)
-                _onFrame(scene)
-                bpy.context.view_layer.update()
-                scene.render.filepath = str(outputDirectory / f'frame_{frame:04d}')
-                bpy.ops.render.render(write_still=True)
-        else:
-            print('Rendering K–Pg full event...')
-            bpy.ops.render.render(animation=True)
-    written = sorted(outputDirectory.glob('frame_*.png'))
-    if not written:
-        raise RuntimeError(f'Blender produced no PNG frames in {outputDirectory}')
-    return outputDirectory
+    return _renderCinemaOutput(bpy, scene, job, outputDirectory, _onFrame, render=render)
 
 
 def _hideCinemaOverlays(bpy: Any) -> None:
