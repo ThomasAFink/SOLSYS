@@ -14,6 +14,7 @@ import numpy as np
 from animate.scenes.blender.body_appearance import appearanceForCatalogName
 from animate.scenes.kpg_cinematic import (
     ACT_BOUNDARIES,
+    ANIMATION_FPS,
     ANIMATION_FRAMES,
     APPROACH_END,
     CINEMA_ROCK_RADII,
@@ -48,8 +49,11 @@ from animate.scenes.kpg_cinematic import (
     inboundTrailScale,
     kpgGalleryDirectory,
     loadImpactEvent,
+    projectileFlightProgress,
     projectileLaunches,
     projectilePositionRadii,
+    projectileStrikeScale,
+    projectileVisibility,
     projectSiteOnScreen,
     rotateAroundNorth,
     titleForAct,
@@ -426,7 +430,7 @@ class ImpactCameraTests(unittest.TestCase):
         np.testing.assert_allclose(first, normal, atol=1e-6)
         midHeights = [
             float(np.linalg.norm(position))
-            for position in self.samples[IMPACT_FRAME + 20].projectileRadii
+            for position in self.samples[IMPACT_FRAME + 80].projectileRadii
         ]
         lateHeights = [
             float(np.linalg.norm(position)) for position in self.samples[-1].projectileRadii
@@ -435,6 +439,118 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertGreater(sum(1 for height in lateHeights if height < 1.04), len(lateHeights) * 0.7)
         sizes = debrisRadiusScales(self.event.radiusRatio)
         self.assertGreater(max(sizes) / max(min(sizes), 1e-9), 2.5)
+
+    def test_hot_ejecta_fade_as_they_land(self) -> None:
+        launches = projectileLaunches()
+        self.assertGreater(sum(1 for launch in launches if launch.escape), 8)
+        self.assertGreater(sum(1 for launch in launches if not launch.escape), 200)
+        sootFrame = IMPACT_FRAME + 50
+        flying = 0
+        escaped = 0
+        for launch in launches:
+            progress = projectileFlightProgress(launch, sootFrame)
+            visible = projectileVisibility(launch, sootFrame)
+            if launch.escape and visible > 0.2:
+                escaped += 1
+            elif 0.05 < progress < 0.92 and visible > 0.5:
+                flying += 1
+        self.assertGreater(flying, 5)
+        self.assertGreater(escaped, 1)
+        stillUp = sum(
+            1
+            for launch in launches
+            if (not launch.escape)
+            and 0.05 < projectileFlightProgress(launch, IMPACT_FRAME + 200) < 0.92
+        )
+        alreadyDown = sum(
+            1
+            for launch in launches
+            if (not launch.escape) and projectileFlightProgress(launch, IMPACT_FRAME + 200) >= 1.08
+        )
+        self.assertGreater(stillUp, 15)
+        self.assertGreater(alreadyDown, 15)
+        lofted = self.samples[IMPACT_FRAME + 40]
+        self.assertGreater(sum(1 for scale in lofted.projectileScale if scale > 0.5), 10)
+        self.assertTrue(all(scale == 0.0 for scale in self.samples[-1].projectileScale))
+        self.assertGreater(
+            sum(1 for scale in lofted.projectileTrail if scale > 0.2),
+            8,
+        )
+
+    def test_ejecta_burst_with_the_mushroom(self) -> None:
+        launches = projectileLaunches()
+        self.assertLess(max(launch.delaySeconds for launch in launches), 2.2)
+        atRise = IMPACT_FRAME + 12
+        visible = sum(1 for launch in launches if projectileVisibility(launch, atRise) > 0.5)
+        self.assertGreater(visible, 280)
+        self.assertGreater(
+            sum(1 for scale in self.samples[atRise].projectileScale if scale > 0.5),
+            280,
+        )
+
+    def test_fallback_ejecta_make_small_reentry_strikes(self) -> None:
+        launches = projectileLaunches()
+        self.assertTrue(
+            all(projectileStrikeScale(launch, IMPACT_FRAME - 1) == 0.0 for launch in launches)
+        )
+        peaked = 0
+        escapedHits = 0
+        lastLook = min(ANIMATION_FRAMES, IMPACT_FRAME + 680)
+        for launch in launches:
+            peak = max(
+                projectileStrikeScale(launch, frame) for frame in range(IMPACT_FRAME, lastLook)
+            )
+            if launch.escape:
+                self.assertEqual(peak, 0.0)
+                escapedHits += 1
+            elif peak > 0.7:
+                peaked += 1
+        self.assertGreater(escapedHits, 8)
+        self.assertGreater(peaked, 200)
+        self.assertTrue(all(scale == 0.0 for scale in self.samples[-1].projectileStrike))
+        lateHits = sum(
+            1
+            for sample in self.samples[IMPACT_FRAME + 160 : IMPACT_FRAME + 280]
+            if any(scale > 0.25 for scale in sample.projectileStrike)
+        )
+        self.assertGreater(lateHits, 8)
+        laterHits = sum(
+            1
+            for sample in self.samples[IMPACT_FRAME + 300 : IMPACT_FRAME + 520]
+            if any(scale > 0.25 for scale in sample.projectileStrike)
+        )
+        self.assertGreater(laterHits, 5)
+
+    def test_some_ejecta_go_far_and_some_orbit(self) -> None:
+        launches = projectileLaunches()
+        self.assertGreater(sum(1 for launch in launches if launch.orbit), 40)
+        self.assertGreater(sum(1 for launch in launches if launch.escape), 12)
+        self.assertGreater(
+            sum(
+                1
+                for launch in launches
+                if (not launch.orbit) and (not launch.escape) and launch.rangeDeg < 50
+            ),
+            80,
+        )
+        self.assertGreater(
+            sum(1 for launch in launches if (not launch.escape) and launch.rangeDeg > 160),
+            40,
+        )
+        normal = impactNormal(self.event)
+        orbiter = next(launch for launch in launches if launch.orbit)
+        mid = IMPACT_FRAME + int(
+            orbiter.delaySeconds * ANIMATION_FPS + 0.45 * orbiter.flightSeconds * ANIMATION_FPS
+        )
+        mid = min(mid, ANIMATION_FRAMES - 1)
+        position = projectilePositionRadii(normal, orbiter, mid)
+        height = float(np.linalg.norm(position))
+        self.assertGreater(height, 1.12)
+        direction = position / height
+        self.assertLess(float(np.dot(direction, normal)), 0.55)
+        landed = projectilePositionRadii(normal, orbiter, ANIMATION_FRAMES - 1)
+        self.assertLess(float(np.linalg.norm(landed)), 1.04)
+        self.assertEqual(projectileStrikeScale(orbiter, IMPACT_FRAME - 1), 0.0)
 
 
 if __name__ == '__main__':

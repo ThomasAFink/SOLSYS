@@ -75,7 +75,7 @@ EJECTA_MAX_RADII = 0.36
 PLUME_MAX_RADII = 0.48
 EJECTA_ANGLE_DEG = 45.0
 EJECTA_COUNT = 48
-PROJECTILE_COUNT = 320
+PROJECTILE_COUNT = 480
 ROCK_BURST_COUNT = 26000
 EMBER_BURST_COUNT = 11200
 FALLOUT_SHELL = 0.72
@@ -229,6 +229,8 @@ class ProjectileLaunch:
     loftRadii: float
     flightSeconds: float
     delaySeconds: float
+    escape: bool = False
+    orbit: bool = False
 
 
 def rotateAroundAxis(vector: np.ndarray, axis: np.ndarray, angleRad: float) -> np.ndarray:
@@ -248,23 +250,58 @@ def debrisRadiusScales(asteroidScale: float, count: int = PROJECTILE_COUNT) -> t
     )
 
 
+def _suborbitalHeight(progress: float, loftRadii: float) -> float:
+    """Rise, coast around the globe, then re-enter. Not a local hop."""
+    if progress <= 0.0:
+        return 1.0
+    if progress >= 1.0:
+        return 1.0
+    if progress < 0.16:
+        return 1.0 + loftRadii * smoothStep(progress / 0.16)
+    if progress < 0.76:
+        return 1.0 + loftRadii
+    return 1.0 + loftRadii * (1.0 - smoothStep((progress - 0.76) / 0.24))
+
+
 def projectileLaunches(count: int = PROJECTILE_COUNT) -> tuple[ProjectileLaunch, ...]:
-    """Most fall back nearby; a few go high or worldwide. Not a frozen spray."""
+    """Local curtain, far ballistic, suborbital laps, and a few that never fall."""
     launches: list[ProjectileLaunch] = []
     for index in range(count):
         spin = (index * 0.6180339887) % 1.0
         rangeMix = (index * 0.271 + 0.07) % 1.0
-        rangeDeg = 6.0 + 155.0 * (rangeMix**1.55)
         loftMix = (index * 0.529 + 0.18) % 1.0
-        loftRadii = 0.012 + 0.08 * loftMix if loftMix < 0.88 else 0.07 + 0.05 * loftMix
+        holdMix = (index * 0.413 + 0.09) % 1.0
+        kind = (index * 0.683 + 0.11) % 1.0
+        escape = False
+        orbit = False
+        if kind < 0.40:
+            rangeDeg = 7.0 + 42.0 * (rangeMix**0.9)
+            loftRadii = 0.014 + 0.055 * loftMix
+            flightSeconds = 3.0 + 5.5 * holdMix
+        elif kind < 0.76:
+            rangeDeg = 48.0 + 125.0 * rangeMix
+            loftRadii = 0.038 + 0.11 * loftMix
+            flightSeconds = 5.5 + 10.0 * holdMix
+        elif kind < 0.93:
+            orbit = True
+            rangeDeg = 170.0 + 250.0 * rangeMix
+            loftRadii = 0.16 + 0.28 * loftMix
+            flightSeconds = 14.0 + 16.0 * holdMix
+        else:
+            escape = True
+            rangeDeg = 40.0 + 90.0 * rangeMix
+            loftRadii = 0.08 + 0.07 * loftMix
+            flightSeconds = 6.0 + 8.0 * holdMix
         launches.append(
             ProjectileLaunch(
                 azimuth=2.0 * math.pi * spin + 0.85 * math.sin(index * 4.1),
                 tiltDeg=22.0 + 48.0 * ((index * 0.415) % 1.0),
                 rangeDeg=rangeDeg,
                 loftRadii=loftRadii,
-                flightSeconds=1.5 + 3.2 * (rangeDeg / 160.0),
-                delaySeconds=1.3 * ((index * 0.6180339887 * 11.0) % 1.0),
+                flightSeconds=flightSeconds,
+                delaySeconds=1.85 * (((index * 0.6180339887 * 11.0) % 1.0) ** 3.4),
+                escape=escape,
+                orbit=orbit,
             )
         )
     return tuple(launches)
@@ -276,10 +313,21 @@ def projectilePositionRadii(normal: np.ndarray, launch: ProjectileLaunch, frame:
     age = (frame - IMPACT_FRAME) / ANIMATION_FPS - launch.delaySeconds
     if age <= 0.0:
         return normal
-    progress = smoothStep(age / launch.flightSeconds)
     east, north = tangentBasis(normal)
     heading = east * math.cos(launch.azimuth) + north * math.sin(launch.azimuth)
     axis = np.cross(normal, heading)
+    if launch.escape:
+        raw = age / launch.flightSeconds
+        along = rotateAroundAxis(
+            normal, axis, math.radians(launch.rangeDeg) * (1.0 - math.exp(-raw * 0.85))
+        )
+        height = 1.0 + launch.loftRadii * (0.25 + 2.8 * (1.0 - math.exp(-raw * 1.15)))
+        return along * height
+    raw = min(age / launch.flightSeconds, 1.0)
+    if launch.orbit:
+        along = rotateAroundAxis(normal, axis, math.radians(launch.rangeDeg) * raw)
+        return along * _suborbitalHeight(raw, launch.loftRadii)
+    progress = smoothStep(raw)
     along = rotateAroundAxis(normal, axis, math.radians(launch.rangeDeg) * progress)
     height = 1.0 + launch.loftRadii * math.sin(math.pi * progress)
     return along * height
@@ -295,10 +343,17 @@ def projectileFlightProgress(launch: ProjectileLaunch, frame: int) -> float:
 
 
 def projectileVisibility(launch: ProjectileLaunch, frame: int) -> float:
-    if frame < IMPACT_FRAME:
+    progress = projectileFlightProgress(launch, frame)
+    if progress <= 0.0:
         return 0.0
-    age = (frame - IMPACT_FRAME) / ANIMATION_FPS - launch.delaySeconds
-    return 1.0 if age > 0.0 else 0.0
+    age = progress * launch.flightSeconds
+    if launch.escape:
+        if age < 9.0:
+            return 1.0
+        return max(0.0, 1.0 - (age - 9.0) / 7.0)
+    if age < launch.flightSeconds - 0.08:
+        return 1.0
+    return max(0.0, 1.0 - (age - (launch.flightSeconds - 0.08)) / 0.22)
 
 
 def projectileDirectionRadii(
@@ -318,16 +373,25 @@ def projectileDirectionRadii(
 def projectileTrailScale(launch: ProjectileLaunch, frame: int) -> float:
     progress = projectileFlightProgress(launch, frame)
     visible = projectileVisibility(launch, frame)
-    if visible < 1e-4 or progress >= 1.0:
+    if visible < 1e-4:
         return 0.0
-    return visible * (0.45 + 0.55 * math.sin(math.pi * min(progress, 0.999)))
+    if launch.escape:
+        return visible * (0.55 + 0.45 * min(progress, 1.0))
+    if progress >= 1.0:
+        return 0.0
+    return visible * (0.40 + 0.60 * math.sin(math.pi * min(progress, 0.999)))
 
 
 def projectileStrikeScale(launch: ProjectileLaunch, frame: int) -> float:
-    progress = projectileFlightProgress(launch, frame)
-    if progress < 0.82:
+    if launch.escape:
         return 0.0
-    return math.exp(-0.42 * abs(progress - 1.0))
+    progress = projectileFlightProgress(launch, frame)
+    if progress <= 0.0:
+        return 0.0
+    dt = progress * launch.flightSeconds - launch.flightSeconds
+    if dt < -0.20 or dt > 0.55:
+        return 0.0
+    return math.exp(-0.5 * (dt / 0.12) ** 2)
 
 
 def remainingRadiiAt(frame: int) -> float:
