@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from animate.scenes.blender.render_kpg import (
+    _ejectaSparkRadius,
     _ejectaTailShape,
     _replaceKpgFrameHandler,
     applyKpgJobInBlender,
@@ -52,9 +53,14 @@ class PreviewRootTests(unittest.TestCase):
 
 class PreviewApplyTests(unittest.TestCase):
     def test_ejecta_tails_are_not_one_length(self) -> None:
-        depths = [_ejectaTailShape(index, 1.0)[2] for index in range(480)]
+        depths = [_ejectaTailShape(index, 1.0)[2] for index in range(560)]
         self.assertGreater(max(depths) / max(min(depths), 1e-9), 4.0)
         self.assertGreater(len({round(depth, 4) for depth in depths}), 40)
+
+    def test_ejecta_sparks_are_mostly_smaller_than_the_heroes(self) -> None:
+        radii = [_ejectaSparkRadius(index, 1.0) for index in range(560)]
+        self.assertGreater(max(radii) / max(min(radii), 1e-9), 4.5)
+        self.assertGreater(sum(1 for radius in radii if radius < 0.0009), 350)
 
     def test_apply_job_skips_render_when_asked(self) -> None:
         params = inspect.signature(applyKpgJobInBlender).parameters
