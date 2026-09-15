@@ -2653,7 +2653,7 @@ def _createDebrisChunk(bpy: Any, name: str, radius: float, seed: int) -> Any:
     return _createLumpyRock(bpy, name, radius, seed, subdivisions=2, squash=0.28)
 
 
-_EJECTA_SHOW = 480
+_EJECTA_SHOW = 560
 
 
 def _ejectaShowIndices(count: int) -> list[int]:
@@ -2735,23 +2735,34 @@ def _ejectaTailMaterial(bpy: Any) -> Any:
     return material
 
 
+def _ejectaSparkRadius(index: int, earthRadius: float) -> float:
+    """Most grit is tiny. A few keep the current readable hero size."""
+    sizeMix = (index * 0.53 + 0.11) % 1.0
+    if sizeMix > 0.84:
+        hero = (sizeMix - 0.84) / 0.16
+        return earthRadius * (0.0015 + 0.0017 * (hero**0.65))
+    return earthRadius * (0.00026 + 0.00075 * (sizeMix**1.75))
+
+
 def _ejectaTailShape(index: int, earthRadius: float) -> tuple[float, float, float]:
-    """Per-rock cone: short stubs through long streaks. Far and orbiting runs longer."""
+    """Per-rock cone: short stubs through long streaks. Small rocks stay stubby."""
     kind = (index * 0.683 + 0.11) % 1.0
     lengthMix = (index * 0.6180339887 + 0.17) % 1.0
     thickMix = (index * 0.371 + 0.08) % 1.0
     stretched = lengthMix**1.25
-    if kind >= 0.93:
-        depth = earthRadius * (0.055 + 0.090 * lengthMix)
-        radiusTop = earthRadius * (0.0016 + 0.0024 * thickMix)
-    elif kind >= 0.76:
-        depth = earthRadius * (0.070 + 0.12 * lengthMix)
-        radiusTop = earthRadius * (0.0014 + 0.0022 * thickMix)
+    if kind >= 0.96:
+        depth = earthRadius * (0.028 + 0.048 * lengthMix)
+        radiusTop = earthRadius * (0.0010 + 0.0016 * thickMix)
+    elif kind >= 0.90:
+        depth = earthRadius * (0.022 + 0.038 * lengthMix)
+        radiusTop = earthRadius * (0.0009 + 0.0014 * thickMix)
     else:
-        depth = earthRadius * (0.012 + 0.092 * stretched)
-        radiusTop = earthRadius * (0.0010 + 0.0038 * thickMix)
-    radiusBottom = earthRadius * (0.00018 + 0.00032 * thickMix)
-    return radiusBottom, radiusTop, depth
+        depth = earthRadius * (0.006 + 0.036 * stretched)
+        radiusTop = earthRadius * (0.0006 + 0.0020 * thickMix)
+    radiusBottom = earthRadius * (0.00016 + 0.00026 * thickMix)
+    size = _ejectaSparkRadius(index, 1.0) / 0.0024
+    size = max(0.22, min(size, 1.12))
+    return radiusBottom * size, radiusTop * size, depth * (0.38 + 0.70 * size)
 
 
 def _createEjectaTail(
@@ -2786,8 +2797,7 @@ def _buildEjectaSparks(
     skins = _ejectaEmberMaterials(bpy)
     chunks: list[Any] = []
     for show, index in enumerate(indices):
-        sizeMix = (index * 0.53 + 0.11) % 1.0
-        visual = earthRadius * (0.0014 + 0.0016 * (sizeMix**1.3))
+        visual = _ejectaSparkRadius(index, earthRadius)
         chunk = _createLumpyRock(
             bpy,
             f'KpgEjecta{show:03d}',
@@ -2855,12 +2865,13 @@ def _buildEjectaStrikes(
     splashSkin = _fireOrbMaterial(bpy, 'KpgEjectaStrikeSplash', (1.0, 0.42, 0.08), 7.5)
     strikes: list[tuple[Any, Any]] = []
     for show, index in enumerate(indices):
-        sizeMix = (index * 0.47 + 0.19) % 1.0
+        grit = _ejectaSparkRadius(index, 1.0) / 0.0024
+        grit = max(0.22, min(grit, 1.15))
         core = _createEjectaStrikeCore(
-            bpy, f'KpgEjectaHit{show:03d}', earthRadius * (0.0060 + 0.0075 * sizeMix)
+            bpy, f'KpgEjectaHit{show:03d}', earthRadius * (0.0038 + 0.0065 * grit)
         )
         splash = _createEjectaStrikeSplash(
-            bpy, f'KpgEjectaSplash{show:03d}', earthRadius * (0.016 + 0.020 * sizeMix)
+            bpy, f'KpgEjectaSplash{show:03d}', earthRadius * (0.010 + 0.018 * grit)
         )
         core.data.materials.append(coreSkin)
         splash.data.materials.append(splashSkin)

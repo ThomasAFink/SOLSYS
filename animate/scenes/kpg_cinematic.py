@@ -75,7 +75,7 @@ EJECTA_MAX_RADII = 0.36
 PLUME_MAX_RADII = 0.48
 EJECTA_ANGLE_DEG = 45.0
 EJECTA_COUNT = 48
-PROJECTILE_COUNT = 480
+PROJECTILE_COUNT = 560
 ROCK_BURST_COUNT = 26000
 EMBER_BURST_COUNT = 11200
 FALLOUT_SHELL = 0.72
@@ -251,20 +251,16 @@ def debrisRadiusScales(asteroidScale: float, count: int = PROJECTILE_COUNT) -> t
 
 
 def _suborbitalHeight(progress: float, loftRadii: float) -> float:
-    """Rise, coast around the globe, then re-enter. Not a local hop."""
-    if progress <= 0.0:
+    """Low hop: rise and fall without hanging like a shell."""
+    if progress <= 0.0 or progress >= 1.0:
         return 1.0
-    if progress >= 1.0:
-        return 1.0
-    if progress < 0.16:
-        return 1.0 + loftRadii * smoothStep(progress / 0.16)
-    if progress < 0.76:
-        return 1.0 + loftRadii
-    return 1.0 + loftRadii * (1.0 - smoothStep((progress - 0.76) / 0.24))
+    if progress < 0.28:
+        return 1.0 + loftRadii * smoothStep(progress / 0.28)
+    return 1.0 + loftRadii * (1.0 - smoothStep((progress - 0.28) / 0.72))
 
 
 def projectileLaunches(count: int = PROJECTILE_COUNT) -> tuple[ProjectileLaunch, ...]:
-    """Local curtain, far ballistic, suborbital laps, and a few that never fall."""
+    """Wide downrange curtain plus a weaker uprange splash. Not a radial firework."""
     launches: list[ProjectileLaunch] = []
     for index in range(count):
         spin = (index * 0.6180339887) % 1.0
@@ -272,34 +268,43 @@ def projectileLaunches(count: int = PROJECTILE_COUNT) -> tuple[ProjectileLaunch,
         loftMix = (index * 0.529 + 0.18) % 1.0
         holdMix = (index * 0.413 + 0.09) % 1.0
         kind = (index * 0.683 + 0.11) % 1.0
+        clump = (index * 0.271 + 0.03) % 1.0
+        spread = (index * 0.619 + 0.07) % 1.0
+        downrange = 0.35
+        if clump < 0.58:
+            azimuth = downrange + (spread**1.15 - 0.5) * 1.85
+        elif clump < 0.80:
+            azimuth = downrange + math.pi + (spread**1.4 - 0.5) * 1.35
+        else:
+            azimuth = 2.0 * math.pi * spin
         escape = False
         orbit = False
-        if kind < 0.40:
-            rangeDeg = 7.0 + 42.0 * (rangeMix**0.9)
-            loftRadii = 0.014 + 0.055 * loftMix
-            flightSeconds = 3.0 + 5.5 * holdMix
-        elif kind < 0.76:
-            rangeDeg = 48.0 + 125.0 * rangeMix
-            loftRadii = 0.038 + 0.11 * loftMix
-            flightSeconds = 5.5 + 10.0 * holdMix
-        elif kind < 0.93:
+        if kind < 0.62:
+            rangeDeg = 5.0 + 28.0 * (rangeMix**0.90)
+            loftRadii = 0.008 + 0.028 * (loftMix**1.6)
+            flightSeconds = 2.8 + 3.6 * holdMix
+        elif kind < 0.90:
+            rangeDeg = 24.0 + 70.0 * rangeMix
+            loftRadii = 0.018 + 0.048 * (loftMix**1.35)
+            flightSeconds = 4.4 + 4.6 * holdMix
+        elif kind < 0.96:
             orbit = True
-            rangeDeg = 170.0 + 250.0 * rangeMix
-            loftRadii = 0.16 + 0.28 * loftMix
-            flightSeconds = 14.0 + 16.0 * holdMix
+            rangeDeg = 80.0 + 110.0 * rangeMix
+            loftRadii = 0.055 + 0.090 * loftMix
+            flightSeconds = 7.2 + 5.4 * holdMix
         else:
             escape = True
-            rangeDeg = 40.0 + 90.0 * rangeMix
-            loftRadii = 0.08 + 0.07 * loftMix
-            flightSeconds = 6.0 + 8.0 * holdMix
+            rangeDeg = 28.0 + 55.0 * rangeMix
+            loftRadii = 0.05 + 0.05 * loftMix
+            flightSeconds = 4.6 + 3.2 * holdMix
         launches.append(
             ProjectileLaunch(
-                azimuth=2.0 * math.pi * spin + 0.85 * math.sin(index * 4.1),
-                tiltDeg=22.0 + 48.0 * ((index * 0.415) % 1.0),
+                azimuth=azimuth + 0.18 * math.sin(index * 4.1),
+                tiltDeg=14.0 + 38.0 * ((index * 0.415) % 1.0),
                 rangeDeg=rangeDeg,
                 loftRadii=loftRadii,
                 flightSeconds=flightSeconds,
-                delaySeconds=1.85 * (((index * 0.6180339887 * 11.0) % 1.0) ** 3.4),
+                delaySeconds=2.35 * (((index * 0.6180339887 * 11.0) % 1.0) ** 2.8),
                 escape=escape,
                 orbit=orbit,
             )
@@ -329,7 +334,7 @@ def projectilePositionRadii(normal: np.ndarray, launch: ProjectileLaunch, frame:
         return along * _suborbitalHeight(raw, launch.loftRadii)
     progress = smoothStep(raw)
     along = rotateAroundAxis(normal, axis, math.radians(launch.rangeDeg) * progress)
-    height = 1.0 + launch.loftRadii * math.sin(math.pi * progress)
+    height = 1.0 + launch.loftRadii * (math.sin(math.pi * progress) ** 1.55)
     return along * height
 
 
@@ -348,9 +353,9 @@ def projectileVisibility(launch: ProjectileLaunch, frame: int) -> float:
         return 0.0
     age = progress * launch.flightSeconds
     if launch.escape:
-        if age < 9.0:
+        if age < 5.2:
             return 1.0
-        return max(0.0, 1.0 - (age - 9.0) / 7.0)
+        return max(0.0, 1.0 - (age - 5.2) / 3.4)
     if age < launch.flightSeconds - 0.08:
         return 1.0
     return max(0.0, 1.0 - (age - (launch.flightSeconds - 0.08)) / 0.22)
@@ -1495,7 +1500,7 @@ def renderKpgCinematicAnimations(
     *,
     eventCsvPath: str | Path = DEFAULT_EVENT_CSV,
     outputDirectory: Path | str = DEFAULT_OUTPUT_DIRECTORY,
-    themes: tuple[str, ...] = ('light', 'dark'),
+    themes: tuple[str, ...] = ('dark', 'light'),
 ) -> tuple[Path, ...]:
     event = loadImpactEvent(eventCsvPath)
     samples = buildImpactSamples(event)

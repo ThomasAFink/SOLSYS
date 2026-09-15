@@ -141,6 +141,18 @@ class ImpactGeometryTests(unittest.TestCase):
         startSeconds = inboundKmAtFrame(self.event, 0) / self.event.speedKmS
         self.assertGreater(startSeconds / 60.0, 20.0)
 
+    def test_ejecta_azimuths_are_clumped_not_one_sided(self) -> None:
+        launches = projectileLaunches()
+        count = len(launches)
+        meanX = sum(math.cos(launch.azimuth) for launch in launches) / count
+        meanY = sum(math.sin(launch.azimuth) for launch in launches) / count
+        concentration = math.hypot(meanX, meanY)
+        self.assertLess(concentration, 0.42)
+        self.assertGreater(concentration, 0.12)
+        half = sum(1 for launch in launches if math.cos(launch.azimuth - 0.35) > 0.0)
+        self.assertGreater(half, count * 0.48)
+        self.assertLess(half, count * 0.72)
+
 
 class ImpactCameraTests(unittest.TestCase):
     @classmethod
@@ -460,15 +472,22 @@ class ImpactCameraTests(unittest.TestCase):
             1
             for launch in launches
             if (not launch.escape)
-            and 0.05 < projectileFlightProgress(launch, IMPACT_FRAME + 200) < 0.92
+            and 0.05 < projectileFlightProgress(launch, IMPACT_FRAME + 90) < 0.92
         )
         alreadyDown = sum(
             1
             for launch in launches
-            if (not launch.escape) and projectileFlightProgress(launch, IMPACT_FRAME + 200) >= 1.08
+            if (not launch.escape) and projectileFlightProgress(launch, IMPACT_FRAME + 90) >= 1.08
         )
         self.assertGreater(stillUp, 15)
         self.assertGreater(alreadyDown, 15)
+        settled = sum(
+            1
+            for launch in launches
+            if (not launch.escape) and projectileFlightProgress(launch, IMPACT_FRAME + 200) >= 1.0
+        )
+        fallback = sum(1 for launch in launches if not launch.escape)
+        self.assertGreater(settled, fallback * 0.80)
         lofted = self.samples[IMPACT_FRAME + 40]
         self.assertGreater(sum(1 for scale in lofted.projectileScale if scale > 0.5), 10)
         self.assertTrue(all(scale == 0.0 for scale in self.samples[-1].projectileScale))
@@ -479,7 +498,7 @@ class ImpactCameraTests(unittest.TestCase):
 
     def test_ejecta_burst_with_the_mushroom(self) -> None:
         launches = projectileLaunches()
-        self.assertLess(max(launch.delaySeconds for launch in launches), 2.2)
+        self.assertLess(max(launch.delaySeconds for launch in launches), 2.5)
         atRise = IMPACT_FRAME + 12
         visible = sum(1 for launch in launches if projectileVisibility(launch, atRise) > 0.5)
         self.assertGreater(visible, 280)
@@ -495,7 +514,7 @@ class ImpactCameraTests(unittest.TestCase):
         )
         peaked = 0
         escapedHits = 0
-        lastLook = min(ANIMATION_FRAMES, IMPACT_FRAME + 680)
+        lastLook = min(ANIMATION_FRAMES, IMPACT_FRAME + 280)
         for launch in launches:
             peak = max(
                 projectileStrikeScale(launch, frame) for frame in range(IMPACT_FRAME, lastLook)
@@ -510,44 +529,47 @@ class ImpactCameraTests(unittest.TestCase):
         self.assertTrue(all(scale == 0.0 for scale in self.samples[-1].projectileStrike))
         lateHits = sum(
             1
-            for sample in self.samples[IMPACT_FRAME + 160 : IMPACT_FRAME + 280]
+            for sample in self.samples[IMPACT_FRAME + 90 : IMPACT_FRAME + 220]
             if any(scale > 0.25 for scale in sample.projectileStrike)
         )
         self.assertGreater(lateHits, 8)
-        laterHits = sum(
-            1
-            for sample in self.samples[IMPACT_FRAME + 300 : IMPACT_FRAME + 520]
-            if any(scale > 0.25 for scale in sample.projectileStrike)
-        )
-        self.assertGreater(laterHits, 5)
 
     def test_some_ejecta_go_far_and_some_orbit(self) -> None:
         launches = projectileLaunches()
-        self.assertGreater(sum(1 for launch in launches if launch.orbit), 40)
-        self.assertGreater(sum(1 for launch in launches if launch.escape), 12)
+        self.assertGreater(sum(1 for launch in launches if launch.orbit), 18)
+        self.assertGreater(sum(1 for launch in launches if launch.escape), 10)
         self.assertGreater(
             sum(
                 1
                 for launch in launches
-                if (not launch.orbit) and (not launch.escape) and launch.rangeDeg < 50
+                if (not launch.orbit) and (not launch.escape) and launch.rangeDeg < 40
             ),
             80,
         )
-        self.assertGreater(
-            sum(1 for launch in launches if (not launch.escape) and launch.rangeDeg > 160),
-            40,
-        )
         normal = impactNormal(self.event)
-        orbiter = next(launch for launch in launches if launch.orbit)
+        far = 0
+        for launch in launches:
+            if launch.escape:
+                continue
+            mid = IMPACT_FRAME + int(
+                launch.delaySeconds * ANIMATION_FPS + 0.48 * launch.flightSeconds * ANIMATION_FPS
+            )
+            mid = min(mid, ANIMATION_FRAMES - 1)
+            position = projectilePositionRadii(normal, launch, mid)
+            height = float(np.linalg.norm(position))
+            if height < 1e-9:
+                continue
+            if float(np.dot(position / height, normal)) < 0.62:
+                far += 1
+        self.assertGreater(far, 8)
+        orbiter = next(launch for launch in launches if launch.orbit and launch.rangeDeg > 120)
         mid = IMPACT_FRAME + int(
-            orbiter.delaySeconds * ANIMATION_FPS + 0.45 * orbiter.flightSeconds * ANIMATION_FPS
+            orbiter.delaySeconds * ANIMATION_FPS + 0.40 * orbiter.flightSeconds * ANIMATION_FPS
         )
         mid = min(mid, ANIMATION_FRAMES - 1)
         position = projectilePositionRadii(normal, orbiter, mid)
         height = float(np.linalg.norm(position))
-        self.assertGreater(height, 1.12)
-        direction = position / height
-        self.assertLess(float(np.dot(direction, normal)), 0.55)
+        self.assertGreater(height, 1.07)
         landed = projectilePositionRadii(normal, orbiter, ANIMATION_FRAMES - 1)
         self.assertLess(float(np.linalg.norm(landed)), 1.04)
         self.assertEqual(projectileStrikeScale(orbiter, IMPACT_FRAME - 1), 0.0)
