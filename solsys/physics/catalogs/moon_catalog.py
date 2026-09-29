@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from solsys.physics.astronomical_constants import AstronomicalConstants
+
 
 @dataclass(frozen=True)
 class MoonOrbit:
@@ -21,7 +23,7 @@ class MoonOrbit:
 class MoonCatalog:
     """Major natural satellites with heliocentric offsets from parent planet positions."""
 
-    KM_PER_AU = 149597870.7
+    KM_PER_AU = AstronomicalConstants().auToKm
     # Real moon orbits are ~0.002 AU; exaggerate for visibility at solar-system zoom.
     DISPLAY_ORBIT_SCALE = 50.0
     MOON_VISIBLE_AXIS_SPAN_AU = 25.0
