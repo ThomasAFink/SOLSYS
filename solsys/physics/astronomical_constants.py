@@ -20,6 +20,8 @@ class AstronomicalConstants:
     oortCloudOuterAu: float = 100000.0
     lightYearToAu: float = 63241.077
     auToKm: float = 149597870.7
+    julianYearDays: float = 365.25
+    secondsPerDay: float = 86400.0
 
     @property
     def plutoPerihelionAu(self) -> float:
@@ -28,3 +30,7 @@ class AstronomicalConstants:
     @property
     def plutoAphelionAu(self) -> float:
         return self.plutoSemiMajorAxis * (1 + self.plutoEccentricity)
+
+    @property
+    def secondsPerJulianYear(self) -> float:
+        return self.julianYearDays * self.secondsPerDay
