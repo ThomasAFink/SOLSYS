@@ -38,13 +38,13 @@ def _veilAngleRad(frame: int, impactFrame: int) -> float:
 
 
 def _siteCloudRad(frame: int, impactFrame: int) -> float:
-    """Local fire disk. Grows behind the shock, then dies. Not a hemisphere."""
+    """Tonga-style umbrella on the globe. Grows after contact, then eases."""
     if frame < impactFrame:
         return 0.0
     age = float(frame - impactFrame)
-    grown = 0.155 * _smooth01(age / 32.0)
-    fade = _smooth01((age - 18.0) / 32.0)
-    return grown * (1.0 - fade)
+    grown = 0.16 * _smooth01(age / 42.0)
+    fade = _smooth01((age - 95.0) / 90.0)
+    return grown * (1.0 - 0.72 * fade)
 
 
 def _falloutAngleRad(frame: int, impactFrame: int) -> float:
@@ -134,6 +134,13 @@ def _keyScale(obj: Any, scale: float, frame: int, *, zScale: float = 1.0) -> Non
     obj.keyframe_insert(data_path='scale', frame=frame)
     obj.hide_render = scale < 1e-4
     obj.keyframe_insert(data_path='hide_render', frame=frame)
+
+
+def _keyHiddenScale(obj: Any, scale: float, frame: int, *, zScale: float = 1.0) -> None:
+    _keyScale(obj, scale, frame, zScale=zScale)
+    hidden = scale < 1e-4
+    obj.hide_viewport = hidden
+    obj.keyframe_insert(data_path='hide_viewport', frame=frame)
 
 
 def _alignPlusZ(obj: Any, direction: tuple[float, float, float]) -> None:
@@ -257,6 +264,14 @@ def _softenCloseupTextures(material: Any) -> None:
     for node in nodeTree.nodes:
         if getattr(node, 'type', '') == 'TEX_IMAGE' and hasattr(node, 'interpolation'):
             node.interpolation = 'Cubic'
+        if getattr(node, 'type', '') != 'HUE_SAT':
+            continue
+        sat = node.inputs.get('Saturation')
+        value = node.inputs.get('Value')
+        if sat is not None and float(sat.default_value) > 1.05:
+            sat.default_value = 0.88
+        if value is not None and float(value.default_value) > 0.90:
+            value.default_value = 0.86
 
 
 def _valueNode(nodes: Any, name: str, value: float) -> Any:
@@ -371,11 +386,17 @@ def _equirectFromDirection(nodes: Any, links: Any, direction: Any) -> Any:
     return combine.outputs['Vector']
 
 
-def _raggedLead(nodes: Any, links: Any, shock: Any) -> Any:
-    """Break the first-wave radius so the cloud bank is not a perfect circle."""
-    chop = _generatedNoise(nodes, links, 20.0, 3.5)
-    wobble = _mathMulConst(nodes, links, chop, 0.16)
-    scale = _mathAdd(nodes, links, wobble, 0.92)
+def _raggedLead(
+    nodes: Any,
+    links: Any,
+    shock: Any,
+    wobble: float = 0.16,
+    freq: float = 20.0,
+) -> Any:
+    """Break the first-wave radius so the front is not a perfect circle."""
+    chop = _generatedNoise(nodes, links, freq, 3.5)
+    shift = _mathMulConst(nodes, links, chop, wobble)
+    scale = _mathAdd(nodes, links, shift, 1.0 - 0.5 * wobble)
     return _mathMul(nodes, links, shock.outputs[0], scale)
 
 
@@ -419,10 +440,10 @@ def _scaleBy(nodes: Any, links: Any, value: Any, factor: Any) -> Any:
 
 
 def _cloudCoverageScale(nodes: Any, links: Any, front: Any, inside: Any, armed: Any) -> Any:
-    """Thin weather behind the front and pile it on the front. Do not punch to land."""
+    """Break organized storms behind the front. Keep a torn overcast, not bare land."""
     thin = nodes.new('ShaderNodeMath')
     thin.operation = 'MULTIPLY'
-    thin.inputs[1].default_value = 0.28
+    thin.inputs[1].default_value = 0.12
     links.new(inside, thin.inputs[0])
     kept = nodes.new('ShaderNodeMath')
     kept.operation = 'SUBTRACT'
@@ -673,6 +694,47 @@ def _insertCloudPushWarp(
     links.new(warped, cloudTex.inputs['Vector'])
 
 
+def _insertCloudScramble(nodes: Any, links: Any, mixFac: Any) -> None:
+    """Jitter cloud UVs behind the shock so a cyclone cannot survive as itself."""
+    cloudTex = _cloudTextureNode(nodes)
+    if cloudTex is None or 'Vector' not in cloudTex.inputs:
+        return
+    incoming = next(
+        (link for link in links if link.to_socket == cloudTex.inputs['Vector']),
+        None,
+    )
+    if incoming is None:
+        return
+    original = incoming.from_socket
+    links.remove(incoming)
+    shiftA = _generatedNoise(nodes, links, 16.0, 5.0)
+    shiftB = _generatedNoise(nodes, links, 27.0, 4.0)
+    offset = nodes.new('ShaderNodeCombineXYZ')
+    links.new(
+        _mathAdd(nodes, links, _mathMulConst(nodes, links, shiftA, 0.16), -0.08), offset.inputs['X']
+    )
+    links.new(
+        _mathAdd(nodes, links, _mathMulConst(nodes, links, shiftB, 0.10), -0.05), offset.inputs['Y']
+    )
+    scrambled = nodes.new('ShaderNodeVectorMath')
+    scrambled.operation = 'ADD'
+    links.new(original, scrambled.inputs[0])
+    links.new(offset.outputs['Vector'], scrambled.inputs[1])
+    mix = nodes.new('ShaderNodeMix')
+    if hasattr(mix, 'data_type'):
+        mix.data_type = 'VECTOR'
+        factor = mix.inputs['Factor'] if 'Factor' in mix.inputs else mix.inputs[0]
+        links.new(mixFac, factor)
+        links.new(original, mix.inputs['A'] if 'A' in mix.inputs else mix.inputs[1])
+        links.new(
+            scrambled.outputs['Vector'], mix.inputs['B'] if 'B' in mix.inputs else mix.inputs[2]
+        )
+        result = mix.outputs['Result'] if 'Result' in mix.outputs else mix.outputs[0]
+        links.new(result, cloudTex.inputs['Vector'])
+        return
+    links.new(scrambled.outputs['Vector'], cloudTex.inputs['Vector'])
+
+
 def _driveCloudBlast(
     nodes: Any,
     links: Any,
@@ -688,8 +750,8 @@ def _driveCloudBlast(
     links.new(lead, swept.inputs[1])
     behind = _scaleBy(nodes, links, swept.outputs['Value'], armed)
     front = _angleTent(nodes, links, angle, lead, 0.055)
-    pull = _cloudPullTowardImpact(nodes, links, angle, lead, behind, armed)
-    _insertCloudPushWarp(nodes, links, normal, pull, behind)
+    del normal
+    _insertCloudScramble(nodes, links, behind)
     fade = _cloudCoverageScale(nodes, links, front, behind, armed)
     _insertCoverageFade(nodes, links, fade)
     _boostKpgCloudReadout(nodes)
@@ -708,7 +770,7 @@ def _boostKpgCloudReadout(nodes: Any) -> None:
         if getattr(node, 'type', '') == 'RGB':
             tint = tuple(float(channel) for channel in node.outputs[0].default_value[:3])
             if abs(tint[0] - 0.86) < 0.02 and abs(tint[1] - 0.88) < 0.02:
-                node.outputs[0].default_value = (0.94, 0.95, 0.96, 1.0)
+                node.outputs[0].default_value = (0.62, 0.58, 0.52, 1.0)
 
 
 def _cloudMask(nodes: Any, links: Any, incoming: Any) -> Any:
@@ -726,7 +788,7 @@ def _cloudMask(nodes: Any, links: Any, incoming: Any) -> Any:
 def _mixWaveCloudPush(
     nodes: Any, links: Any, color: Any, angle: Any, tsunami: Any, front: Any
 ) -> Any:
-    """Clouds stay warped. Do not paint a shock banner on the lead."""
+    """Clouds are stripped behind the shock. Do not paint a banner on the lead."""
     del nodes, links, angle, tsunami, front
     return color
 
@@ -783,6 +845,72 @@ def _landFireMask(nodes: Any, links: Any, incoming: Any, angle: Any, fire: Any, 
     links.new(inside.outputs['Value'], mask.inputs[0])
     links.new(cover, mask.inputs[1])
     return mask.outputs['Value']
+
+
+def _winterCover(nodes: Any, links: Any, soot: Any) -> Any:
+    """Full sheet by mid-winter. Peak soot is 0.96; do not wait until 1.0 to seal land."""
+    cover = nodes.new('ShaderNodeMapRange')
+    cover.inputs['From Min'].default_value = 0.12
+    cover.inputs['From Max'].default_value = 0.58
+    cover.inputs['To Min'].default_value = 0.0
+    cover.inputs['To Max'].default_value = 1.0
+    if hasattr(cover, 'clamp'):
+        cover.clamp = True
+    links.new(soot.outputs[0], cover.inputs['Value'])
+    return cover.outputs['Result']
+
+
+def _mixAshBlanket(nodes: Any, links: Any, color: Any, soot: Any) -> Any:
+    """Replace globe albedo once winter settles. Grain stays in the dust, not as holes to land."""
+    grain = _generatedNoise(nodes, links, 7.5, 6.0)
+    dust = _colorMix(nodes)
+    _linkMix(links, dust, (0.028, 0.024, 0.020, 1.0), (0.014, 0.012, 0.010, 1.0), grain)
+    ash = _colorMix(nodes)
+    _linkMix(links, ash, color, _mixOut(dust), _winterCover(nodes, links, soot))
+    return _mixOut(ash)
+
+
+def _mixReturnOvercast(
+    nodes: Any, links: Any, color: Any, soot: Any, angle: Any, tsunami: Any
+) -> Any:
+    """Dirty new atmosphere after the shock. Not the pre-impact storms."""
+    armed = _shockActive(nodes, links, tsunami)
+    lead = _raggedLead(nodes, links, tsunami, wobble=0.14, freq=13.0)
+    swept = nodes.new('ShaderNodeMath')
+    swept.operation = 'LESS_THAN'
+    links.new(angle, swept.inputs[0])
+    links.new(lead, swept.inputs[1])
+    behind = _scaleBy(nodes, links, swept.outputs['Value'], armed)
+    billow = _generatedNoise(nodes, links, 6.2, 4.5)
+    shred = _generatedNoise(nodes, links, 19.0, 6.0)
+    band = nodes.new('ShaderNodeMapRange')
+    band.inputs['From Min'].default_value = 0.22
+    band.inputs['From Max'].default_value = 0.52
+    band.inputs['To Min'].default_value = 0.0
+    band.inputs['To Max'].default_value = 1.0
+    if hasattr(band, 'clamp'):
+        band.clamp = True
+    links.new(billow, band.inputs['Value'])
+    texture = _mathMul(
+        nodes,
+        links,
+        band.outputs['Result'],
+        _mathAdd(nodes, links, _mathMulConst(nodes, links, shred, 0.55), 0.40),
+    )
+    amount = _mathMul(nodes, links, behind, soot.outputs[0])
+    amount = _mathMul(
+        nodes,
+        links,
+        amount,
+        _mathAdd(nodes, links, _mathMulConst(nodes, links, texture, 0.46), 0.48),
+    )
+    amountClip = nodes.new('ShaderNodeClamp')
+    amountClip.inputs['Min'].default_value = 0.0
+    amountClip.inputs['Max'].default_value = 1.0
+    links.new(amount, amountClip.inputs['Value'])
+    sky = _colorMix(nodes)
+    _linkMix(links, sky, color, (0.13, 0.12, 0.10, 1.0), amountClip.outputs['Result'])
+    return _mixOut(sky)
 
 
 def _mixDieback(nodes: Any, links: Any, color: Any, incoming: Any, cloud: Any, dieback: Any) -> Any:
@@ -851,7 +979,7 @@ def _attachImpactWeather(
     burnAmt.inputs[1].default_value = 0.88
     links.new(landMask, burnAmt.inputs[0])
     _linkMix(links, burned, _mixOut(rim), (0.10, 0.045, 0.02, 1.0), burnAmt.outputs['Value'])
-    _linkMix(links, sooted, _mixOut(burned), (0.11, 0.09, 0.08, 1.0), soot.outputs[0])
+    _linkMix(links, sooted, _mixOut(burned), (0.07, 0.06, 0.055, 1.0), soot.outputs[0])
     wilted = _mixDieback(nodes, links, _mixOut(sooted), incoming, cloud, dieback)
     crater = _valueNode(nodes, 'KpgCrater', 0.0)
     smolder = _valueNode(nodes, 'KpgSmolder', 0.0)
@@ -860,10 +988,13 @@ def _attachImpactWeather(
     rain = _mixMoltenRain(nodes, links, umbrella, angle, fallout)
     foam = _mixTsunamiFoam(nodes, links, rain, angle, tsunami, incoming)
     cratered = _mixImpactCrater(nodes, links, foam, angle, crater)
-    links.new(cratered, principled.inputs['Base Color'])
+    ashed = _mixAshBlanket(nodes, links, cratered, soot)
+    sky = _mixReturnOvercast(nodes, links, ashed, soot, angle, tsunami)
+    links.new(sky, principled.inputs['Base Color'])
     flash = _valueNode(nodes, 'KpgFlash', 0.0)
     glow = _valueNode(nodes, 'KpgSiteGlow', 0.0)
-    _wireImpactEmission(nodes, links, principled, angle, landMask, flash, shock, glow)
+    _flattenWinterShading(nodes, links, principled, soot)
+    _wireImpactEmission(nodes, links, principled, angle, landMask, flash, shock, glow, soot)
     return {
         'shock': shock,
         'fire': fire,
@@ -939,11 +1070,14 @@ def _angleRing(nodes: Any, links: Any, angle: Any, radius: Any, width: float) ->
 def _mixTsunamiFoam(
     nodes: Any, links: Any, color: Any, angle: Any, tsunami: Any, incoming: Any
 ) -> Any:
-    """One thin ocean ring. Mixed last. Leaves the far side instead of parking."""
-    ocean = _oceanMask(nodes, links, incoming)
-    lead = tsunami.outputs[0]
-    rings = _angleRing(nodes, links, angle, lead, 0.012)
-    cover = _mathMul(nodes, links, rings, ocean)
+    """Dusty shock front. Soft broken edge, not a compass-cut hoop."""
+    del incoming
+    lead = _raggedLead(nodes, links, tsunami, wobble=0.20, freq=10.0)
+    rings = _angleTent(nodes, links, angle, lead, 0.038)
+    dust = _generatedNoise(nodes, links, 42.0, 6.0)
+    density = _mathAdd(nodes, links, _mathMulConst(nodes, links, dust, 0.50), 0.48)
+    cover = _mathMul(nodes, links, rings, density)
+    cover = _mathMul(nodes, links, cover, _shockActive(nodes, links, tsunami))
     fade = nodes.new('ShaderNodeMapRange')
     fade.inputs['From Min'].default_value = 2.20
     fade.inputs['From Max'].default_value = math.pi
@@ -964,14 +1098,14 @@ def _mixTsunamiFoam(
     cover = _mathMul(nodes, links, cover, keep.outputs['Value'])
     amount = nodes.new('ShaderNodeMath')
     amount.operation = 'MULTIPLY'
-    amount.inputs[1].default_value = 0.90
+    amount.inputs[1].default_value = 0.80
     links.new(cover, amount.inputs[0])
     amountClip = nodes.new('ShaderNodeClamp')
     amountClip.inputs['Min'].default_value = 0.0
     amountClip.inputs['Max'].default_value = 1.0
     links.new(amount.outputs['Value'], amountClip.inputs['Value'])
     foam = _colorMix(nodes)
-    _linkMix(links, foam, color, (0.82, 0.86, 0.90, 1.0), amountClip.outputs['Result'])
+    _linkMix(links, foam, color, (0.90, 0.86, 0.78, 1.0), amountClip.outputs['Result'])
     return _mixOut(foam)
 
 
@@ -1307,14 +1441,14 @@ def _mixTongaUmbrella(
     links.new(amount, amountClip.inputs['Value'])
     heat = nodes.new('ShaderNodeMath')
     heat.operation = 'MULTIPLY'
-    heat.inputs[1].default_value = 0.25
+    heat.inputs[1].default_value = 0.55
     links.new(body, heat.inputs[0])
     heat = _mathAdd(nodes, links, heat.outputs['Value'], 0.75)
     heat = _mathMul(nodes, links, coreClip.outputs['Result'], heat)
     ash = _colorMix(nodes)
-    _linkMix(links, ash, (0.14, 0.12, 0.10, 1.0), (0.38, 0.28, 0.18, 1.0), grain)
+    _linkMix(links, ash, (0.62, 0.42, 0.26, 1.0), (0.96, 0.88, 0.74, 1.0), grain)
     fire = _colorMix(nodes)
-    _linkMix(links, fire, _mixOut(ash), (1.0, 0.48, 0.10, 1.0), heat)
+    _linkMix(links, fire, _mixOut(ash), (1.0, 0.97, 0.90, 1.0), heat)
     sooty = _colorMix(nodes)
     _linkMix(links, sooty, _mixOut(fire), (0.07, 0.05, 0.04, 1.0), streak)
     umbrella = _colorMix(nodes)
@@ -1354,6 +1488,45 @@ def _mathAdd(nodes: Any, links: Any, value: Any, constant: float) -> Any:
     return added.outputs['Value']
 
 
+def _mathMix(nodes: Any, links: Any, left: Any, right: Any, factor: Any) -> Any:
+    """(1-factor)*left + factor*right. `right` may be a socket or a float."""
+    stay = nodes.new('ShaderNodeMath')
+    stay.operation = 'SUBTRACT'
+    stay.inputs[0].default_value = 1.0
+    links.new(factor, stay.inputs[1])
+    kept = _mathMul(nodes, links, left, stay.outputs['Value'])
+    if hasattr(right, 'id_data'):
+        added = _mathMul(nodes, links, right, factor)
+    else:
+        added = _mathMulConst(nodes, links, factor, float(right))
+    return _mathAddSocket(nodes, links, kept, added)
+
+
+def _linkedOrDefault(nodes: Any, links: Any, dest: Any) -> Any:
+    incoming = next((link for link in links if link.to_socket == dest), None)
+    if incoming is None:
+        return _valueNode(nodes, '', float(dest.default_value)).outputs[0]
+    source = incoming.from_socket
+    links.remove(incoming)
+    return source
+
+
+def _flattenWinterShading(nodes: Any, links: Any, principled: Any, soot: Any) -> None:
+    """EEVEE relights leftover ocean spec and land albedo. Material view does not."""
+    cover = _winterCover(nodes, links, soot)
+    if 'Roughness' in principled.inputs:
+        dest = principled.inputs['Roughness']
+        source = _linkedOrDefault(nodes, links, dest)
+        links.new(_mathMix(nodes, links, source, 1.0, cover), dest)
+    for inputName in ('Specular IOR Level', 'Specular'):
+        if inputName not in principled.inputs:
+            continue
+        dest = principled.inputs[inputName]
+        source = _linkedOrDefault(nodes, links, dest)
+        links.new(_mathMix(nodes, links, source, 0.0, cover), dest)
+        break
+
+
 def _wireImpactEmission(
     nodes: Any,
     links: Any,
@@ -1363,6 +1536,7 @@ def _wireImpactEmission(
     flash: Any,
     shock: Any | None = None,
     glow: Any | None = None,
+    soot: Any | None = None,
 ) -> None:
     if 'Emission Color' in principled.inputs:
         ember = nodes.new('ShaderNodeRGB')
@@ -1384,12 +1558,24 @@ def _wireImpactEmission(
     links.new(flash.outputs[0], flashHot.inputs[1])
     flashAmt = nodes.new('ShaderNodeMath')
     flashAmt.operation = 'MULTIPLY'
-    flashAmt.inputs[1].default_value = 0.0
+    flashAmt.inputs[1].default_value = 3.2
     links.new(flashHot.outputs['Value'], flashAmt.inputs[0])
     landGlow = nodes.new('ShaderNodeMath')
     landGlow.operation = 'MULTIPLY'
-    landGlow.inputs[1].default_value = 0.0
+    landGlow.inputs[1].default_value = 0.55
     links.new(landMask, landGlow.inputs[0])
+    if soot is not None:
+        winter = nodes.new('ShaderNodeMapRange')
+        winter.inputs['From Min'].default_value = 0.12
+        winter.inputs['From Max'].default_value = 0.50
+        winter.inputs['To Min'].default_value = 1.0
+        winter.inputs['To Max'].default_value = 0.0
+        if hasattr(winter, 'clamp'):
+            winter.clamp = True
+        links.new(soot.outputs[0], winter.inputs['Value'])
+        landGlow = _mathMul(nodes, links, landGlow.outputs['Value'], winter.outputs['Result'])
+    else:
+        landGlow = landGlow.outputs['Value']
     core = nodes.new('ShaderNodeMapRange')
     core.inputs['From Min'].default_value = 0.0
     core.inputs['From Max'].default_value = 0.036
@@ -1428,7 +1614,7 @@ def _wireImpactEmission(
     total = nodes.new('ShaderNodeMath')
     total.operation = 'ADD'
     links.new(flashAmt.outputs['Value'], total.inputs[0])
-    links.new(landGlow.outputs['Value'], total.inputs[1])
+    links.new(landGlow, total.inputs[1])
     total = _mathAddSocket(nodes, links, total.outputs['Value'], emberAmt)
     links.new(total, principled.inputs['Emission Strength'])
 
@@ -1654,22 +1840,286 @@ def _buildShockRing(bpy: Any, earthRadius: float) -> Any:
     return _buildPolyline(bpy, 'KpgShockRing', _circlePoints(1.0), earthRadius * 0.010, material)
 
 
-def _buildEjectaRays(bpy: Any, job: dict[str, Any], earthRadius: float) -> list[Any]:
-    material = _emissionMaterial(bpy, 'KpgEjecta', (1.0, 0.38, 0.08), 2.1, 1.0)
-    length = earthRadius * 0.42
-    rays: list[Any] = []
-    for index, direction in enumerate(job['contact']['ejectaDirections'][::2]):
-        vector = tuple(float(value) * length for value in direction)
-        rays.append(
-            _buildPolyline(
-                bpy,
-                f'KpgEjecta{index:02d}',
-                [(0.0, 0.0, 0.0), vector],
-                earthRadius * 0.0038,
-                material,
-            )
-        )
-    return rays
+def _createDisk(bpy: Any, name: str, radius: float) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_circle(builder, cap_ends=True, cap_tris=True, segments=80, radius=radius)
+    builder.to_mesh(mesh)
+    builder.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _createCone(bpy: Any, name: str, radiusBottom: float, radiusTop: float, depth: float) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_cone(
+        builder,
+        cap_ends=True,
+        cap_tris=True,
+        segments=40,
+        radius1=radiusBottom,
+        radius2=radiusTop,
+        depth=depth,
+    )
+    builder.to_mesh(mesh)
+    builder.free()
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _tongaStemMaterial(bpy: Any) -> Any:
+    """White-hot column, ashy sides. Reads as a stem from the side."""
+    material = bpy.data.materials.new(name='KpgTongaStem')
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    emission = nodes.new('ShaderNodeEmission')
+    transparent = nodes.new('ShaderNodeBsdfTransparent')
+    mix = nodes.new('ShaderNodeMixShader')
+    texcoord = nodes.new('ShaderNodeTexCoord')
+    split = nodes.new('ShaderNodeSeparateXYZ')
+    links.new(texcoord.outputs['Object'], split.inputs['Vector'])
+    radial = nodes.new('ShaderNodeCombineXYZ')
+    links.new(split.outputs['X'], radial.inputs['X'])
+    links.new(split.outputs['Y'], radial.inputs['Y'])
+    width = nodes.new('ShaderNodeVectorMath')
+    width.operation = 'LENGTH'
+    links.new(radial.outputs['Vector'], width.inputs[0])
+    ramp = nodes.new('ShaderNodeValToRGB')
+    ramp.color_ramp.interpolation = 'B_SPLINE'
+    stops = (
+        (0.00, (1.0, 0.98, 0.92, 1.0)),
+        (0.22, (1.0, 0.82, 0.52, 1.0)),
+        (0.48, (0.42, 0.26, 0.14, 1.0)),
+        (1.00, (0.12, 0.08, 0.05, 0.0)),
+    )
+    while len(ramp.color_ramp.elements) < len(stops):
+        ramp.color_ramp.elements.new(1.0)
+    for element, (position, color) in zip(ramp.color_ramp.elements, stops, strict=False):
+        element.position = position
+        element.color = color
+    reach = nodes.new('ShaderNodeMapRange')
+    reach.inputs['From Min'].default_value = 0.0
+    reach.inputs['From Max'].default_value = 0.24
+    reach.inputs['To Min'].default_value = 0.0
+    reach.inputs['To Max'].default_value = 1.0
+    if hasattr(reach, 'clamp'):
+        reach.clamp = True
+    links.new(width.outputs['Value'], reach.inputs['Value'])
+    links.new(reach.outputs['Result'], ramp.inputs['Fac'])
+    grain = nodes.new('ShaderNodeTexNoise')
+    grain.inputs['Scale'].default_value = 18.0
+    if 'Detail' in grain.inputs:
+        grain.inputs['Detail'].default_value = 6.0
+    links.new(texcoord.outputs['Object'], grain.inputs['Vector'])
+    cover = _mathMul(
+        nodes,
+        links,
+        _mathAdd(nodes, links, _mathMulConst(nodes, links, grain.outputs['Fac'], 0.22), 0.72),
+        _mathAdd(nodes, links, _mathMulConst(nodes, links, reach.outputs['Result'], -1.0), 1.0),
+    )
+    luma = nodes.new('ShaderNodeRGBToBW')
+    lumaIn = luma.inputs['Color'] if 'Color' in luma.inputs else luma.inputs[0]
+    lumaOut = luma.outputs['Val'] if 'Val' in luma.outputs else luma.outputs[0]
+    links.new(ramp.outputs['Color'], lumaIn)
+    punch = nodes.new('ShaderNodeMath')
+    punch.operation = 'MULTIPLY'
+    punch.inputs[1].default_value = 8.0
+    links.new(lumaOut, punch.inputs[0])
+    links.new(ramp.outputs['Color'], emission.inputs['Color'])
+    links.new(punch.outputs['Value'], emission.inputs['Strength'])
+    invert = nodes.new('ShaderNodeMath')
+    invert.operation = 'SUBTRACT'
+    invert.inputs[0].default_value = 1.0
+    links.new(cover, invert.inputs[1])
+    links.new(emission.outputs['Emission'], mix.inputs[1])
+    links.new(transparent.outputs['BSDF'], mix.inputs[2])
+    factor = mix.inputs['Fac'] if 'Fac' in mix.inputs else mix.inputs['Factor']
+    links.new(invert.outputs['Value'], factor)
+    links.new(mix.outputs['Shader'], output.inputs['Surface'])
+    _markAlphaBlend(material)
+    if hasattr(material, 'use_backface_culling'):
+        material.use_backface_culling = False
+    if hasattr(material, 'shadow_method'):
+        material.shadow_method = 'NONE'
+    return material
+
+
+def _tongaSheetMaterial(bpy: Any) -> Any:
+    material = bpy.data.materials.new(name='KpgTongaSheet')
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    emission = nodes.new('ShaderNodeEmission')
+    transparent = nodes.new('ShaderNodeBsdfTransparent')
+    mix = nodes.new('ShaderNodeMixShader')
+    texcoord = nodes.new('ShaderNodeTexCoord')
+    radius = nodes.new('ShaderNodeVectorMath')
+    radius.operation = 'LENGTH'
+    links.new(texcoord.outputs['Object'], radius.inputs[0])
+    ramp = nodes.new('ShaderNodeValToRGB')
+    stops = (
+        (0.00, (1.0, 0.99, 0.94, 1.0)),
+        (0.10, (1.0, 0.97, 0.88, 1.0)),
+        (0.18, (0.55, 0.36, 0.20, 1.0)),
+        (0.28, (1.0, 0.96, 0.86, 1.0)),
+        (0.36, (0.52, 0.34, 0.18, 1.0)),
+        (0.50, (0.95, 0.80, 0.58, 1.0)),
+        (0.78, (0.48, 0.30, 0.16, 1.0)),
+        (1.00, (0.16, 0.10, 0.06, 0.0)),
+    )
+    while len(ramp.color_ramp.elements) < len(stops):
+        ramp.color_ramp.elements.new(1.0)
+    for element, (position, color) in zip(ramp.color_ramp.elements, stops, strict=False):
+        element.position = position
+        element.color = color
+    warp = nodes.new('ShaderNodeTexNoise')
+    warp.inputs['Scale'].default_value = 9.5
+    if 'Detail' in warp.inputs:
+        warp.inputs['Detail'].default_value = 4.0
+    if 'Roughness' in warp.inputs:
+        warp.inputs['Roughness'].default_value = 0.55
+    links.new(texcoord.outputs['Object'], warp.inputs['Vector'])
+    wobble = nodes.new('ShaderNodeMath')
+    wobble.operation = 'SUBTRACT'
+    wobble.inputs[1].default_value = 0.5
+    links.new(warp.outputs['Fac'], wobble.inputs[0])
+    wobble = _mathMulConst(nodes, links, wobble.outputs['Value'], 0.11)
+    radial = _mathAddSocket(nodes, links, radius.outputs['Value'], wobble)
+    ramp.color_ramp.interpolation = 'B_SPLINE'
+    links.new(radial, ramp.inputs['Fac'])
+    glow = nodes.new('ShaderNodeValToRGB')
+    glow.color_ramp.elements[0].position = 0.0
+    glow.color_ramp.elements[0].color = (1.0, 1.0, 1.0, 1.0)
+    glow.color_ramp.elements[1].position = 1.0
+    glow.color_ramp.elements[1].color = (0.08, 0.08, 0.08, 1.0)
+    links.new(radius.outputs['Value'], glow.inputs['Fac'])
+    noise = nodes.new('ShaderNodeTexNoise')
+    noise.inputs['Scale'].default_value = 42.0
+    if 'Detail' in noise.inputs:
+        noise.inputs['Detail'].default_value = 10.0
+    if 'Roughness' in noise.inputs:
+        noise.inputs['Roughness'].default_value = 0.62
+    links.new(texcoord.outputs['Object'], noise.inputs['Vector'])
+    fringe = nodes.new('ShaderNodeMath')
+    fringe.operation = 'MULTIPLY'
+    fringe.inputs[1].default_value = 0.28
+    links.new(noise.outputs['Fac'], fringe.inputs[0])
+    reach = nodes.new('ShaderNodeMapRange')
+    reach.inputs['From Min'].default_value = 0.04
+    reach.inputs['From Max'].default_value = 0.98
+    reach.inputs['To Min'].default_value = 1.0
+    reach.inputs['To Max'].default_value = 0.0
+    if hasattr(reach, 'clamp'):
+        reach.clamp = True
+    links.new(radial, reach.inputs['Value'])
+    cover = nodes.new('ShaderNodeMath')
+    cover.operation = 'MULTIPLY'
+    links.new(reach.outputs['Result'], cover.inputs[0])
+    links.new(_mathAdd(nodes, links, fringe.outputs['Value'], 0.78), cover.inputs[1])
+    luma = nodes.new('ShaderNodeRGBToBW')
+    lumaIn = luma.inputs['Color'] if 'Color' in luma.inputs else luma.inputs[0]
+    lumaOut = luma.outputs['Val'] if 'Val' in luma.outputs else luma.outputs[0]
+    links.new(glow.outputs['Color'], lumaIn)
+    punch = nodes.new('ShaderNodeMath')
+    punch.operation = 'MULTIPLY'
+    punch.inputs[1].default_value = 10.0
+    links.new(lumaOut, punch.inputs[0])
+    links.new(ramp.outputs['Color'], emission.inputs['Color'])
+    links.new(punch.outputs['Value'], emission.inputs['Strength'])
+    invert = nodes.new('ShaderNodeMath')
+    invert.operation = 'SUBTRACT'
+    invert.inputs[0].default_value = 1.0
+    links.new(cover.outputs['Value'], invert.inputs[1])
+    links.new(emission.outputs['Emission'], mix.inputs[1])
+    links.new(transparent.outputs['BSDF'], mix.inputs[2])
+    factor = mix.inputs['Fac'] if 'Fac' in mix.inputs else mix.inputs['Factor']
+    links.new(invert.outputs['Value'], factor)
+    links.new(mix.outputs['Shader'], output.inputs['Surface'])
+    _markAlphaBlend(material)
+    if hasattr(material, 'use_backface_culling'):
+        material.use_backface_culling = False
+    if hasattr(material, 'shadow_method'):
+        material.shadow_method = 'NONE'
+    return material
+
+
+def _buildTongaPlume(
+    bpy: Any,
+    job: dict[str, Any],
+    earthRadius: float,
+    normal: tuple[float, float, float],
+) -> Any:
+    del job, earthRadius
+    empty = bpy.data.objects.new('KpgTonga', None)
+    empty.empty_display_size = 0.0
+    bpy.context.scene.collection.objects.link(empty)
+    _alignPlusZ(empty, normal)
+    core = _createSmoothOrb(bpy, 'KpgTongaCore', 0.18)
+    core.data.materials.append(_fireOrbMaterial(bpy, 'KpgTongaCore', (1.0, 0.97, 0.90), 18.0))
+    core.parent = empty
+    core.location = (0.0, 0.0, 0.38)
+    sheet = _createDisk(bpy, 'KpgTongaSheet', 1.0)
+    sheet.data.materials.append(_tongaSheetMaterial(bpy))
+    sheet.parent = empty
+    sheet.location = (0.0, 0.0, 0.42)
+    stem = _createCone(bpy, 'KpgTongaStem', 0.04, 0.28, 0.88)
+    stem.data.materials.append(_tongaStemMaterial(bpy))
+    stem.parent = empty
+    stem.location = (0.0, 0.0, -0.02)
+    if hasattr(sheet, 'visible_shadow'):
+        sheet.visible_shadow = False
+    if hasattr(core, 'visible_shadow'):
+        core.visible_shadow = False
+    if hasattr(stem, 'visible_shadow'):
+        stem.visible_shadow = False
+    return empty
+
+
+def _tongaPlumeGrow(frame: int, impactFrame: int) -> float:
+    """Small at contact, opens after the hit, then uses the existing peak fade."""
+    age = float(frame - impactFrame)
+    if age < 0.0:
+        return 0.0
+    rise = _smooth01(age / 42.0)
+    shrink = 1.0 - _smooth01((age - 70.0) / 70.0)
+    return rise * shrink
+
+
+def _keyTongaPlume(
+    plume: Any,
+    sample: dict[str, Any],
+    frame: int,
+    normal: tuple[float, float, float],
+    earthRadius: float,
+    impactFrame: int,
+) -> None:
+    del sample
+    site = tuple(axis * earthRadius * 1.012 for axis in normal)
+    grow = _tongaPlumeGrow(frame, impactFrame)
+    _keyLocation(plume, site, frame)
+    _keyScale(plume, grow * earthRadius * 0.22, frame)
+    _alignPlusZ(plume, normal)
+    plume.keyframe_insert(data_path='rotation_quaternion', frame=frame)
+    hidden = grow < 1e-4
+    for obj in (plume, *list(plume.children)):
+        obj.hide_render = hidden
+        obj.hide_viewport = hidden
+        obj.keyframe_insert(data_path='hide_render', frame=frame)
+        obj.keyframe_insert(data_path='hide_viewport', frame=frame)
 
 
 def _keyShockRing(
@@ -2201,6 +2651,286 @@ def _createLumpyRock(
 
 def _createDebrisChunk(bpy: Any, name: str, radius: float, seed: int) -> Any:
     return _createLumpyRock(bpy, name, radius, seed, subdivisions=2, squash=0.28)
+
+
+_EJECTA_SHOW = 560
+
+
+def _ejectaShowIndices(count: int) -> list[int]:
+    show = min(_EJECTA_SHOW, max(count, 0))
+    if show <= 0:
+        return []
+    if show >= count:
+        return list(range(count))
+    return [int(round(index * (count - 1) / (show - 1))) for index in range(show)]
+
+
+def _ejectaEmberMaterials(bpy: Any) -> tuple[Any, ...]:
+    return (
+        _fireOrbMaterial(bpy, 'KpgEjectaEmberHot', (1.0, 0.94, 0.62), 16.0),
+        _fireOrbMaterial(bpy, 'KpgEjectaEmber', (1.0, 0.52, 0.12), 12.0),
+        _fireOrbMaterial(bpy, 'KpgEjectaEmberDeep', (1.0, 0.26, 0.05), 8.5),
+    )
+
+
+def _ejectaTailMaterial(bpy: Any) -> Any:
+    material = bpy.data.materials.new(name='KpgEjectaTail')
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    emission = nodes.new('ShaderNodeEmission')
+    transparent = nodes.new('ShaderNodeBsdfTransparent')
+    mix = nodes.new('ShaderNodeMixShader')
+    texcoord = nodes.new('ShaderNodeTexCoord')
+    split = nodes.new('ShaderNodeSeparateXYZ')
+    along = nodes.new('ShaderNodeMapRange')
+    along.inputs['From Min'].default_value = 0.04
+    along.inputs['From Max'].default_value = 0.96
+    along.inputs['To Min'].default_value = 0.88
+    along.inputs['To Max'].default_value = 0.0
+    if hasattr(along, 'clamp'):
+        along.clamp = True
+    ramp = nodes.new('ShaderNodeValToRGB')
+    ramp.color_ramp.interpolation = 'B_SPLINE'
+    ramp.color_ramp.elements[0].position = 0.0
+    ramp.color_ramp.elements[0].color = (1.0, 0.42, 0.08, 1.0)
+    ramp.color_ramp.elements[1].position = 1.0
+    ramp.color_ramp.elements[1].color = (0.12, 0.10, 0.09, 1.0)
+    noise = nodes.new('ShaderNodeTexNoise')
+    noise.inputs['Scale'].default_value = 22.0
+    if 'Detail' in noise.inputs:
+        noise.inputs['Detail'].default_value = 6.0
+    if 'Roughness' in noise.inputs:
+        noise.inputs['Roughness'].default_value = 0.58
+    holes = nodes.new('ShaderNodeMapRange')
+    holes.inputs['From Min'].default_value = 0.22
+    holes.inputs['From Max'].default_value = 0.78
+    holes.inputs['To Min'].default_value = 0.35
+    holes.inputs['To Max'].default_value = 1.0
+    if hasattr(holes, 'clamp'):
+        holes.clamp = True
+    cover = nodes.new('ShaderNodeMath')
+    cover.operation = 'MULTIPLY'
+    links.new(texcoord.outputs['Generated'], split.inputs['Vector'])
+    links.new(split.outputs['Z'], along.inputs['Value'])
+    links.new(along.outputs['Result'], ramp.inputs['Fac'])
+    links.new(texcoord.outputs['Object'], noise.inputs['Vector'])
+    links.new(noise.outputs['Fac'], holes.inputs['Value'])
+    links.new(along.outputs['Result'], cover.inputs[0])
+    links.new(holes.outputs['Result'], cover.inputs[1])
+    emission.inputs['Strength'].default_value = 2.4
+    links.new(ramp.outputs['Color'], emission.inputs['Color'])
+    factor = mix.inputs['Fac'] if 'Fac' in mix.inputs else mix.inputs['Factor']
+    links.new(cover.outputs['Value'], factor)
+    links.new(transparent.outputs['BSDF'], mix.inputs[1])
+    links.new(emission.outputs['Emission'], mix.inputs[2])
+    links.new(mix.outputs['Shader'], output.inputs['Surface'])
+    _markAlphaBlend(material)
+    if hasattr(material, 'use_backface_culling'):
+        material.use_backface_culling = False
+    if hasattr(material, 'shadow_method'):
+        material.shadow_method = 'NONE'
+    return material
+
+
+def _ejectaSparkRadius(index: int, earthRadius: float) -> float:
+    """Most grit is tiny. A few keep the current readable hero size."""
+    sizeMix = (index * 0.53 + 0.11) % 1.0
+    if sizeMix > 0.84:
+        hero = (sizeMix - 0.84) / 0.16
+        return earthRadius * (0.0015 + 0.0017 * (hero**0.65))
+    return earthRadius * (0.00026 + 0.00075 * (sizeMix**1.75))
+
+
+def _ejectaTailShape(index: int, earthRadius: float) -> tuple[float, float, float]:
+    """Per-rock cone: short stubs through long streaks. Small rocks stay stubby."""
+    kind = (index * 0.683 + 0.11) % 1.0
+    lengthMix = (index * 0.6180339887 + 0.17) % 1.0
+    thickMix = (index * 0.371 + 0.08) % 1.0
+    stretched = lengthMix**1.25
+    if kind >= 0.96:
+        depth = earthRadius * (0.028 + 0.048 * lengthMix)
+        radiusTop = earthRadius * (0.0010 + 0.0016 * thickMix)
+    elif kind >= 0.90:
+        depth = earthRadius * (0.022 + 0.038 * lengthMix)
+        radiusTop = earthRadius * (0.0009 + 0.0014 * thickMix)
+    else:
+        depth = earthRadius * (0.006 + 0.036 * stretched)
+        radiusTop = earthRadius * (0.0006 + 0.0020 * thickMix)
+    radiusBottom = earthRadius * (0.00016 + 0.00026 * thickMix)
+    size = _ejectaSparkRadius(index, 1.0) / 0.0024
+    size = max(0.22, min(size, 1.12))
+    return radiusBottom * size, radiusTop * size, depth * (0.38 + 0.70 * size)
+
+
+def _createEjectaTail(
+    bpy: Any, name: str, radiusBottom: float, radiusTop: float, depth: float
+) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_cone(
+        builder,
+        cap_ends=True,
+        cap_tris=True,
+        segments=9,
+        radius1=radiusBottom,
+        radius2=radiusTop,
+        depth=depth,
+    )
+    builder.to_mesh(mesh)
+    builder.free()
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _buildEjectaSparks(
+    bpy: Any, job: dict[str, Any], earthRadius: float, indices: list[int]
+) -> list[Any]:
+    del job
+    skins = _ejectaEmberMaterials(bpy)
+    chunks: list[Any] = []
+    for show, index in enumerate(indices):
+        visual = _ejectaSparkRadius(index, earthRadius)
+        chunk = _createLumpyRock(
+            bpy,
+            f'KpgEjecta{show:03d}',
+            visual,
+            index * 5 + 3,
+            subdivisions=1,
+            squash=0.16 + 0.14 * ((index * 0.37) % 1.0),
+        )
+        chunk.data.materials.append(skins[index % len(skins)])
+        if hasattr(chunk, 'visible_shadow'):
+            chunk.visible_shadow = False
+        chunks.append(chunk)
+    return chunks
+
+
+def _buildEjectaTails(
+    bpy: Any, job: dict[str, Any], earthRadius: float, indices: list[int]
+) -> list[tuple[Any, float]]:
+    del job
+    smoke = _ejectaTailMaterial(bpy)
+    tails: list[tuple[Any, float]] = []
+    for show, index in enumerate(indices):
+        radiusBottom, radiusTop, depth = _ejectaTailShape(index, earthRadius)
+        tail = _createEjectaTail(bpy, f'KpgEjectaTail{show:03d}', radiusBottom, radiusTop, depth)
+        tail.data.materials.append(smoke)
+        if hasattr(tail, 'visible_shadow'):
+            tail.visible_shadow = False
+        tails.append((tail, depth))
+    return tails
+
+
+def _createEjectaStrikeSplash(bpy: Any, name: str, radius: float) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_circle(builder, cap_ends=True, cap_tris=True, segments=16, radius=radius)
+    builder.to_mesh(mesh)
+    builder.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _createEjectaStrikeCore(bpy: Any, name: str, radius: float) -> Any:
+    import bmesh  # type: ignore[import-not-found]
+
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    bmesh.ops.create_icosphere(builder, subdivisions=1, radius=radius)
+    builder.to_mesh(mesh)
+    builder.free()
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def _buildEjectaStrikes(
+    bpy: Any, job: dict[str, Any], earthRadius: float, indices: list[int]
+) -> list[tuple[Any, Any]]:
+    del job
+    coreSkin = _fireOrbMaterial(bpy, 'KpgEjectaStrikeCore', (1.0, 0.93, 0.55), 18.0)
+    splashSkin = _fireOrbMaterial(bpy, 'KpgEjectaStrikeSplash', (1.0, 0.42, 0.08), 7.5)
+    strikes: list[tuple[Any, Any]] = []
+    for show, index in enumerate(indices):
+        grit = _ejectaSparkRadius(index, 1.0) / 0.0024
+        grit = max(0.22, min(grit, 1.15))
+        core = _createEjectaStrikeCore(
+            bpy, f'KpgEjectaHit{show:03d}', earthRadius * (0.0038 + 0.0065 * grit)
+        )
+        splash = _createEjectaStrikeSplash(
+            bpy, f'KpgEjectaSplash{show:03d}', earthRadius * (0.010 + 0.018 * grit)
+        )
+        core.data.materials.append(coreSkin)
+        splash.data.materials.append(splashSkin)
+        for obj in (core, splash):
+            if hasattr(obj, 'visible_shadow'):
+                obj.visible_shadow = False
+        strikes.append((core, splash))
+    return strikes
+
+
+def _keyEjectaSparks(
+    sparks: list[Any],
+    tails: list[tuple[Any, float]],
+    strikes: list[tuple[Any, Any]],
+    indices: list[int],
+    sample: dict[str, Any],
+    frame: int,
+    earthRadius: float,
+) -> None:
+    if not sparks:
+        return
+    positions = sample['projectileAu']
+    scales = sample['projectileScale']
+    directions = sample['projectileDir']
+    trails = sample['projectileTrail']
+    hits = sample['projectileStrike']
+    for spark, (tail, tailLength), (core, splash), index in zip(
+        sparks, tails, strikes, indices, strict=True
+    ):
+        site = tuple(float(value) for value in positions[index])
+        heading = tuple(float(value) for value in directions[index])
+        visible = float(scales[index])
+        trail = float(trails[index])
+        strike = float(hits[index])
+        _keyLocation(spark, site, frame)
+        _keyHiddenScale(spark, visible, frame)
+        spark.rotation_euler = (
+            0.21 * index + 0.11 * frame,
+            0.17 * index + 0.07 * frame,
+            0.09 * frame,
+        )
+        spark.keyframe_insert(data_path='rotation_euler', frame=frame)
+        back = (-heading[0], -heading[1], -heading[2])
+        _alignPlusZ(tail, back)
+        tail.keyframe_insert(data_path='rotation_quaternion', frame=frame)
+        _keyLocation(tail, _offsetAlong(site, back, tailLength * 0.48 * max(trail, 0.0)), frame)
+        _keyHiddenScale(tail, trail, frame)
+        length = math.sqrt(sum(component * component for component in site)) or 1.0
+        up = (site[0] / length, site[1] / length, site[2] / length)
+        lift = earthRadius * 1.014
+        planted = (up[0] * lift, up[1] * lift, up[2] * lift)
+        _keyLocation(core, planted, frame)
+        _keyLocation(splash, planted, frame)
+        _alignPlusZ(core, up)
+        _alignPlusZ(splash, up)
+        core.keyframe_insert(data_path='rotation_quaternion', frame=frame)
+        splash.keyframe_insert(data_path='rotation_quaternion', frame=frame)
+        _keyHiddenScale(core, strike, frame)
+        _keyHiddenScale(splash, strike, frame)
 
 
 def _buildProjectiles(bpy: Any, job: dict[str, Any], earthRadius: float) -> list[Any]:
@@ -2810,36 +3540,43 @@ def _keySecondaryPlates(
         _keyBillboard(card, tuple(float(value) for value in sample['cameraAu']), frame)
 
 
-def _keyWeather(
-    weather: dict[str, Any], sample: dict[str, Any], frame: int, impactFrame: int
-) -> None:
-    derived = {
+def _weatherValues(sample: dict[str, Any], frame: int, impactFrame: int) -> dict[str, float]:
+    values = {
         'veil': _veilAngleRad(frame, impactFrame),
         'site': _siteCloudRad(frame, impactFrame),
         'fallout': _falloutAngleRad(frame, impactFrame),
         'crater': 1.0 if frame >= impactFrame else 0.0,
+        'shock': float(sample.get('shockAngle', 0.0)),
+        'fire': float(sample.get('wildfireAngle', 0.0)),
+        'soot': float(sample.get('soot', 0.0)),
+        'flash': float(sample.get('flashScale', 0.0)),
+        'tsunami': float(sample.get('tsunamiAngle', 0.0)),
+        'smolder': float(sample.get('smolder', 0.0)),
+        'glow': float(sample.get('siteGlow', 0.0)),
+        'dieback': float(sample.get('dieback', 0.0)),
     }
-    sampled = {
-        'shock': 'shockAngle',
-        'fire': 'wildfireAngle',
-        'soot': 'soot',
-        'flash': 'flashScale',
-        'tsunami': 'tsunamiAngle',
-        'smolder': 'smolder',
-        'glow': 'siteGlow',
-        'dieback': 'dieback',
-    }
-    for key, value in derived.items():
+    return values
+
+
+def _applyWeather(
+    weather: dict[str, Any], sample: dict[str, Any], frame: int, impactFrame: int
+) -> None:
+    """Push soot/dieback onto the shader. Node F-curves can miss EEVEE animation frames."""
+    for key, value in _weatherValues(sample, frame, impactFrame).items():
         node = weather.get(key)
         if node is None:
             continue
         node.outputs[0].default_value = value
-        node.outputs[0].keyframe_insert(data_path='default_value', frame=frame)
-    for key, sampleKey in sampled.items():
+
+
+def _keyWeather(
+    weather: dict[str, Any], sample: dict[str, Any], frame: int, impactFrame: int
+) -> None:
+    _applyWeather(weather, sample, frame, impactFrame)
+    for key in _weatherValues(sample, frame, impactFrame):
         node = weather.get(key)
         if node is None:
             continue
-        node.outputs[0].default_value = float(sample.get(sampleKey, 0.0))
         node.outputs[0].keyframe_insert(data_path='default_value', frame=frame)
 
 
@@ -3275,6 +4012,12 @@ def _buildHeatTrail(
     return trail
 
 
+def _aimGlobeLights(sun: Any, fill: Any, cameraLocation: tuple[float, float, float]) -> None:
+    """Keep the show face lit. Parenting these to Earth hides ash/recovery after the spin."""
+    sun.location = cameraLocation
+    fill.location = (-cameraLocation[0], -cameraLocation[1], -cameraLocation[2])
+
+
 def _addFillLight(
     bpy: Any, scene: Any, earth: Any, sunLocation: tuple[float, float, float], theme: str
 ) -> Any:
@@ -3451,8 +4194,8 @@ def _buildImpactBurst(
     del job, normal
     lumps: list[tuple[Any, tuple[float, float, float], float]] = []
     orbs = (
-        ((1.00, 0.55, 0.10), 1.55, 0.024, 0.000, 0.000, 0.016, 1.00),
-        ((1.00, 0.32, 0.05), 0.95, 0.050, 0.000, 0.000, 0.018, 1.00),
+        ((1.00, 0.62, 0.12), 2.6, 0.055, 0.000, 0.000, 0.028, 1.00),
+        ((1.00, 0.38, 0.06), 1.8, 0.110, 0.000, 0.000, 0.042, 1.15),
     )
     for index, (color, strength, size, east, north, up, scaleMul) in enumerate(orbs):
         chunk = _createSmoothOrb(bpy, f'KpgFireOrb{index}', earthRadius * size)
@@ -3584,7 +4327,139 @@ def _keyCrustPlates(
         _keyScale(plate, tear * (0.75 + 0.35 * ((index * 0.37) % 1.0)), frame, zScale=0.88)
 
 
-def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
+_KPG_FRAME_MARK = '_solsys_kpg_frame'
+
+
+def _replaceKpgFrameHandler(bpy: Any, handler: Any) -> None:
+    """Drop only prior K–Pg frame callbacks. Leave add-on and user handlers alone."""
+    setattr(handler, _KPG_FRAME_MARK, True)
+    bag = bpy.app.handlers.frame_change_pre
+    for existing in list(bag):
+        if getattr(existing, _KPG_FRAME_MARK, False):
+            bag.remove(existing)
+    bag.append(handler)
+
+
+def _parentCinemaToEarth(
+    earth: Any,
+    children: list[Any],
+    sparks: list[Any],
+    tails: list[tuple[Any, float]],
+    strikes: list[tuple[Any, Any]],
+) -> None:
+    for obj in children:
+        obj.parent = earth
+    for obj in sparks:
+        obj.parent = earth
+    for tail, _depth in tails:
+        tail.parent = earth
+    for core, splash in strikes:
+        core.parent = earth
+        splash.parent = earth
+
+
+def _keyCinemaTimeline(
+    *,
+    frames: list[dict[str, Any]],
+    earth: Any,
+    camera: Any,
+    cameraData: Any,
+    lookAt: Any,
+    sun: Any,
+    fill: Any,
+    impactor: Any,
+    weather: dict[str, Any],
+    trail: Any,
+    trailHeight: float,
+    inbound: tuple[float, float, float],
+    plume: Any,
+    plates: list[tuple[Any, tuple[float, float, float], float]],
+    explosionCards: list[tuple[Any, str, float]],
+    rocks: list[Any],
+    sparks: list[Any],
+    tails: list[tuple[Any, float]],
+    strikes: list[tuple[Any, Any]],
+    ejectaIndices: list[int],
+    blast: Any,
+    flashData: Any,
+    lightData: Any,
+    fillData: Any,
+    normal: tuple[float, float, float],
+    radius: float,
+    flashEnergy: float,
+    sunEnergy: float,
+    fillEnergy: float,
+) -> int:
+    impactFrame = _impactFrame(frames)
+    for sample in frames:
+        frame = int(sample['frame'])
+        earth.rotation_euler = (0.0, 0.0, float(sample.get('earthSpin', 0.0)))
+        earth.keyframe_insert(data_path='rotation_euler', frame=frame)
+        cameraAu = tuple(float(value) for value in sample['cameraAu'])
+        _keyLocation(camera, cameraAu, frame)
+        _keyLocation(lookAt, tuple(float(value) for value in sample['lookAtAu']), frame)
+        _aimGlobeLights(sun, fill, cameraAu)
+        _keyLocation(sun, tuple(float(value) for value in sun.location), frame)
+        _keyLocation(fill, tuple(float(value) for value in fill.location), frame)
+        cameraData.lens = float(sample.get('lens', 35.0))
+        cameraData.keyframe_insert(data_path='lens', frame=frame)
+        _keyLocation(impactor, tuple(float(value) for value in sample['impactorAu']), frame)
+        _keyScale(
+            impactor,
+            float(sample.get('slamScale', 1.0 if sample.get('impactorVisible') else 0.0)),
+            frame,
+        )
+        _keyRockLook(impactor, sample, frame)
+        _keyWeather(weather, sample, frame, impactFrame)
+        _keyInboundTrail(trail, trailHeight, inbound, sample, frame)
+        _keyTongaPlume(plume, sample, frame, normal, radius, impactFrame)
+        _keyCrustPlates(plates, sample, frame, normal, radius)
+        _keyExplosionPlates(explosionCards, sample, frame, normal, radius)
+        _keyRocks(rocks, sample, frame)
+        _keyEjectaSparks(sparks, tails, strikes, ejectaIndices, sample, frame, radius)
+        surface = (normal[0] * radius, normal[1] * radius, normal[2] * radius)
+        _keyLocation(blast, _offsetAlong(surface, normal, radius * 0.08), frame)
+        flashData.energy = flashEnergy * _blastLampScale(
+            frame, float(sample['flashScale']), impactFrame
+        )
+        flashData.keyframe_insert(data_path='energy', frame=frame)
+        lightData.energy = sunEnergy * float(sample['sunScale'])
+        lightData.keyframe_insert(data_path='energy', frame=frame)
+        fillData.energy = fillEnergy * float(sample['sunScale'])
+        fillData.keyframe_insert(data_path='energy', frame=frame)
+    _linearizeEarthSpin(earth)
+    return impactFrame
+
+
+def _renderCinemaOutput(
+    bpy: Any,
+    scene: Any,
+    job: dict[str, Any],
+    outputDirectory: Path,
+    onFrame: Any,
+    *,
+    render: bool,
+) -> Path:
+    if render:
+        stills = [int(frame) for frame in job.get('stillFrames') or []]
+        if stills:
+            print(f'Rendering {len(stills)} contact stills...')
+            for frame in stills:
+                scene.frame_set(frame)
+                onFrame(scene)
+                bpy.context.view_layer.update()
+                scene.render.filepath = str(outputDirectory / f'frame_{frame:04d}')
+                bpy.ops.render.render(write_still=True)
+        else:
+            print('Rendering K–Pg full event...')
+            bpy.ops.render.render(animation=True)
+    written = sorted(outputDirectory.glob('frame_*.png'))
+    if not written:
+        raise RuntimeError(f'Blender produced no PNG frames in {outputDirectory}')
+    return outputDirectory
+
+
+def applyKpgJobInBlender(job: dict[str, Any], *, render: bool = True) -> Path:
     import bpy  # type: ignore[import-not-found]
 
     flyby = _flybyModule()
@@ -3621,29 +4496,27 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
 
     inbound = tuple(float(value) for value in contact['inbound'])
     trail, trailHeight = _buildEntryTrail(bpy, radius, inbound)
-    bursts: list[tuple[Any, tuple[float, float, float], float]] = []
+    plume = _buildTongaPlume(bpy, job, radius, normal)
     plates: list[tuple[Any, tuple[float, float, float], float]] = []
     explosionCards: list[tuple[Any, str, float]] = []
     rocks: list[Any] = []
     swarm: list[tuple[Any, tuple[float, float, float, float, float], bool]] = []
+    ejectaIndices = _ejectaShowIndices(int(contact.get('projectileCount', 0)))
+    sparks = _buildEjectaSparks(bpy, job, radius, ejectaIndices)
+    tails = _buildEjectaTails(bpy, job, radius, ejectaIndices)
+    strikes = _buildEjectaStrikes(bpy, job, radius, ejectaIndices)
     impact = _impactFrame(frames)
     fps = float(job.get('fps', 20))
-
-    def _onFrame(scene: Any) -> None:
-        _syncSwarm(swarm, int(scene.frame_current), normal, inbound, radius, impact, fps)
-
-    bpy.app.handlers.frame_change_pre.append(_onFrame)
-    _onFrame(scene)
     flashData = bpy.data.lights.new('KpgBlast', type='POINT')
     flashData.energy = 0.0
-    flashData.color = (1.0, 0.52, 0.16)
+    flashData.color = (1.0, 0.88, 0.70)
     if hasattr(flashData, 'shadow_soft_size'):
         flashData.shadow_soft_size = radius * 0.12
     if hasattr(flashData, 'use_shadow'):
         flashData.use_shadow = False
     blast = bpy.data.objects.new('KpgBlast', flashData)
     scene.collection.objects.link(blast)
-    flashEnergy = 0.08 if theme == 'dark' else 0.055
+    flashEnergy = 0.42 if theme == 'dark' else 0.30
 
     sunEnergy = 2.15 if theme == 'dark' else 4.2
     lightData = bpy.data.lights.new('KpgSun', type='SUN')
@@ -3665,50 +4538,61 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     fillData = fill.data
     fillEnergy = float(fillData.energy)
     earth.rotation_mode = 'XYZ'
-    impactor.parent = earth
-    trail.parent = earth
-    blast.parent = earth
-    sun.parent = earth
-    fill.parent = earth
+    _parentCinemaToEarth(earth, [impactor, trail, blast, plume], sparks, tails, strikes)
     tools = getattr(scene, 'tool_settings', None)
     if tools is not None and hasattr(tools, 'keyframe_interpolation'):
         tools.keyframe_interpolation = 'LINEAR'
 
-    impactFrame = _impactFrame(frames)
-    for sample in frames:
-        frame = int(sample['frame'])
-        earth.rotation_euler = (0.0, 0.0, float(sample.get('earthSpin', 0.0)))
-        earth.keyframe_insert(data_path='rotation_euler', frame=frame)
-        _keyLocation(camera, tuple(float(value) for value in sample['cameraAu']), frame)
-        _keyLocation(lookAt, tuple(float(value) for value in sample['lookAtAu']), frame)
-        cameraData.lens = float(sample.get('lens', 35.0))
-        cameraData.keyframe_insert(data_path='lens', frame=frame)
-        _keyLocation(impactor, tuple(float(value) for value in sample['impactorAu']), frame)
-        _keyScale(
-            impactor,
-            float(sample.get('slamScale', 1.0 if sample.get('impactorVisible') else 0.0)),
-            frame,
-        )
-        _keyRockLook(impactor, sample, frame)
-        _keyWeather(weather, sample, frame, impactFrame)
-        _keyInboundTrail(trail, trailHeight, inbound, sample, frame)
-        _keyImpactBurst(bursts, sample, frame, normal, radius)
-        _keyCrustPlates(plates, sample, frame, normal, radius)
-        _keyExplosionPlates(explosionCards, sample, frame, normal, radius)
-        _keyRocks(rocks, sample, frame)
-        surface = (normal[0] * radius, normal[1] * radius, normal[2] * radius)
-        _keyLocation(blast, _offsetAlong(surface, normal, radius * 0.08), frame)
-        flashData.energy = flashEnergy * _blastLampScale(
-            frame, float(sample['flashScale']), impactFrame
-        )
-        flashData.keyframe_insert(data_path='energy', frame=frame)
+    impactFrame = _keyCinemaTimeline(
+        frames=frames,
+        earth=earth,
+        camera=camera,
+        cameraData=cameraData,
+        lookAt=lookAt,
+        sun=sun,
+        fill=fill,
+        impactor=impactor,
+        weather=weather,
+        trail=trail,
+        trailHeight=trailHeight,
+        inbound=inbound,
+        plume=plume,
+        plates=plates,
+        explosionCards=explosionCards,
+        rocks=rocks,
+        sparks=sparks,
+        tails=tails,
+        strikes=strikes,
+        ejectaIndices=ejectaIndices,
+        blast=blast,
+        flashData=flashData,
+        lightData=lightData,
+        fillData=fillData,
+        normal=normal,
+        radius=radius,
+        flashEnergy=flashEnergy,
+        sunEnergy=sunEnergy,
+        fillEnergy=fillEnergy,
+    )
+
+    byFrame = {int(sample['frame']): sample for sample in frames}
+
+    def _onFrame(scene: Any) -> None:
+        frame = int(scene.frame_current)
+        _syncSwarm(swarm, frame, normal, inbound, radius, impact, fps)
+        sample = byFrame.get(frame)
+        if sample is None:
+            return
+        _applyWeather(weather, sample, frame, impactFrame)
+        _aimGlobeLights(sun, fill, tuple(float(value) for value in sample['cameraAu']))
         lightData.energy = sunEnergy * float(sample['sunScale'])
-        lightData.keyframe_insert(data_path='energy', frame=frame)
         fillData.energy = fillEnergy * float(sample['sunScale'])
-        fillData.keyframe_insert(data_path='energy', frame=frame)
-    _linearizeEarthSpin(earth)
+
+    _replaceKpgFrameHandler(bpy, _onFrame)
+    _onFrame(scene)
 
     _spaceWorld(bpy)
+    _hideCinemaOverlays(bpy)
     flyby._configureFlybyRenderer(
         scene,
         ringsEnabled=False,
@@ -3721,20 +4605,33 @@ def applyKpgJobInBlender(job: dict[str, Any]) -> Path:
     )
     _applyCinemaLook(scene)
     _enableExplosionBloom(scene)
-    stills = [int(frame) for frame in job.get('stillFrames') or []]
-    if stills:
-        print(f'Rendering {len(stills)} contact stills...')
-        for frame in stills:
-            scene.frame_set(frame)
-            scene.render.filepath = str(outputDirectory / f'frame_{frame:04d}')
-            bpy.ops.render.render(write_still=True)
-    else:
-        print('Rendering K–Pg full event...')
-        bpy.ops.render.render(animation=True)
-    written = sorted(outputDirectory.glob('frame_*.png'))
-    if not written:
-        raise RuntimeError(f'Blender produced no PNG frames in {outputDirectory}')
-    return outputDirectory
+    return _renderCinemaOutput(bpy, scene, job, outputDirectory, _onFrame, render=render)
+
+
+def _hideCinemaOverlays(bpy: Any) -> None:
+    screens = []
+    manager = getattr(bpy.context, 'window_manager', None)
+    if manager is not None:
+        screens.extend(window.screen for window in manager.windows if window.screen is not None)
+    screen = getattr(bpy.context, 'screen', None)
+    if screen is not None:
+        screens.append(screen)
+    for screen in screens:
+        for area in screen.areas:
+            if area.type != 'VIEW_3D':
+                continue
+            for space in area.spaces:
+                if space.type != 'VIEW_3D':
+                    continue
+                overlay = getattr(space, 'overlay', None)
+                if overlay is None:
+                    continue
+                if hasattr(overlay, 'show_relationship_lines'):
+                    overlay.show_relationship_lines = False
+                if hasattr(overlay, 'show_extras'):
+                    overlay.show_extras = False
+                if hasattr(overlay, 'show_bones'):
+                    overlay.show_bones = False
 
 
 def _applyCinemaLook(scene: Any) -> None:
