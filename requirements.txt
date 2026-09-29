@@ -7,6 +7,6 @@ numpy==2.5.2
 packaging==26.3
 pandas==3.0.5
 pillow==12.3.0
-pyparsing==3.3.2
+pyparsing==3.3.3
 python-dateutil==2.9.0.post0
 six==1.17.0
