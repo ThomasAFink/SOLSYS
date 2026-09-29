@@ -2,8 +2,9 @@
 
 Late Cretaceous Earth, a cinema-scale rock enters, hits the Yucatán, and a
 drawn cascade (crust tear, ejecta, tsunami, wildfire, soot) plays out on that
-globe. Earth is already turning slowly; after contact the spin picks up, the site
-glow dies, and a cinema-compressed soot / twilight / recovery beat follows.
+globe. Earth is already turning slowly; after contact the spin picks up, then
+turns many times under the ash, the site glow dies, and a cinema-compressed
+soot / twilight / recovery beat follows.
 Land stays brown when the soot lifts and re-greens slowly. The map is an artist
 reconstruction, not a palaeomap. The rock is enlarged; true scale is 10/12742.
 This is a cinema drawing, not a hydro or climate model.
@@ -36,7 +37,7 @@ RENDER_SCRIPT = Path('animate/scenes/blender/render_kpg.py')
 KPG_EARTH_PACK = Path('data/textures/bodies/earth_kpg')
 
 ANIMATION_FPS = 20
-ANIMATION_FRAMES = 720
+ANIMATION_FRAMES = 900
 RENDER_RESOLUTION = 960
 GALLERY_SIZE = 568
 
@@ -54,13 +55,14 @@ TSUNAMI_END = 370
 SPIN_END = 430
 SOOT_END = 535
 TWILIGHT_END = 585
+SOOT_CLEAR_START = 645
 HOLD_END = IMPACT_FRAME
 CAMERA_FOLLOW_END = 360
 SLAM_FRAMES = 16
 SPIN_SLOW_RAD_PER_FRAME = math.tau / 1600.0
-SPIN_FAST_RAD_PER_FRAME = math.tau / 180.0
+SPIN_FAST_RAD_PER_FRAME = math.tau / 90.0
 SPIN_RAMP_FRAMES = 100
-SOOT_SPIN_RAD_PER_FRAME = math.tau / 70.0
+SOOT_SPIN_RAD_PER_FRAME = math.tau / 26.0
 RECOVERY_SPIN_RAD_PER_FRAME = math.tau / 520.0
 SOOT_SPIN_RAMP = 36
 RECOVERY_SPIN_RAMP = 55
@@ -73,7 +75,7 @@ EJECTA_MAX_RADII = 0.36
 PLUME_MAX_RADII = 0.48
 EJECTA_ANGLE_DEG = 45.0
 EJECTA_COUNT = 48
-PROJECTILE_COUNT = 320
+PROJECTILE_COUNT = 560
 ROCK_BURST_COUNT = 26000
 EMBER_BURST_COUNT = 11200
 FALLOUT_SHELL = 0.72
@@ -227,6 +229,8 @@ class ProjectileLaunch:
     loftRadii: float
     flightSeconds: float
     delaySeconds: float
+    escape: bool = False
+    orbit: bool = False
 
 
 def rotateAroundAxis(vector: np.ndarray, axis: np.ndarray, angleRad: float) -> np.ndarray:
@@ -246,23 +250,63 @@ def debrisRadiusScales(asteroidScale: float, count: int = PROJECTILE_COUNT) -> t
     )
 
 
+def _suborbitalHeight(progress: float, loftRadii: float) -> float:
+    """Low hop: rise and fall without hanging like a shell."""
+    if progress <= 0.0 or progress >= 1.0:
+        return 1.0
+    if progress < 0.28:
+        return 1.0 + loftRadii * smoothStep(progress / 0.28)
+    return 1.0 + loftRadii * (1.0 - smoothStep((progress - 0.28) / 0.72))
+
+
 def projectileLaunches(count: int = PROJECTILE_COUNT) -> tuple[ProjectileLaunch, ...]:
-    """Most fall back nearby; a few go high or worldwide. Not a frozen spray."""
+    """Wide downrange curtain plus a weaker uprange splash. Not a radial firework."""
     launches: list[ProjectileLaunch] = []
     for index in range(count):
         spin = (index * 0.6180339887) % 1.0
         rangeMix = (index * 0.271 + 0.07) % 1.0
-        rangeDeg = 6.0 + 155.0 * (rangeMix**1.55)
         loftMix = (index * 0.529 + 0.18) % 1.0
-        loftRadii = 0.012 + 0.08 * loftMix if loftMix < 0.88 else 0.07 + 0.05 * loftMix
+        holdMix = (index * 0.413 + 0.09) % 1.0
+        kind = (index * 0.683 + 0.11) % 1.0
+        clump = (index * 0.271 + 0.03) % 1.0
+        spread = (index * 0.619 + 0.07) % 1.0
+        downrange = 0.35
+        if clump < 0.58:
+            azimuth = downrange + (spread**1.15 - 0.5) * 1.85
+        elif clump < 0.80:
+            azimuth = downrange + math.pi + (spread**1.4 - 0.5) * 1.35
+        else:
+            azimuth = 2.0 * math.pi * spin
+        escape = False
+        orbit = False
+        if kind < 0.62:
+            rangeDeg = 5.0 + 28.0 * (rangeMix**0.90)
+            loftRadii = 0.008 + 0.028 * (loftMix**1.6)
+            flightSeconds = 2.8 + 3.6 * holdMix
+        elif kind < 0.90:
+            rangeDeg = 24.0 + 70.0 * rangeMix
+            loftRadii = 0.018 + 0.048 * (loftMix**1.35)
+            flightSeconds = 4.4 + 4.6 * holdMix
+        elif kind < 0.96:
+            orbit = True
+            rangeDeg = 80.0 + 110.0 * rangeMix
+            loftRadii = 0.055 + 0.090 * loftMix
+            flightSeconds = 7.2 + 5.4 * holdMix
+        else:
+            escape = True
+            rangeDeg = 28.0 + 55.0 * rangeMix
+            loftRadii = 0.05 + 0.05 * loftMix
+            flightSeconds = 4.6 + 3.2 * holdMix
         launches.append(
             ProjectileLaunch(
-                azimuth=2.0 * math.pi * spin + 0.85 * math.sin(index * 4.1),
-                tiltDeg=22.0 + 48.0 * ((index * 0.415) % 1.0),
+                azimuth=azimuth + 0.18 * math.sin(index * 4.1),
+                tiltDeg=14.0 + 38.0 * ((index * 0.415) % 1.0),
                 rangeDeg=rangeDeg,
                 loftRadii=loftRadii,
-                flightSeconds=1.5 + 3.2 * (rangeDeg / 160.0),
-                delaySeconds=1.3 * ((index * 0.6180339887 * 11.0) % 1.0),
+                flightSeconds=flightSeconds,
+                delaySeconds=2.35 * (((index * 0.6180339887 * 11.0) % 1.0) ** 2.8),
+                escape=escape,
+                orbit=orbit,
             )
         )
     return tuple(launches)
@@ -274,12 +318,23 @@ def projectilePositionRadii(normal: np.ndarray, launch: ProjectileLaunch, frame:
     age = (frame - IMPACT_FRAME) / ANIMATION_FPS - launch.delaySeconds
     if age <= 0.0:
         return normal
-    progress = smoothStep(age / launch.flightSeconds)
     east, north = tangentBasis(normal)
     heading = east * math.cos(launch.azimuth) + north * math.sin(launch.azimuth)
     axis = np.cross(normal, heading)
+    if launch.escape:
+        raw = age / launch.flightSeconds
+        along = rotateAroundAxis(
+            normal, axis, math.radians(launch.rangeDeg) * (1.0 - math.exp(-raw * 0.85))
+        )
+        height = 1.0 + launch.loftRadii * (0.25 + 2.8 * (1.0 - math.exp(-raw * 1.15)))
+        return along * height
+    raw = min(age / launch.flightSeconds, 1.0)
+    if launch.orbit:
+        along = rotateAroundAxis(normal, axis, math.radians(launch.rangeDeg) * raw)
+        return along * _suborbitalHeight(raw, launch.loftRadii)
+    progress = smoothStep(raw)
     along = rotateAroundAxis(normal, axis, math.radians(launch.rangeDeg) * progress)
-    height = 1.0 + launch.loftRadii * math.sin(math.pi * progress)
+    height = 1.0 + launch.loftRadii * (math.sin(math.pi * progress) ** 1.55)
     return along * height
 
 
@@ -293,10 +348,17 @@ def projectileFlightProgress(launch: ProjectileLaunch, frame: int) -> float:
 
 
 def projectileVisibility(launch: ProjectileLaunch, frame: int) -> float:
-    if frame < IMPACT_FRAME:
+    progress = projectileFlightProgress(launch, frame)
+    if progress <= 0.0:
         return 0.0
-    age = (frame - IMPACT_FRAME) / ANIMATION_FPS - launch.delaySeconds
-    return 1.0 if age > 0.0 else 0.0
+    age = progress * launch.flightSeconds
+    if launch.escape:
+        if age < 5.2:
+            return 1.0
+        return max(0.0, 1.0 - (age - 5.2) / 3.4)
+    if age < launch.flightSeconds - 0.08:
+        return 1.0
+    return max(0.0, 1.0 - (age - (launch.flightSeconds - 0.08)) / 0.22)
 
 
 def projectileDirectionRadii(
@@ -316,16 +378,25 @@ def projectileDirectionRadii(
 def projectileTrailScale(launch: ProjectileLaunch, frame: int) -> float:
     progress = projectileFlightProgress(launch, frame)
     visible = projectileVisibility(launch, frame)
-    if visible < 1e-4 or progress >= 1.0:
+    if visible < 1e-4:
         return 0.0
-    return visible * (0.45 + 0.55 * math.sin(math.pi * min(progress, 0.999)))
+    if launch.escape:
+        return visible * (0.55 + 0.45 * min(progress, 1.0))
+    if progress >= 1.0:
+        return 0.0
+    return visible * (0.40 + 0.60 * math.sin(math.pi * min(progress, 0.999)))
 
 
 def projectileStrikeScale(launch: ProjectileLaunch, frame: int) -> float:
-    progress = projectileFlightProgress(launch, frame)
-    if progress < 0.82:
+    if launch.escape:
         return 0.0
-    return math.exp(-0.42 * abs(progress - 1.0))
+    progress = projectileFlightProgress(launch, frame)
+    if progress <= 0.0:
+        return 0.0
+    dt = progress * launch.flightSeconds - launch.flightSeconds
+    if dt < -0.20 or dt > 0.55:
+        return 0.0
+    return math.exp(-0.5 * (dt / 0.12) ** 2)
 
 
 def remainingRadiiAt(frame: int) -> float:
@@ -426,11 +497,11 @@ def diebackEnvelope(frame: int) -> float:
     if frame < IMPACT_FRAME + 24:
         return 0.0
     killed = 0.97 * smoothStep((frame - IMPACT_FRAME - 24) / 70.0)
-    barrenHold = TWILIGHT_END + 48
+    barrenHold = SOOT_CLEAR_START + 50
     if frame < barrenHold:
         return killed
     recover = smoothStep((frame - barrenHold) / float(ANIMATION_FRAMES - 1 - barrenHold))
-    return killed * (1.0 - 0.78 * recover)
+    return killed * (1.0 - 0.97 * recover)
 
 
 def crustTearEnvelope(frame: int) -> float:
@@ -458,17 +529,19 @@ def falloutEnvelope(frame: int) -> float:
 
 
 def lightingEnvelope(frame: int, frameCount: int) -> tuple[float, float]:
+    # Floor stays high enough that EEVEE still reads the ash sheet. 0.02
+    # turns the winter globe into a black silhouette with only the limb left.
     soot = sootEnvelope(frame)
+    floor = 0.18
     if frame < SPIN_END:
-        return 1.0 - 0.55 * soot, soot
-    if frame < TWILIGHT_END:
-        start = 1.0 - 0.55 * sootEnvelope(SPIN_END)
-        floor = 0.02
-        mix = smoothStep((frame - SPIN_END) / float(TWILIGHT_END - SPIN_END))
-        return start + (floor - start) * mix, soot
-    floor = 0.02
-    recovered = 0.88
-    mix = smoothStep((frame - TWILIGHT_END) / max(frameCount - 1 - TWILIGHT_END, 1.0))
+        return 1.0 - 0.70 * soot, soot
+    if frame < SOOT_CLEAR_START:
+        start = 1.0 - 0.70 * sootEnvelope(SPIN_END)
+        mix = smoothStep((frame - SPIN_END) / float(max(TWILIGHT_END - SPIN_END, 1)))
+        dimmed = start + (floor - start) * min(mix, 1.0)
+        return dimmed, soot
+    recovered = 0.98
+    mix = smoothStep((frame - SOOT_CLEAR_START) / max(frameCount - 1 - SOOT_CLEAR_START, 1.0))
     return floor + (recovered - floor) * mix, soot
 
 
@@ -500,10 +573,10 @@ def sootEnvelope(frame: int) -> float:
         return settled + (0.96 - settled) * smoothStep(
             (frame - SPIN_END) / float(SOOT_END - SPIN_END)
         )
-    if frame < TWILIGHT_END:
+    if frame < SOOT_CLEAR_START:
         return 0.96
-    return 0.96 - 0.72 * smoothStep(
-        (frame - TWILIGHT_END) / float(ANIMATION_FRAMES - 1 - TWILIGHT_END)
+    return 0.96 - 0.94 * smoothStep(
+        (frame - SOOT_CLEAR_START) / float(ANIMATION_FRAMES - 1 - SOOT_CLEAR_START)
     )
 
 
@@ -1427,7 +1500,7 @@ def renderKpgCinematicAnimations(
     *,
     eventCsvPath: str | Path = DEFAULT_EVENT_CSV,
     outputDirectory: Path | str = DEFAULT_OUTPUT_DIRECTORY,
-    themes: tuple[str, ...] = ('light', 'dark'),
+    themes: tuple[str, ...] = ('dark', 'light'),
 ) -> tuple[Path, ...]:
     event = loadImpactEvent(eventCsvPath)
     samples = buildImpactSamples(event)
@@ -1483,6 +1556,7 @@ def renderKpgCinematicAnimations(
 __all__ = [
     'ANIMATION_FRAMES',
     'ACT_BOUNDARIES',
+    'SOOT_CLEAR_START',
     'CAMERA_FOLLOW_END',
     'IMPACT_FRAME',
     'ImpactEvent',
