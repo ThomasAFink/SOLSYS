@@ -245,6 +245,7 @@ def _enableEeveeVolumes(scene: Any, earthRadius: float) -> None:
         try:
             eevee.volumetric_tile_size = '8'
         except TypeError:
+            # Older EEVEE builds keep tile size as an int, not an enum token.
             pass
     if hasattr(eevee, 'volumetric_samples'):
         eevee.volumetric_samples = 16
@@ -2389,6 +2390,7 @@ def _explosionNoise(nodes: Any, links: Any, mapping: Any) -> Any:
         try:
             noise.noise_dimensions = '4D'
         except TypeError:
+            # Shader node enum names differ across Blender 4/5.
             pass
     noise.inputs['Scale'].default_value = 6.5
     if 'Detail' in noise.inputs:
@@ -3802,6 +3804,7 @@ def _noiseVolumeMaterial(
         try:
             noise.noise_dimensions = '4D'
         except TypeError:
+            # Shader node enum names differ across Blender 4/5.
             pass
     if 'W' in noise.inputs:
         _driveDefault(noise.inputs['W'], f'frame * {crawl:.4f}')
@@ -4047,8 +4050,6 @@ def _keyCinematicVolumes(
     earthRadius: float,
 ) -> None:
     site = tuple(float(value) for value in sample['impactorAu'])
-    _fireScale = float(sample['fireballScale'])
-    _smokeScale = float(sample['plumeScale'])
     firePos = _offsetAlong(site, normal, earthRadius * 0.07)
     smokePos = _offsetAlong(site, normal, earthRadius * 0.08)
     _keyLocation(fire, firePos, frame)
@@ -4655,6 +4656,7 @@ def _applyCinemaLook(scene: Any) -> None:
         try:
             viewSettings.look = 'None'
         except TypeError:
+            # Color-management looks are named differently per Blender build.
             pass
 
 
@@ -4815,12 +4817,14 @@ def _configureHeroCycles(
         try:
             cycles.device = 'GPU'
         except TypeError:
+            # Headless machines may only expose the CPU Cycles device.
             pass
     viewSettings = getattr(scene, 'view_settings', None)
     if viewSettings is not None:
         try:
             viewSettings.view_transform = 'Standard'
         except TypeError:
+            # View-transform tokens differ across color-management configs.
             pass
         viewSettings.exposure = 0.25
     world = scene.world

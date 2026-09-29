@@ -51,6 +51,8 @@ SPEED_OF_LIGHT_KM_S = 299792.458
 # The SH0ES H0 the intercept would be compared with, if we quoted one. We do
 # not: a q0-less cz/H0 is the wrong estimator. The number stays as a check.
 PUBLISHED_SH0ES_H0 = 73.04
+if not 70.0 < PUBLISHED_SH0ES_H0 < 76.0:
+    raise ValueError('SH0ES H0 check is off the published 73.04 km/s/Mpc')
 
 PULSE_RECT_TALL = (0.09, 0.115, 0.865, 0.815)
 PULSE_RECT_SHORT = (0.09, 0.615, 0.865, 0.315)
