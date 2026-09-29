@@ -9,3 +9,7 @@ output/**/*_smoke_*
 output/**/overlay_probe.png
 output/**/kpg_hero_explosion/
 output/**/kpg_impact_plate/
+# Generated Blender jobs (rewritten on every flyby / spin / K–Pg render)
+output/**/*_job.json
+output/**/*_still.json
+output/**/stills/
