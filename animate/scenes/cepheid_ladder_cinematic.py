@@ -59,6 +59,10 @@ LMC_DISTANCE_MODULUS_ERROR = 0.026
 PUBLISHED_SMC_DISTANCE_MODULUS = 18.977  # Graczyk et al. 2020, ApJ 904, 13
 # The slope OGLE itself reports for this sample, for the fit to be checked against.
 PUBLISHED_LMC_WESENHEIT_SLOPE = -3.313
+if LMC_DISTANCE_MODULUS_ERROR <= 0.0:
+    raise ValueError('Pietrzynski 2019 LMC modulus error must be positive')
+if PUBLISHED_LMC_WESENHEIT_SLOPE >= 0.0:
+    raise ValueError('OGLE LMC Wesenheit slope must be negative')
 
 HERO_STARS = ('OGLE-LMC-CEP-3592', 'OGLE-LMC-CEP-1252', 'OGLE-LMC-CEP-0328')
 # Order of the Fourier series fitted to each folded light curve. Three harmonics
