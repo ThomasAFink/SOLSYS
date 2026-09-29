@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Circle, Wedge
+from solsys.physics.astronomical_constants import AstronomicalConstants
 
 DEFAULT_FIGURE_SIZE_INCHES = (12.0, 12.0)
 DEFAULT_DPI = 84
@@ -40,7 +41,7 @@ HERO_DISPLAY_NAMES = ('Crab', 'Vela', 'B0329+54')
 # slow hero completes about two turns while the opening acts play.
 SLOWDOWN = 7.0
 REAL_SECONDS_PER_FILM_SECOND = 1.0 / SLOWDOWN
-SECONDS_PER_JULIAN_YEAR = 365.25 * 86400.0
+SECONDS_PER_JULIAN_YEAR = AstronomicalConstants().secondsPerJulianYear
 # The year the film is dated, matching the CSV download stamp. Not datetime.now.
 FILM_YEAR = 2026
 SN1054_YEAR = 1054
